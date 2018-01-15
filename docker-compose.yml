@@ -1,0 +1,34 @@
+version: '3.3'
+services:
+
+  tws:
+    environment:
+      TWSUSERID: fdemo
+      TWSPASSWORD: demouser
+      VNC_PASSWORD: some_pass123
+    image: twashing/edgarly-tws:latest
+    ports:
+      - 4002:4002  # API
+      - 7497:7497
+      - 5900:5900  # VNC
+    tty: true
+    restart: alwaysxs
+    entrypoint: /usr/local/bin/install-base.sh
+
+  admin:
+    image: twashing/edgarly-admin:latest
+    depends_on:
+      - kafka
+      - zookeeper
+
+  app:
+    image: twashing/edgarly-app:latest
+    depends_on:
+      - tws
+    working_dir: ${PWD}
+    shm_size: 1G
+    ports:
+      - 5554:5554
+    volumes:
+      - .:${PWD}
+      entrypoint: lein run -m com.interrupt.ibgateway.core/-main
