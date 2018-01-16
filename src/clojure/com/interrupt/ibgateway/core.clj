@@ -1,9 +1,9 @@
 (ns com.interrupt.ibgateway.core
   (:require  [com.stuartsierra.component :as component]
              [system.repl :refer [set-init! init start stop reset refresh system]]
-             #_[com.interrupt.component.repl-server :refer [new-repl-server]]
-             [com.interrupt.component.ewrapper :refer [new-ewrapper]]
-             [com.interrupt.component.ewrapper-impl :as ei]
+             [com.interrupt.ibgateway.component.repl-server :refer [new-repl-server]]
+             [com.interrupt.ibgateway.component.ewrapper :refer [new-ewrapper]]
+             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
              [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]])
   #_(:import [java.util.concurrent TimeUnit]
            [java.util Calendar]

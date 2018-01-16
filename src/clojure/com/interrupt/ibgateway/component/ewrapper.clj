@@ -1,6 +1,6 @@
 (ns com.interrupt.ibgateway.component.ewrapper
   (:require [com.stuartsierra.component :as component]
-            [com.interrupt.component.ewrapper-impl :as ewi]))
+            [com.interrupt.ibgateway.component.ewrapper-impl :as ewi]))
 
 
 (defrecord EWrapper []

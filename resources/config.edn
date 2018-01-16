@@ -1,0 +1,30 @@
+{:env-config
+ {:onyx/tenancy-id "dev"
+  :onyx.bookkeeper/server? true
+  :onyx.bookkeeper/local-quorum? true
+  :onyx.bookkeeper/delete-server-data? true
+  :onyx.bookkeeper/local-quorum-ports [3196 3197 3198]
+  :onyx.bookkeeper/port 3196
+  :zookeeper/address "zookeeper:2181"
+  :zookeeper/server? true
+  :zookeeper.server/port 2181}
+
+ :peer-config
+ {:onyx/tenancy-id "dev"
+  :zookeeper/address "zookeeper:2181"
+  :onyx.peer/job-scheduler :onyx.job-scheduler/balanced
+  :onyx.peer/zookeeper-timeout 5000
+
+  :onyx.peer/storage.zk.insanely-allow-windowing? true
+
+  :onyx.messaging/impl :aeron
+  :onyx.messaging/bind-addr "0.0.0.0"
+  :onyx.messaging/external-addr "0.0.0.0"
+  :onyx.messaging/peer-port 40200
+  :onyx.messaging.aeron/embedded-driver? true}
+
+ :zookeeper-url #profile
+ {:default "zookeeper:2181"
+  :test "zookeeper:2182"}
+
+ :kafka-url "kafka:9092"}

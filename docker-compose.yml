@@ -1,28 +1,43 @@
 version: '3.3'
 services:
 
+  zookeeper:
+    image: confluentinc/cp-zookeeper:3.3.1
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+    ports:
+      - 2181:2181
+  
+  kafka:
+    image: confluentinc/cp-kafka:3.3.1
+    ports:
+      - 9092:9092
+      - 8082:8082
+    environment:
+      - KAFKA_BROKER_ID=0
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+    depends_on:
+      - zookeeper
+
   tws:
     environment:
       TWSUSERID: fdemo
       TWSPASSWORD: demouser
       VNC_PASSWORD: some_pass123
-    image: twashing/edgarly-tws:latest
+    image: twashing/ibgateway-tws:latest
     ports:
       - 4002:4002  # API
       - 7497:7497
       - 5900:5900  # VNC
     tty: true
-    restart: alwaysxs
+    restart: always
     entrypoint: /usr/local/bin/install-base.sh
 
-  admin:
-    image: twashing/edgarly-admin:latest
-    depends_on:
-      - kafka
-      - zookeeper
-
   app:
-    image: twashing/edgarly-app:latest
+    image: twashing/ibgateway-app:latest
     depends_on:
       - tws
     working_dir: ${PWD}
@@ -31,4 +46,23 @@ services:
       - 5554:5554
     volumes:
       - .:${PWD}
-      entrypoint: lein run -m com.interrupt.ibgateway.core/-main
+    entrypoint: lein run -m com.interrupt.ibgateway.core/-main
+
+  kafka-tools:
+    image: confluentinc/cp-kafka:3.3.1
+    depends_on:
+      - zookeeper
+      - kafka
+    environment:
+      HOSTNAME_COMMAND: "docker info | grep ^Name: | cut -d' ' -f 2"      
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_ADVERTISED_PROTOCOL_NAME: OUTSIDE
+      KAFKA_ADVERTISED_PORT: 9094
+      KAFKA_PROTOCOL_NAME: INSIDE
+      KAFKA_PORT: 9092
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+   
+    tty: true
+    working_dir: /usr/src/app
+    entrypoint: /bin/bash
