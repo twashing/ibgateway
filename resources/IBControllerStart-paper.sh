@@ -13,7 +13,7 @@
 #=============================================================================+
 
 
-TWS_MAJOR_VRSN=968
+TWS_MAJOR_VRSN=969
 IBC_INI=/root/ibcontroller.paper/IBController.ini
 TRADING_MODE=paper
 IBC_PATH=/root/ibcontroller.paper

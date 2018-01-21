@@ -4,6 +4,7 @@
              [com.interrupt.ibgateway.component.repl-server :refer [new-repl-server]]
              [com.interrupt.ibgateway.component.ewrapper :refer [new-ewrapper]]
              [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
+             [com.interrupt.ibgateway.component.kafka :refer [new-kafka]]
              [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]])
   #_(:import [java.util.concurrent TimeUnit]
            [java.util Calendar]
@@ -17,7 +18,8 @@
 (defn system-map []
   (component/system-map
    :nrepl (new-repl-server 5554 "0.0.0.0")
-   :ewrapper (new-ewrapper)))
+   :ewrapper (new-ewrapper)
+   :kafka (new-kafka "zookeeper:2181" "kafka:9092")))
 
 (set-init! #'system-map)
 (defn start-system [] (start))
@@ -42,14 +44,20 @@
 
 ;; TODO
 
+
+;; **
+;; kafka-listener -> Kafka
+;; ewrapper -> TWS
+;; migrate data sink atoms (high-opt-imp-volat, high-opt-imp-volat-over-hist, etc)
+;;   > to core.async channels > then to kafka output
+
+
+
 ;; Add these to the 'platform/ibgateway' namespace
 ;;   scanner-start ( ei/scanner-subscribe )
 ;;   scanner-stop ( ei/scanner-unsubscribe )
 
 ;; record connection IDs
-
-;; migrate data sink atoms (high-opt-imp-volat, high-opt-imp-volat-over-hist, etc)
-;;   > to core.async channels > then to onyx output (mostly kafka)
 
 ;; CONFIG for
 ;;   network name of tws
