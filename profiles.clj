@@ -11,5 +11,5 @@
                                [clojure.repl apropos dir doc find-doc pst source]])]
         :plugins [[lein-try "0.4.3"]
                   [lein-ancient "0.6.10"]
-                  [cider/cider-nrepl "0.17.0-SNAPSHOT"]
-                  [refactor-nrepl "2.4.0-SNAPSHOT"]]}}
+                  [cider/cider-nrepl "0.17.0-SNAPSHOT" :exclusions [org.clojure/tools.nrepl]]
+                  [refactor-nrepl "2.4.0-SNAPSHOT" :exclusions [org.clojure/tools.nrepl]]]}}
