@@ -143,6 +143,7 @@
 
 (comment
 
+
   ;; schema
 
   {:stock-scanner/state :on}
@@ -156,34 +157,83 @@
 
 
   (require '[datomic.api :as d])
-
   (def uri "datomic:mem://ibgateway")
   (def result (d/create-database uri))
   (def conn (d/connect uri))
   (def db (d/db conn))
 
   (def scanner-schema
-    [{:db/ident :stock-scanner/state
+    [;; STOCK SCANNER
+     {:db/ident :stock-scanner/state
       :db/valueType :db.type/ref
       :db/cardinality :db.cardinality/one
       :db/doc "A simple switch on whether or not, to scan the stock-market'"}
 
-     #_{:db/ident :stock-scanner-state/on}
-     #_{:db/ident :stock-scanner-state/off}])
+
+     ;; STOCK
+     {:db/ident :stock-price/state
+      :db/valueType :db.type/ref
+      :db/cardinality :db.cardinality/one
+      :db/doc "A switch on what stock price the system is tracking"}
+
+     {:db/ident :stock-price/instrument
+      :db/valueType :db.type/keyword
+      :db/cardinality :db.cardinality/one
+      :db/doc "The stock symbol being tracked"}
+
+
+     ;; STOCK HISTORICAL
+     {:db/ident :stock-historical/state
+      :db/valueType :db.type/ref
+      :db/cardinality :db.cardinality/one
+      :db/doc "A switch on what historical stock data is being fetched"}
+
+     {:db/ident :stock-historical/instrument
+      :db/valueType :db.type/keyword
+      :db/cardinality :db.cardinality/one
+      :db/doc "The stock symbol's historical data being fetched"}
+
+
+     {:db/ident :stock-scanner-state/on}
+     {:db/ident :stock-scanner-state/off}
+
+     {:db/ident :stock-price-state/on}
+     {:db/ident :stock-price-state/off}
+
+     {:db/ident :stock-historical-state/on}
+     {:db/ident :stock-historical-state/off}])
 
   (def scanner-on [{:stock-scanner/state :stock-scanner-state/on}])
   (def scanner-off [{:stock-scanner/state :stock-scanner-state/off}])
 
-  #_(d/transact conn [{:tx-data [{:db/ident :stock-scanner/state
-                                :db/valueType :db.type/ref
-                                :db/cardinality :db.cardinality/one
-                                :db/doc "A simple switch on whether or not, to scan the stock-market'"}]}])
-  #_(d/transact conn {:tx-data scanner-onn})
+  (def all-on [{:stock-scanner/state :stock-scanner-state/on}
+
+               {:stock-price/state :stock-price-state/on
+                :stock-price/instrument :TSLA}
+
+               {:stock-historical/state :stock-historical-state/on
+                :stock-historical/instrument :TSLA}])
 
 
+  (def db1 (d/transact conn scanner-schema))
+  (def db2 (d/transact conn all-on))
 
+  (pprint (d/q '[:find (pull ?e [{:stock-scanner/state [*]}])
+                 :where
+                 [?e :stock-scanner/state]]
+               (:db-after @db2)))
 
+  (pprint (d/q '[:find (pull ?e [{:stock-price/state [*]}
+                                 :stock-price/instrument])
+                 :where
+                 [?e :stock-price/state]]
+               (:db-after @db2)))
 
+  (pprint (d/q '[:find (pull ?e [{:stock-historical/state [*]}
+                                 :stock-historical/instrument])
+                 :where
+                 [?e :stock-historical/state]]
+               (:db-after @db2)))
 
 
   (foo)
