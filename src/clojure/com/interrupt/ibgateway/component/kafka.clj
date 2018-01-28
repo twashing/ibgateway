@@ -118,8 +118,8 @@
             (println "Put all the records into a vector (calls IReduceInit):" (into [] cr))
 
             ;; TODO
-            ;; ** rename to 'switchboard'
-            ;; ** Put the result onto a
+
+            ;; [ok] > Put the result onto a
             ;;   channel?
             ;;   atom?
             ;;   embedded db
@@ -127,15 +127,40 @@
             ;;     H2
             ;;     FleetDB
             ;;     Datomic
-
             ;; Commands for: scanner, stock, historical
 
-            ;; Am I on? (input from kafka)
-            ;; Am I subscribed? (state from client)
+
+            ;; > Rename to 'switchboard'
+
+
+            ;; > SWITCHBOARD
+
+            ;; - read from kafka
+            ;; - store to DB state
 
             ;; Call ewrapper-impl/scanner-subscribe
             ;;   store request IDs (w/ associated STOCK or SCAN)
             ;;   lookup request IDs
+
+            ;; [ on | subscribed ]
+
+            ;; 1 0 - subscribe to scan, store TWS req ID
+            ;; 1 1 - no op
+            ;; 0 1 - find TWS req ID, unsubscribe
+            ;; 0 0 - no op
+
+            ;; Use n FSM For each scan, to track steps:
+            ;; https://github.com/ztellman/automat
+            ;; - check if subscription is on
+            ;; - check if we're subscribed
+            ;; - subscribe | unsuscribe
+            ;; - store request ID to DB
+            ;; ** triggered after startup
+            ;; ** triggered when receiving a signal from kafka
+
+            ;; ** a function to get an available Request ID
+            ;; ** a function to i. find a request ID, ii. for an instrument, iii. for a scan type
+
 
             (recur cr))
 
@@ -158,16 +183,27 @@
 
   (require '[datomic.api :as d])
   (def uri "datomic:mem://ibgateway")
-  (def result (d/create-database uri))
+
+  (def rdelete (d/delete-database uri))
+  (def rcreate (d/create-database uri))
   (def conn (d/connect uri))
   (def db (d/db conn))
 
+
+  ;; SCHEMA
   (def scanner-schema
     [;; STOCK SCANNER
      {:db/ident :stock-scanner/state
       :db/valueType :db.type/ref
       :db/cardinality :db.cardinality/one
+      :db/unique :db.unique/identity
       :db/doc "A simple switch on whether or not, to scan the stock-market'"}
+
+     {:db/ident :stock-scanner/request-id
+      :db/valueType :db.type/long
+      :db/cardinality :db.cardinality/one
+      :db/unique :db.unique/identity
+      :db/doc "Records the request id made to TWS"}
 
 
      ;; STOCK
@@ -179,7 +215,14 @@
      {:db/ident :stock-price/instrument
       :db/valueType :db.type/keyword
       :db/cardinality :db.cardinality/one
+      :db/unique :db.unique/value
       :db/doc "The stock symbol being tracked"}
+
+     {:db/ident :stock-price/request-id
+      :db/valueType :db.type/long
+      :db/cardinality :db.cardinality/one
+      :db/unique :db.unique/identity
+      :db/doc "Records the request id made to TWS"}
 
 
      ;; STOCK HISTORICAL
@@ -191,7 +234,14 @@
      {:db/ident :stock-historical/instrument
       :db/valueType :db.type/keyword
       :db/cardinality :db.cardinality/one
+      :db/unique :db.unique/value
       :db/doc "The stock symbol's historical data being fetched"}
+
+     {:db/ident :stock-historical/request-id
+      :db/valueType :db.type/long
+      :db/cardinality :db.cardinality/one
+      :db/unique :db.unique/identity
+      :db/doc "Records the request id made to TWS"}
 
 
      {:db/ident :stock-scanner-state/on}
@@ -203,6 +253,10 @@
      {:db/ident :stock-historical-state/on}
      {:db/ident :stock-historical-state/off}])
 
+  (d/transact conn scanner-schema)
+
+
+  ;; TURN ON
   (def scanner-on [{:stock-scanner/state :stock-scanner-state/on}])
   (def scanner-off [{:stock-scanner/state :stock-scanner-state/off}])
 
@@ -214,26 +268,87 @@
                {:stock-historical/state :stock-historical-state/on
                 :stock-historical/instrument :TSLA}])
 
+  (d/transact conn all-on)
 
-  (def db1 (d/transact conn scanner-schema))
-  (def db2 (d/transact conn all-on))
 
+  ;; QUERY
   (pprint (d/q '[:find (pull ?e [{:stock-scanner/state [*]}])
                  :where
                  [?e :stock-scanner/state]]
-               (:db-after @db2)))
+               (d/db conn)))
 
   (pprint (d/q '[:find (pull ?e [{:stock-price/state [*]}
                                  :stock-price/instrument])
                  :where
                  [?e :stock-price/state]]
-               (:db-after @db2)))
+               (d/db conn)))
 
   (pprint (d/q '[:find (pull ?e [{:stock-historical/state [*]}
                                  :stock-historical/instrument])
                  :where
                  [?e :stock-historical/state]]
-               (:db-after @db2)))
+               (d/db conn)))
+
+
+  ;; TURN ON - IBM
+  (def ibm-on [{:stock-price/state :stock-price-state/on
+                :stock-price/instrument :IBM}])
+
+  (d/transact conn ibm-on)
+
+  ;; QUERY
+  (pprint (d/q '[:find (pull ?e [{:stock-price/state [*]}
+                                 :stock-price/instrument])
+                 :where
+                 [?e :stock-price/state]]
+               (d/db conn)))
+
+
+  ;;ADD an entity
+  (def intl-on [{:stock-price/state :stock-price-state/on
+                 :stock-price/instrument :INTL}])
+
+  (d/transact conn intl-on)
+
+  ;; UPDATE an entity
+  (def ibm-off [[:db/add
+                 [:stock-price/instrument :IBM]
+                 :stock-price/state :stock-price-state/off]])
+
+  (d/transact conn ibm-off)
+
+  ;; QUERY - does a stock price scan exist?
+  (pprint (d/q '[:find (pull ?e [{:stock-price/state [*]}
+                                 :stock-price/instrument])
+                 :where
+                 [?e :stock-price/state ?s]
+                 [?s :db/ident :stock-price-state/on]]
+               (d/db conn)))
+
+  (pprint (d/q '[:find (pull ?e [{:stock-price/state [*]}
+                                 :stock-price/instrument])
+                 :where
+                 [?e :stock-price/state ?s]
+                 [?s :db/ident :stock-price-state/off]]
+               (d/db conn)))
+
+
+
+  ;; QUERY - does a historical fetch exist?
+  (pprint (d/q '[:find (pull ?e [{:stock-historical/state [*]}
+                                 :stock-historical/instrument])
+                 :where
+                 [?e :stock-historical/state ?s]
+                 [?s :db/ident :stock-historical-state/on]]
+               (d/db conn)))
+
+  (pprint (d/q '[:find (pull ?e [{:stock-historical/state [*]}
+                                 :stock-historical/instrument])
+                 :where
+                 [?e :stock-historical/state ?s]
+                 [?s :db/ident :stock-historical-state/off]]
+               (d/db conn)))
+
 
 
   (foo)
