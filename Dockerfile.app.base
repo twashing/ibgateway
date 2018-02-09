@@ -3,7 +3,8 @@ MAINTAINER Timothy Washington
 
 COPY project.clj /app
 RUN lein deps
-VOLUME /root/.m2/repository
-COPY . /app
+VOLUME /root/.m2
+# COPY m2 /root/.m2
+# COPY !(m2) /app
 
 ENTRYPOINT ["/bin/bash"]

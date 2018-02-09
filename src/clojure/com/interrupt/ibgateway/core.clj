@@ -4,7 +4,7 @@
              [com.interrupt.ibgateway.component.repl-server :refer [new-repl-server]]
              [com.interrupt.ibgateway.component.ewrapper :refer [new-ewrapper]]
              [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
-             [com.interrupt.ibgateway.component.kafka :refer [new-kafka]]
+             [com.interrupt.ibgateway.component.switchboard :refer [new-switchboard]]
              [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]])
   #_(:import [java.util.concurrent TimeUnit]
            [java.util Calendar]
@@ -19,7 +19,9 @@
   (component/system-map
    :nrepl (new-repl-server 5554 "0.0.0.0")
    :ewrapper (new-ewrapper)
-   :kafka (new-kafka "zookeeper:2181" "kafka:9092")))
+   :switchboard (component/using
+                 (new-switchboard "zookeeper:2181" "kafka:9092")
+                 [:ewrapper])))
 
 (set-init! #'system-map)
 (defn start-system [] (start))
@@ -50,7 +52,6 @@
 ;; ewrapper -> TWS
 ;; migrate data sink atoms (high-opt-imp-volat, high-opt-imp-volat-over-hist, etc)
 ;;   > to core.async channels > then to kafka output
-
 
 
 ;; Add these to the 'platform/ibgateway' namespace

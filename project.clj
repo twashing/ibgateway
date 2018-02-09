@@ -14,7 +14,10 @@
                  [ymilky/franzy "0.0.1"]
                  [ymilky/franzy-transit "0.0.1" :exclusions [commons-codec]]
                  [ymilky/franzy-admin "0.0.1" :exclusions [org.slf4j/slf4j-log4j12]]
-                 [com.datomic/datomic-free "0.9.5561"]]
+                 [automat "0.2.4"]
+                 [reduce-fsm "0.1.4"]
+                 [com.datomic/datomic-free "0.9.5656"]]
+  :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[org.clojure/tools.namespace "0.2.11"]
