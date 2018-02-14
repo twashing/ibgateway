@@ -25,3 +25,24 @@
    (new-repl-server port "localhost"))
   ([port bind]
    (map->ReplServer {:port port :bind bind}) ))
+
+(comment
+
+  (require '[mount.core :refer [defstate] :as mount])
+
+  (def host "0.0.0.0")
+  (def port 5554)
+
+  (defstate server
+    :start (start-server :port port
+                         :bind host
+                         :handler (apply
+                                   nrepl/default-handler
+                                   (conj (map resolve cider-middleware)
+                                         wrap-refactor)))
+    :stop (stop-server server))
+
+  (mount/start)
+  (mount/stop)
+
+  )

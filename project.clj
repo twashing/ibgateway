@@ -6,7 +6,10 @@
   :repositories [["myMavenRepo.read" "https://mymavenrepo.com/repo/HaEY4usKuLXXnqmXBr0z"]
                  ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]]
   :dependencies [[org.clojure/clojure "1.8.0"]
+
                  [com.stuartsierra/component "0.3.2"]
+                 [mount "0.1.12"]
+
                  [org.danielsz/system "0.4.1"
                   :exclusions [org.clojure/tools.namespace org.clojure/core.async]]
                  [org.clojure/core.async "0.3.441"]

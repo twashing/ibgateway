@@ -207,11 +207,11 @@
 
   {:switchboard/scanner :stock-price
    :switchboard/state :on
-   :switchboard/instrument :TSLA}
+   :switchboard/instrument "TSLA"}
 
   {:switchboard/scanner :stock-historical
    :switchboard/state :on
-   :switchboard/instrument :TSLA}
+   :switchboard/instrument "TSLA"}
 
 
   (require '[datomic.api :as d])
@@ -231,19 +231,19 @@
       :db/cardinality :db.cardinality/one
       :db/doc "A simple switch on whether or not, to scan the stock-market'"}
 
-     {:db/ident :switchboard/state  ;; :switchboard/scanner
+     {:db/ident :switchboard/state
       :db/valueType :db.type/ref
       :db/cardinality :db.cardinality/one
       :db/doc "A simple switch on whether or not, to scan the stock-market'"}
 
-     {:db/ident :switchboard/request-id  ;; :stock-scanner/request-id
+     {:db/ident :switchboard/request-id
       :db/valueType :db.type/long
       :db/cardinality :db.cardinality/one
       :db/unique :db.unique/identity
       :db/doc "Records the request id made to TWS"}
 
-     {:db/ident :switchboard/instrument  ;; :stock-price/instrument
-      :db/valueType :db.type/keyword
+     {:db/ident :switchboard/instrument
+      :db/valueType :db.type/string
       :db/cardinality :db.cardinality/one
       :db/doc "The stock symbol being tracked"}
 
@@ -266,22 +266,22 @@
 
   (def stock-scanner-on [{:switchboard/scanner :switchboard/stock-price
                           :switchboard/state :switchboard/on
-                          :switchboard/instrument :TSLA}])
+                          :switchboard/instrument "TSLA"}])
 
   (def stock-historical-on [{:switchboard/scanner :switchboard/stock-historical
                              :switchboard/state :switchboard/on
-                             :switchboard/instrument :TSLA}])
+                             :switchboard/instrument "TSLA"}])
 
   (def all-on [{:switchboard/scanner :switchboard/stock-scanner
                 :switchboard/state :switchboard/on}
 
                {:switchboard/scanner :switchboard/stock-price
                 :switchboard/state :switchboard/on
-                :switchboard/instrument :TSLA}
+                :switchboard/instrument "TSLA"}
 
                {:switchboard/scanner :switchboard/stock-historical
                 :switchboard/state :switchboard/on
-                :switchboard/instrument :TSLA}])
+                :switchboard/instrument "TSLA"}])
 
   #_(d/transact conn scanner-on)
   #_(d/transact conn scanner-off)
@@ -321,7 +321,7 @@
   ;; TURN ON - IBM
   (def ibm-on [{:switchboard/scanner :switchboard/stock-price
                 :switchboard/state :switchboard/on
-                :switchboard/instrument :IBM}])
+                :switchboard/instrument "IBM"}])
 
   (d/transact conn ibm-on)
 
@@ -331,20 +331,20 @@
                                  :switchboard/instrument])
                  :where
                  [?e :switchboard/state]
-                 [?e :switchboard/instrument :IBM]]
-               (d/db conn)))
+                 [?e :switchboard/instrument "IBM"]
+                 (d/db conn)]))
 
 
   ;;ADD an entity
   (def intl-on [{:switchboard/scanner {:db/id [:db/ident :switchboard/stock-price]}
                  :switchboard/state {:db/id [:db/ident :switchboard/on]}
-                 :switchboard/instrument :INTL}])
+                 :switchboard/instrument "INTL"}])
 
   (d/transact conn intl-on)
 
   ;; UPDATE an entity
   (def ibm-off [[:db/add
-                 [:switchboard/instrument :IBM]
+                 [:switchboard/instrument "IBM"]
                  :switchboard/state :stock-price-state/off]])
 
   #_(d/transact conn ibm-off)

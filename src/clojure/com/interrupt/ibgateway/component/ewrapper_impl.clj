@@ -168,10 +168,10 @@
 
   ;; (def cal (Calendar/getInstance))
   ;; (.add cal Calendar/MONTH -6)
-  ;; 
+
   ;; (def form (SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
   ;; (def formatted (.format form (.getTime cal)))
-  ;; 
+  ;;
   ;; (let [contract (doto (Contract.)
   ;;                  (.symbol "TSLA")
   ;;                  (.secType "STK")
