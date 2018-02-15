@@ -32,3 +32,19 @@
 
 (defn new-ewrapper []
   (map->EWrapper {}))
+
+
+(comment
+
+  (require '[mount.core :refer [defstate] :as mount])
+
+  (defstate ewrapper
+    :start (ewi/ewrapper)
+    :stop (let [{:keys [client]} (:ewrapper ewrapper)]
+            (if (.isConnected client)
+              (.eDisconnect client))))
+
+  (mount/start)
+  (mount/stop)
+
+  )
