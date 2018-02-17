@@ -12,7 +12,8 @@
             [franzy.admin.zookeeper.client :as client]
             [franzy.admin.topics :as topics]
             [franzy.clients.producer.defaults :as pd]
-            [franzy.clients.consumer.defaults :as cd]))
+            [franzy.clients.consumer.defaults :as cd]
+            [com.interrupt.ibgateway.component.switchboard.store :as store]))
 
 
 (def topic-scanner-command "scanner-command")
@@ -45,7 +46,7 @@
 
 (defn new-switchboard [zookeeper-url kafka-url]
   (map->Switchboard {:zookeeper-url zookeeper-url
-               :kafka-url kafka-url }) )
+                     :kafka-url kafka-url }) )
 
 
 ;; ==
@@ -532,6 +533,35 @@
 
   (process-message {:switchboard/scanner :stock-scanner
                     :switchboard/state :off})
+
+
+  )
+
+
+(comment
+
+  (require '[mount.core :refer [defstate] :as mount])
+
+  (def uri "datomic:mem://ibgateway")
+  (defstate conn
+    :start (store/initialize-store store/schema uri)
+    :stop (store/teardown-store uri))
+
+
+  ;; com.interrupt.ibgateway.component.ewrapper/ewrapper
+
+  (mount/start)
+  (mount/stop)
+
+
+  ;; TODO
+  ;; set up channel stream
+  ;; initialize store
+  ;; process-message under differing system states
+
+  ;; (require '[com.interrupt.ibgateway.component.ewrapper :as ew])
+  ;; {:client #object[com.ib.client.EClientSocket]
+  ;;  :publisher #object[clojure.core.async.impl.channels.ManyToManyChannel]}
 
 
   )
