@@ -13,6 +13,7 @@
             [franzy.admin.topics :as topics]
             [franzy.clients.producer.defaults :as pd]
             [franzy.clients.consumer.defaults :as cd]
+            [datomic.api :as d]
             [com.interrupt.ibgateway.component.switchboard.store :as store]))
 
 
@@ -226,16 +227,16 @@
 
   ;; SCHEMA
   (def scanner-schema
-    [;; used for >  STOCK SCANNER | STOCK | STOCK HISTORICAL
-     {:db/ident :switchboard/scanner   ;; :stock-scanner/state
+    [;; used for > MARKET SCANNER | STOCK | STOCK HISTORICAL
+     {:db/ident :switchboard/scanner
       :db/valueType :db.type/ref
       :db/cardinality :db.cardinality/one
-      :db/doc "A simple switch on whether or not, to scan the stock-market'"}
+      :db/doc "The type of connection: market scanner | stock | stock historical"}
 
      {:db/ident :switchboard/state
       :db/valueType :db.type/ref
       :db/cardinality :db.cardinality/one
-      :db/doc "A simple switch on whether or not, to scan the stock-market'"}
+      :db/doc "A simple switch on whether or not, to scan"}
 
      {:db/ident :switchboard/request-id
       :db/valueType :db.type/long
@@ -500,17 +501,43 @@
   )
 
 
-(defn subscribed? [scan] true)
-(defn subscribe-to-scan [scanner] 2)
+(defn subscribed? [conn scan instrument]
+
+  (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                         :switchboard/instrument])
+         :in $ ?scan ?instrument
+         :where
+         [?e :switchboard/scanner ?scan]
+         [?e :switchboard/state :on]
+         [?e :switchboard/instrument ?instrument]
+         (d/db conn) scan instrument]))
+
+(defn subscribe-to-scan [conn scanner]
+
+  ;; Get the next request-id
+  ;; ...
+  (declare request-id)
+
+  ;; TWS Stuff
+  ;; ...
+
+  ;; Store request-id
+  (let [scan {:switchboard/scanner scanner ;; :switchboard/stock-scanner
+              :switchboard/state :switchboard/on
+              :switchboard/request-id request-id}]
+
+    (d/transact conn scan)))
+
 (defn unsubscribe-from-scan [scanner] 3)
 
 (defmulti process-message (fn [{scanner :switchboard/scanner}] scanner))
 
 (defmethod process-message :stock-scanner [{:keys [:switchboard/scanner :switchboard/state]}]
 
-  ;; Do :on stuff
+
   (if (= state :on)
 
+    ;; Do :on stuff
     (if (subscribed? scanner)
 
       :noop  ;; :on and :subscribed

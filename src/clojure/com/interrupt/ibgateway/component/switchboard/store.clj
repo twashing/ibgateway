@@ -6,7 +6,7 @@
   [{:db/ident :switchboard/scanner
     :db/valueType :db.type/ref
     :db/cardinality :db.cardinality/one
-    :db/doc "A simple switch on whether or not, to scan the stock-market'"}
+    :db/doc "The type of connection: market scanner | stock | stock historical"}
 
    {:db/ident :switchboard/state
     :db/valueType :db.type/ref
