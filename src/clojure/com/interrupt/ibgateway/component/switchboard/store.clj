@@ -1,5 +1,6 @@
 (ns com.interrupt.ibgateway.component.switchboard.store
-  (:require [datomic.api :as d]))
+  (:require [mount.core :refer [defstate] :as mount]
+            [datomic.api :as d]))
 
 
 (def schema
@@ -43,6 +44,18 @@
 
   (d/delete-database uri))
 
+
+
+(def uri "datomic:mem://ibgateway")
+
+(defstate conn
+  :start (initialize-store schema uri)
+  :stop (teardown-store uri))
+
+(comment
+
+  (mount/start)
+  (mount/stop))
 
 (comment  ;; DB workbench
 
@@ -225,4 +238,3 @@
                    [?e :switchboard/state ?s]
                    [?s :db/ident :stock-historical-state/off]]
                  (d/db conn))))
-

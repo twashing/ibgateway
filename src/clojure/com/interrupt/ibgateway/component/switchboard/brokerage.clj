@@ -138,3 +138,16 @@
     scanner-subscriptions))
 
 (defn scanner-stop [])
+
+
+(comment
+
+  (def client (-> system.repl/system :ewrapper :ewrapper :client))
+  (def publisher (-> system.repl/system :ewrapper :ewrapper :publisher))
+  (def publication
+    (pub publisher #(:req-id %)))
+
+  (def scanner-subscriptions (scanner-start client publication config))
+  (pprint scanner-subscriptions)
+
+  )

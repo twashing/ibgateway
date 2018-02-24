@@ -1,6 +1,6 @@
 (ns com.interrupt.ibgateway.component.switchboard
   (:require [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
-            [com.stuartsierra.component :as component]
+            #_[com.stuartsierra.component :as component]
             [franzy.clients.producer.client :as producer]
             [franzy.clients.consumer.client :as consumer]
             [franzy.clients.consumer.callbacks :refer [consumer-rebalance-listener]]
@@ -14,16 +14,17 @@
             [franzy.clients.producer.defaults :as pd]
             [franzy.clients.consumer.defaults :as cd]
             [datomic.api :as d]
+            [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.switchboard.store :as store]))
 
 
-(def topic-scanner-command "scanner-command")
-(def topic-scanner-command-result "scanner-command-result")
-(def topic-scanner "scanner")
-(def topic-filtered-stocks "filtered-stocks")
-(def topic-stock-command "stock-command")
+#_(def topic-scanner-command "scanner-command")
+#_(def topic-scanner-command-result "scanner-command-result")
+#_(def topic-scanner "scanner")
+#_(def topic-filtered-stocks "filtered-stocks")
+#_(def topic-stock-command "stock-command")
 
-(defn setup-topics [zookeeper-url]
+#_(defn setup-topics [zookeeper-url]
 
   (def zk-utils (client/make-zk-utils {:servers [zookeeper-url]} false))
   (doseq [topic [topic-scanner-command
@@ -36,7 +37,7 @@
 
   (topics/all-topics zk-utils))
 
-(defrecord Switchboard [zookeeper-url kafka-url]
+#_(defrecord Switchboard [zookeeper-url kafka-url]
   component/Lifecycle
   (start [component]
 
@@ -45,15 +46,15 @@
   (stop [{server :server :as component}]
     (assoc component :status :down)))
 
-(defn new-switchboard [zookeeper-url kafka-url]
+#_(defn new-switchboard [zookeeper-url kafka-url]
   (map->Switchboard {:zookeeper-url zookeeper-url
                      :kafka-url kafka-url }) )
 
 
 ;; ==
-(def running (atom true))
+#_(def running (atom true))
 
-(defn consume-topic-example []
+#_(defn consume-topic-example []
 
   (let [cc {:bootstrap.servers       ["kafka:9092"]
             :group.id                "test"
@@ -168,12 +169,12 @@
 
           (clear-subscriptions! c))))))
 
-(comment  ;; Workbench to consume from Kafka
+#_(comment  ;; Workbench to consume from Kafka
 
   (consume-topic-example)
 
-  (swap! running (constantly false))
-  @running
+  #_(swap! running (constantly false))
+  #_@running
 
 
   (import '[java.util Properties Arrays]
@@ -197,7 +198,7 @@
   (pprint (seq records))
   (.close consumer))
 
-(comment  ;; DB workbench
+#_(comment  ;; DB workbench
 
 
   ;; Schema
@@ -385,7 +386,7 @@
 
 ;; TWS Connection
 
-(comment  ;; State Machine
+#_(comment  ;; State Machine
 
   ;; reqMktData
 
@@ -463,7 +464,7 @@
                                        :switchboard/state :on}
                                       )))
 
-(comment  ;; Automat directly
+#_(comment  ;; Automat directly
 
   (require '[automat.viz :refer (view)])
   (require '[automat.core :as a])
@@ -501,7 +502,7 @@
   )
 
 
-(defn subscribed? [conn scan instrument]
+#_(defn subscribed? [conn scan instrument]
 
   (d/q '[:find (pull ?e [{:switchboard/state [*]}
                          :switchboard/instrument])
@@ -512,7 +513,7 @@
          [?e :switchboard/instrument ?instrument]
          (d/db conn) scan instrument]))
 
-(defn subscribe-to-scan [conn scanner]
+#_(defn subscribe-to-scan [conn scanner]
 
   ;; Get the next request-id
   ;; ...
@@ -528,11 +529,11 @@
 
     (d/transact conn scan)))
 
-(defn unsubscribe-from-scan [scanner] 3)
+#_(defn unsubscribe-from-scan [scanner] 3)
 
-(defmulti process-message (fn [{scanner :switchboard/scanner}] scanner))
+#_(defmulti process-message (fn [{scanner :switchboard/scanner}] scanner))
 
-(defmethod process-message :stock-scanner [{:keys [:switchboard/scanner :switchboard/state]}]
+#_(defmethod process-message :stock-scanner [{:keys [:switchboard/scanner :switchboard/state]}]
 
 
   (if (= state :on)
@@ -552,7 +553,7 @@
 
 ;; Exit to :done
 
-(comment  ;; Do manually
+#_(comment  ;; Do manually
 
 
   (process-message {:switchboard/scanner :stock-scanner
@@ -569,18 +570,6 @@
 
   (require '[mount.core :refer [defstate] :as mount])
 
-  (def uri "datomic:mem://ibgateway")
-  (defstate conn
-    :start (store/initialize-store store/schema uri)
-    :stop (store/teardown-store uri))
-
-
-  ;; com.interrupt.ibgateway.component.ewrapper/ewrapper
-
-  (mount/start)
-  (mount/stop)
-
-
   ;; TODO
   ;; set up channel stream
   ;; initialize store
@@ -590,5 +579,17 @@
   ;; {:client #object[com.ib.client.EClientSocket]
   ;;  :publisher #object[clojure.core.async.impl.channels.ManyToManyChannel]}
 
+
+  ;; Store
+  ;; store/conn
+
+  ;; Brokerage
+  ;; ...
+
+  ;; EWrapper
+  ;; com.interrupt.ibgateway.component.ewrapper/ewrapper
+
+  (mount/start)
+  (mount/stop)
 
   )

@@ -1,3 +1,4 @@
+
 (defproject ibgateway "0.1.0-SNAPSHOT"
   :description "TODO"
   :url "TODO"
@@ -7,7 +8,8 @@
                  ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]]
   :dependencies [[org.clojure/clojure "1.8.0"]
 
-                 [com.stuartsierra/component "0.3.2"]
+                 #_[com.stuartsierra/component "0.3.2"]
+                 [org.apache.commons/commons-daemon "1.0.9"]
                  [mount "0.1.12"]
 
                  [org.danielsz/system "0.4.1"
