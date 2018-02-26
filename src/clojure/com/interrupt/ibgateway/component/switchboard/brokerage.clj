@@ -146,7 +146,7 @@
   (let [default-instrument (-> config :stocks :default-instrument)
         default-location (-> config :stocks :default-location)
         scanner-subscriptions-init []
-        scanner-subscriptions #spy/d (scanner-subscriptions-with-ids config scanner-subscriptions-init)]
+        scanner-subscriptions (scanner-subscriptions-with-ids config scanner-subscriptions-init)]
 
     (doseq [{:keys [::reqid ::scan-name ::tag] :as val} scanner-subscriptions
             :let [subscriber (chan)]]

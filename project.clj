@@ -10,7 +10,7 @@
                  [org.apache.commons/commons-daemon "1.0.9"]
                  [mount "0.1.12"]
 
-                 [org.danielsz/system "0.4.1"
+                 #_[org.danielsz/system "0.4.1"
                   :exclusions [org.clojure/tools.namespace org.clojure/core.async]]
                  [org.clojure/core.async "0.3.441"]
                  [com.interactivebrokers.tws/tws-api "9.72.17-SNAPSHOT"]
@@ -22,7 +22,46 @@
                  [com.datomic/datomic-free "0.9.5656"]
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
-                 [clojure-future-spec "1.9.0-alpha17"]]
+                 [clojure-future-spec "1.9.0-alpha17"]
+
+
+                 ;; KLUDGE libraries
+                 ;; Pedestal libraries
+                 #_[org.clojure/clojure "1.5.0"]
+                 #_[org.clojure/clojure "1.9.0-alpha14"]
+                 ;; [io.pedestal/pedestal.service "0.1.9"]
+                 ;; [io.pedestal/pedestal.jetty "0.1.9"]
+
+                 ;; Logging
+                 ;; [ch.qos.logback/logback-classic "1.0.7"]
+                 ;; [org.slf4j/jul-to-slf4j "1.7.2"]
+                 ;; [org.slf4j/jcl-over-slf4j "1.7.2"]
+                 ;; [org.slf4j/log4j-over-slf4j "1.7.2"]
+
+                 ;; Edgar proper
+                 ;; [org.clojure/core.incubator "0.1.2"]
+                 #_[jtsclient/jtsclient "9.8.3"]
+                 ;; [org.clojure/data.csv "0.1.2"]
+                 ;; [overtone/at-at "1.1.1"]
+                 ;; [cljs-uuid "0.0.4"]
+                 ;; [org.clojure/tools.namespace "0.2.3"]
+                 ;; [lamina "0.5.0-beta15"]
+                 ;; [aleph "0.3.0-beta15"]
+                 ;; [clj-time "0.5.0"]
+                 #_[com.datomic/datomic "0.8.3335"
+                    :exclusions [org.slf4j/slf4j-nop org.slf4j/log4j-over-slf4j]]
+                 #_[midje "1.5.1"]
+                 ;; [ring/ring-core "1.2.0-beta1"
+                 ;;  :exclusions [javax.servlet/servlet-api]]
+
+                 ;; Clojurescript Libraries
+                 ;; [shoreleave/shoreleave-remote "0.3.0"]
+                 ;; [shoreleave/shoreleave-remote-ring "0.3.0"]
+                 ;; [jayq "2.3.0"]
+
+                 ;; Java Libraries
+                 ;; [joda-time "2.2"]
+                 ]
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
