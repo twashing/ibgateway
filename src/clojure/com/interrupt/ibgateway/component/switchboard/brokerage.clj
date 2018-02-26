@@ -7,6 +7,7 @@
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]))
 
+;; TODO - replace with DB
 (def config
   {:stocks {:default-instrument "STK"
             :default-location "STK.US.MAJOR"}
@@ -59,6 +60,23 @@
 
     [scannerids availableids]))
 
+;; TODO - put scanner-subscriptions in DB. Structure is below
+
+;; {::reqid next-id
+;;  ::scan-name scan-name
+;;  ::scan-value {}
+;;  ::tag tag}
+
+;; {:com.interrupt.ibgateway.component.switchboard.brokerage/reqid 11
+;;  :com.interrupt.ibgateway.component.switchboard.brokerage/scan-name "HOT_BY_PRICE_RANGE"
+;;  :com.interrupt.ibgateway.component.switchboard.brokerage/scan-value {}
+;;  :com.interrupt.ibgateway.component.switchboard.brokerage/tag :price}
+
+;; {:com.interrupt.ibgateway.component.switchboard.brokerage/reqid 7
+;;  :com.interrupt.ibgateway.component.switchboard.brokerage/scan-name "COMBO_MOST_ACTIVE"
+;;  :com.interrupt.ibgateway.component.switchboard.brokerage/scan-value {}
+;;  :com.interrupt.ibgateway.component.switchboard.brokerage/tag :volume}
+
 (defn next-reqid [scanner-subscriptions]
   (match [scanner-subscriptions]
          [nil] 1
@@ -67,6 +85,11 @@
                  (if-not (empty? availableids)
                    (first availableids)
                    (+ 1 (last scannerids))))))
+
+(comment
+
+  (next-reqid [])
+  (scannerid-availableid-pairs []))
 
 (s/fdef next-reqid
         :args (s/cat :subscriptions ::subscriptions)
@@ -91,7 +114,7 @@
 
 ;; TODO - replace with kafka + stream processing asap
 (defn top-level-scan-item [scan-name]
-  (let [scan-sym #spy/d (-> scan-name (str/lower-case) (str/replace "_" "-") symbol)]
+  (let [scan-sym (-> scan-name (str/lower-case) (str/replace "_" "-") symbol)]
     (if-let [scan-resolved (resolve scan-sym)]
       scan-resolved
       (intern *ns* scan-sym (atom {})))))
@@ -110,7 +133,7 @@
             scanner-subscriptions
             scan-types)))
 
-(defn consume-subscriber [scan-atom subscriber-chan]
+#_(defn consume-subscriber [scan-atom subscriber-chan]
   (go-loop [r1 nil]
     (let [{:keys [req-id symbol rank] :as val} (select-keys r1 [:req-id :symbol :rank])]
       (if (and r1 rank)
@@ -123,7 +146,7 @@
   (let [default-instrument (-> config :stocks :default-instrument)
         default-location (-> config :stocks :default-location)
         scanner-subscriptions-init []
-        scanner-subscriptions (scanner-subscriptions-with-ids config scanner-subscriptions-init)]
+        scanner-subscriptions #spy/d (scanner-subscriptions-with-ids config scanner-subscriptions-init)]
 
     (doseq [{:keys [::reqid ::scan-name ::tag] :as val} scanner-subscriptions
             :let [subscriber (chan)]]
@@ -131,23 +154,13 @@
       ;; TODO - replace with kafka + stream processing asap
       (let [scan-var (top-level-scan-item scan-name)
             scan-atom (var-get scan-var)]
+
         (ei/scanner-subscribe reqid client default-instrument default-location scan-name)
         (sub publication reqid subscriber)
-        (consume-subscriber scan-atom subscriber)))
+
+        ;; TODO - Simply forward the data to "market-scanner"
+        #_(consume-subscriber scan-atom subscriber)))
 
     scanner-subscriptions))
 
 (defn scanner-stop [])
-
-
-(comment
-
-  (def client (-> system.repl/system :ewrapper :ewrapper :client))
-  (def publisher (-> system.repl/system :ewrapper :ewrapper :publisher))
-  (def publication
-    (pub publisher #(:req-id %)))
-
-  (def scanner-subscriptions (scanner-start client publication config))
-  (pprint scanner-subscriptions)
-
-  )
