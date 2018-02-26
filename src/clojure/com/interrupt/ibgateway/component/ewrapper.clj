@@ -1,9 +1,10 @@
 (ns com.interrupt.ibgateway.component.ewrapper
-  (:require [com.stuartsierra.component :as component]
+  (:require [mount.core :refer [defstate] :as mount]
+            #_[com.stuartsierra.component :as component]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ewi]))
 
 
-(defrecord EWrapper []
+#_(defrecord EWrapper []
   component/Lifecycle
 
   (start [component]
@@ -30,5 +31,15 @@
         (.eDisconnect client))
       (dissoc component :ewrapper))))
 
-(defn new-ewrapper []
-  (map->EWrapper {}))
+#_(defn new-ewrapper []
+    (map->EWrapper {}))
+
+(defstate ewrapper
+  :start (ewi/ewrapper)
+  :stop (let [{:keys [client]} (:ewrapper ewrapper)]
+          (if (.isConnected client)
+            (.eDisconnect client))))
+
+(comment
+  (mount/start)
+  (mount/stop))

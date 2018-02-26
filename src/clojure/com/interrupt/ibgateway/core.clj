@@ -1,46 +1,57 @@
 (ns com.interrupt.ibgateway.core
-  (:require  [com.stuartsierra.component :as component]
-             [system.repl :refer [set-init! init start stop reset refresh system]]
-             [com.interrupt.ibgateway.component.repl-server :refer [new-repl-server]]
-             [com.interrupt.ibgateway.component.ewrapper :refer [new-ewrapper]]
-             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
-             [com.interrupt.ibgateway.component.kafka :refer [new-kafka]]
-             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]])
-  #_(:import [java.util.concurrent TimeUnit]
-           [java.util Calendar]
-           [java.text SimpleDateFormat]
-           [com.ib.client
-            EWrapper EClient EClientSocket EReader EReaderSignal
-            Contract ContractDetails ScannerSubscription]
-           [com.ib.client Types$BarSize Types$DurationUnit Types$WhatToShow]))
+  (:require  [mount.core :refer [defstate] :as mount]
+             [com.interrupt.ibgateway.component.repl-server]
+             [com.interrupt.ibgateway.component.switchboard])
+  (:import [org.apache.commons.daemon Daemon DaemonContext])
+  (:gen-class
+   :implements [org.apache.commons.daemon.Daemon]))
 
 
-(defn system-map []
-  (component/system-map
-   :nrepl (new-repl-server 5554 "0.0.0.0")
-   :ewrapper (new-ewrapper)
-   :kafka (new-kafka "zookeeper:2181" "kafka:9092")))
+(defstate state
+  :start (atom {:running true})
+  :stop (swap! state assoc :running false))
 
-(set-init! #'system-map)
-(defn start-system [] (start))
-(defn stop-system [] (stop))
+(defn init [args]
+  (mount/start))
+
+(defn start []
+  (while (:running @state)
+    ;; (println "tick")
+    (Thread/sleep 2000)))
 
 
-#_(defn consume-subscriber-historical [historical-atom subscriber-chan]
-  (go-loop [r1 nil]
+;; Daemon implementation
+(defn -init [this ^DaemonContext context]
+  (init (.getArguments context)))
 
-    (let [{:keys [req-id date open high low close volume count wap has-gaps] :as val} r1]
-      (swap! historical-atom assoc date val))
-    (recur (<! subscriber-chan))))
+(defn -start [this]
+  (future (start)))
 
-#_(defn historical-start [req-id client publication historical-atom]
+(defn -stop [this]
+  (mount/stop))
 
-  (let [subscriber (chan)]
-    (ei/historical-subscribe req-id client)
-    (sub publication req-id subscriber)
-    (consume-subscriber-historical historical-atom subscriber)))
+(defn -destroy [this])
 
-#_(defn historical-stop [])
+(defn -main [& args]
+
+  ;; TODO - do we still need this?
+  ;; (Thread/sleep 5000) ;; a hack, to ensure that the tws machine is available, before we try to connect to it.
+
+  (init args)
+  (start))
+
+(defn -main [& args]
+  (mount/start))
+
+(comment
+
+  state
+
+  (-main nil)
+
+  (mount/start)
+  (mount/stop))
+
 
 ;; TODO
 
@@ -50,7 +61,6 @@
 ;; ewrapper -> TWS
 ;; migrate data sink atoms (high-opt-imp-volat, high-opt-imp-volat-over-hist, etc)
 ;;   > to core.async channels > then to kafka output
-
 
 
 ;; Add these to the 'platform/ibgateway' namespace
@@ -72,24 +82,10 @@
 ;;   test start scanning; we capture distinct categories (volatility, etc)
 ;;   test stop scanning
 ;;   test toggle scan
-{:scanner-command :start}
-{:scanner-command :stop}
+;; {:scanner-command :start}
+;; {:scanner-command :stop}
 
 
 ;; write (Transit) to Kafka
 ;; read (Transit) from Kafka
 ;; feed to analysis
-
-
-#_(defn market-start [])
-#_(defn market-stop [])
-#_(defn open-request-ids [])
-
-(defn -main [& args]
-  (Thread/sleep 5000) ;; a hack, to ensure that the tws machine is available, before we try to connect to it.
-  (start-system))
-
-(comment
-  (start-system)
-  (reset)
-  (stop))

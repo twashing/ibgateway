@@ -158,43 +158,43 @@
 
 (comment
 
-  (def one (ewrapper 11))
-  (def client (:client one))
-  (def publisher (:publisher one))
+  ;; (def one (ewrapper 11))
+  ;; (def client (:client one))
+  ;; (def publisher (:publisher one))
 
 
   ;; ====
   ;; Requesting historical data
 
-  (def cal (Calendar/getInstance))
-  (.add cal Calendar/MONTH -6)
+  ;; (def cal (Calendar/getInstance))
+  ;; (.add cal Calendar/MONTH -6)
 
-  (def form (SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
-  (def formatted (.format form (.getTime cal)))
-
-  (let [contract (doto (Contract.)
-                   (.symbol "TSLA")
-                   (.secType "STK")
-                   (.currency "USD")
-                   (.exchange "SMART"))]
-
-    (.reqHistoricalData client 4002 contract formatted "2 W" "1 sec" "MIDPOINT" 1 1 nil))
-
-  (.reqHistoricalData client 4001 (ContractSamples/EurGbpFx) formatted "2 W" "1 sec" "MIDPOINT" 1 1 nil)
-  (.reqHistoricalData client 4002 (ContractSamples/USStockWithPrimaryExch) formatted "1 M" "1 day" "MIDPOINT" 1 1 nil)
-
-  ;; private static void marketScanners(EClientSocket client) throws InterruptedException
-
-  ;; Requesting all available parameters which can be used to build a scanner request
-  (.reqScannerParameters client)
-
-  ;; Triggering a scanner subscription
-  (spit "scannerParameters.1.xml" scannerParameters)
-
-  (.reqScannerSubscription client 7001 (ScannerSubscriptionSamples/HighOptVolumePCRatioUSIndexes) nil)
-
-  ;; Canceling the scanner subscription
-  (.cancelScannerSubscription client 7001)
+  ;; (def form (SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
+  ;; (def formatted (.format form (.getTime cal)))
+  ;;
+  ;; (let [contract (doto (Contract.)
+  ;;                  (.symbol "TSLA")
+  ;;                  (.secType "STK")
+  ;;                  (.currency "USD")
+  ;;                  (.exchange "SMART"))]
+  ;;
+  ;;   (.reqHistoricalData client 4002 contract formatted "2 W" "1 sec" "MIDPOINT" 1 1 nil))
+  ;;
+  ;; (.reqHistoricalData client 4001 (ContractSamples/EurGbpFx) formatted "2 W" "1 sec" "MIDPOINT" 1 1 nil)
+  ;; (.reqHistoricalData client 4002 (ContractSamples/USStockWithPrimaryExch) formatted "1 M" "1 day" "MIDPOINT" 1 1 nil)
+  ;;
+  ;; ;; private static void marketScanners(EClientSocket client) throws InterruptedException
+  ;;
+  ;; ;; Requesting all available parameters which can be used to build a scanner request
+  ;; (.reqScannerParameters client)
+  ;;
+  ;; ;; Triggering a scanner subscription
+  ;; (spit "scannerParameters.1.xml" scannerParameters)
+  ;;
+  ;; (.reqScannerSubscription client 7001 (ScannerSubscriptionSamples/HighOptVolumePCRatioUSIndexes) nil)
+  ;;
+  ;; ;; Canceling the scanner subscription
+  ;; (.cancelScannerSubscription client 7001)
 
 
   ;; ====
@@ -286,7 +286,7 @@
   (scanner-subscribe 11 client default-instrument default-location "HOT_BY_PRICE_RANGE")
 
 
-  (let [req-id 12
+  #_(let [req-id 12
         ^Contract contract  ;; ...
         ^String endDateTime  ;; ...
         duration 2
