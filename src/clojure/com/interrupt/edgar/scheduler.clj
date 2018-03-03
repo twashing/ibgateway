@@ -1,4 +1,4 @@
-(ns edgar.scheduler
+(ns com.interrupt.edgar.scheduler
   (:require [overtone.at-at :as at])
   )
 

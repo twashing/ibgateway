@@ -1,6 +1,6 @@
-(ns edgar.core.edgar
+(ns com.interrupt.edgar.core.edgar
   (:use [clojure.repl]
-        [clojure.core.strint]
+        #_[clojure.core.string]
         [clojure.tools.namespace.repl]
         [datomic.api :only [q db] :as d])
   (:require [clojure.tools.logging :as log]
@@ -8,13 +8,13 @@
             [clojure.string :as cstring]
             [clojure.pprint :as pprint]
             [cljs-uuid.core :as uuid]
-            [edgar.datomic :as edatomic]
-            [edgar.ib.market :as market]
-            [edgar.ib.handler.historical :as historical]
-            [edgar.tee.datomic :as tdatomic]
-            [edgar.tee.play :as tplay]
-            [edgar.ib.handler.live :as live]
-            [edgar.core.analysis.lagging :as lagging]))
+            [com.interrupt.edgar.datomic :as edatomic]
+            [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.edgar.ib.handler.historical :as historical]
+            [com.interrupt.edgar.tee.datomic :as tdatomic]
+            [com.interrupt.edgar.tee.play :as tplay]
+            [com.interrupt.edgar.ib.handler.live :as live]
+            [com.interrupt.edgar.core.analysis.lagging :as lagging]))
 
 
 (defn play-historical

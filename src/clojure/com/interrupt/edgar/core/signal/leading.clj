@@ -1,7 +1,7 @@
-(ns edgar.core.signal.leading
-  (:require [edgar.core.analysis.leading :as lead-analysis]
-            [edgar.core.analysis.lagging :as lag-analysis]
-            [edgar.core.signal.common :as common]))
+(ns com.interrupt.edgar.core.signal.leading
+  (:require [com.interrupt.edgar.core.analysis.leading :as lead-analysis]
+            [com.interrupt.edgar.core.analysis.lagging :as lag-analysis]
+            [com.interrupt.edgar.core.signal.common :as common]))
 
 
 (defn macd-cross-abouve?

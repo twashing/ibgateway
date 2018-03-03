@@ -1,13 +1,13 @@
-(ns edgar.splitter
+(ns com.interrupt.edgar.splitter
 
   (:use [clojure.repl]
         [clojure.core.strint]
         [clojure.tools.namespace.repl])
-  (:require [edgar.eclientsocket :as socket]
-            #_[edgar.edgar :as edgar]
+  (:require [com.interrupt.edgar.eclientsocket :as socket]
+            #_[com.interrupt.edgar.edgar :as edgar]
             [overtone.at-at :as at])
   (:gen-class
-   :name edgar.splitter
+   :name com.interrupt.edgar.splitter
    :methods [#^{:static true} [pushEvent [java.lang.Object]]])
   )
 
@@ -28,7 +28,7 @@
 
 
 (defn connect []
-  (socket/connect-to-tws))
+  #_(socket/connect-to-tws))
 
 (def my-pool (at/mk-pool))
 
@@ -42,8 +42,7 @@
 (defn process-stock [stock-id]
 
   (let [remove-predicate #(= (% "tickerId") stock-id)
-        local-list (ref ())
-        ]
+        local-list (ref ())]
 
     (fn []
 

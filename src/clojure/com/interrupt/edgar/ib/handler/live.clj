@@ -1,4 +1,4 @@
-(ns edgar.ib.handler.live
+(ns com.interrupt.edgar.ib.handler.live
   (:use [clojure.repl]
         [clojure.core.strint]
         [clojure.tools.namespace.repl]
@@ -8,8 +8,8 @@
             [clojure.string :as cstring]
             [clojure.pprint :as pprint]
             [cljs-uuid.core :as uuid]
-            [edgar.tee.datomic :as tdatomic]
-            [edgar.core.analysis.lagging :as lagging])
+            [com.interrupt.edgar.tee.datomic :as tdatomic]
+            [com.interrupt.edgar.core.analysis.lagging :as lagging])
   )
 
 (defn load-filtered-results
@@ -67,7 +67,7 @@
                       (:tick-window options)
                       40)]
 
-    (log/debug "edgar.core.edgar/handle-event [" evt "] FILTER[" (-> options :stock-match :ticker-id-filter) "] > tick-list size[" (count @tick-list) "]")
+    (log/debug "com.interrupt.edgar.core.edgar/handle-event [" evt "] FILTER[" (-> options :stock-match :ticker-id-filter) "] > tick-list size[" (count @tick-list) "]")
 
 
     ;; handle tickPrice
@@ -91,7 +91,7 @@
 
       (log/debug "")
       (log/debug "")
-      (log/debug "edgar.core.edgar/handle-event VS > trimmed[" (count trimmed-list) "][" "] tick-list[" (count @tick-list) "][" "] > CHECK[" (>= (count trimmed-list) tick-window) "]")
+      (log/debug "com.interrupt.edgar.core.edgar/handle-event VS > trimmed[" (count trimmed-list) "][" "] tick-list[" (count @tick-list) "][" "] > CHECK[" (>= (count trimmed-list) tick-window) "]")
 
 
       ;; i. spit the data out to DB and

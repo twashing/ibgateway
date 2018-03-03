@@ -1,4 +1,4 @@
-(ns edgar.core.analysis.confirming)
+(ns com.interrupt.edgar.core.analysis.confirming)
 
 (defn on-balance-volume
   "On Balance Volume (OBV) measures buying and selling pressure as a cumulative indicator that i) adds volume on up days and ii) subtracts volume on down days. We'll look for divergences between OBV and price to predict price movements or use OBV to confirm price trends.

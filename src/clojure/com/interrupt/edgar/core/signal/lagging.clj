@@ -1,7 +1,7 @@
-(ns edgar.core.signal.lagging
-  (:require [edgar.core.analysis.lagging :as analysis]
-            [edgar.core.analysis.confirming :as confirming]
-            [edgar.core.signal.common :as common]
+(ns com.interrupt.edgar.core.signal.lagging
+  (:require [com.interrupt.edgar.core.analysis.lagging :as analysis]
+            [com.interrupt.edgar.core.analysis.confirming :as confirming]
+            [com.interrupt.edgar.core.signal.common :as common]
             [clojure.tools.logging :as log]))
 
 

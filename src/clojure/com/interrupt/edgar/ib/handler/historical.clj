@@ -1,13 +1,13 @@
-(ns edgar.ib.handler.historical
+(ns com.interrupt.edgar.ib.handler.historical
 
   (:use [clojure.core.strint]
         [clojure.tools.namespace.repl])
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
-            [edgar.ib.market :as market]
-            [edgar.scheduler :as scheduler]
-            [edgar.tee.datomic :as tdatomic]
+            [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.edgar.scheduler :as scheduler]
+            [com.interrupt.edgar.tee.datomic :as tdatomic]
             ))
 
 (defn- insert-into-event-list

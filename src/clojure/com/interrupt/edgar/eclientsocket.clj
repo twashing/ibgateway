@@ -1,20 +1,15 @@
-(ns edgar.eclientsocket
-  (:import  [com.ib.client EClientSocket AnyWrapper]
-            [com.interrupt.edgar EWrapperImpl])
-  )
+(ns com.interrupt.edgar.eclientsocket
+  (:import  [com.ib.client EClientSocket]
+            [com.interrupt.ibgateway EWrapperImpl]))
 
-(defn connect-to-tws []
+#_(defn connect-to-tws []
 
   (let [wr (defonce EWRAPPER (ref (EWrapperImpl.)))
-        es (defonce esocket (EClientSocket. @EWRAPPER))
-        ]
+        es (defonce esocket (EClientSocket. @EWRAPPER))]
     (.eConnect esocket "localhost" 7497 0)
-    { :esocket esocket :ewrapper @EWRAPPER }
-  )
-)
+    { :esocket esocket :ewrapper @EWRAPPER }))
 
-(defn disconnect-from-tws []
+#_(defn disconnect-from-tws []
 
   (if (.isConnected esocket)
-    (.eDisconnect esocket))
-)
+    (.eDisconnect esocket)))

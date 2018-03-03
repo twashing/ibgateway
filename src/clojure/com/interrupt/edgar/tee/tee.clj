@@ -1,5 +1,4 @@
-(ns edgar.tee.tee
-  )
+(ns com.interrupt.edgar.tee.tee)
 
 
 (defprotocol Tee

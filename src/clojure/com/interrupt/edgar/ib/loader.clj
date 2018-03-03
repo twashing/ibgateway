@@ -1,4 +1,4 @@
-(ns edgar.ib.loader
+(ns com.interrupt.edgar.ib.loader
 
   (:use [clojure.core.strint]
         [clojure.tools.namespace.repl])
@@ -9,12 +9,12 @@
             [clojure.tools.logging :as log]
             [overtone.at-at :as at]
 
-            [edgar.ib.market :as market]
-            [edgar.ib.handler.historical :as historical]
-            [edgar.splitter :as splitter]
-            [edgar.scheduler :as scheduler]
-            [edgar.datomic :as edatomic]
-            [edgar.tee.datomic :as tdatomic]
+            [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.edgar.ib.handler.historical :as historical]
+            [com.interrupt.edgar.splitter :as splitter]
+            [com.interrupt.edgar.scheduler :as scheduler]
+            [com.interrupt.edgar.datomic :as edatomic]
+            [com.interrupt.edgar.tee.datomic :as tdatomic]
             ))
 
 (defn- get-stock-lists []

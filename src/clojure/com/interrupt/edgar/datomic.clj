@@ -1,4 +1,4 @@
-(ns edgar.datomic
+(ns com.interrupt.edgar.datomic
 
   (:use [datomic.api :only [q db] :as d])
 )

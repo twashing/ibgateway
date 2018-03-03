@@ -1,4 +1,4 @@
-(ns edgar.core.strategy.target)
+(ns com.interrupt.edgar.core.strategy.target)
 
 
 (defn percentage-change [orig-price current-price]

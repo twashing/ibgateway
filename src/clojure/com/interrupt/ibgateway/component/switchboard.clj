@@ -744,5 +744,4 @@
   (clojure.pprint/pprint sorted-intersections)
   (clojure.pprint/pprint or-volatility-volume-price-change)
 
-
   )

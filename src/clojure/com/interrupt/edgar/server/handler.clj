@@ -1,4 +1,4 @@
-(ns edgar.server.handler)
+(ns com.interrupt.edgar.server.handler)
 
 
 (defn- pull-out-signals [result-data tag]

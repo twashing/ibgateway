@@ -1,5 +1,5 @@
-(ns edgar.core.analysis.leading
-  (:require [edgar.core.analysis.lagging :as lagging]))
+(ns com.interrupt.edgar.core.analysis.leading
+  (:require [com.interrupt.edgar.core.analysis.lagging :as lagging]))
 
 
 (defn macd

@@ -133,7 +133,8 @@
             scanner-subscriptions
             scan-types)))
 
-#_(defn consume-subscriber [scan-atom subscriber-chan]
+;; TODO - put ranks from scan-atoms, into DB
+(defn consume-subscriber [scan-atom subscriber-chan]
   (go-loop [r1 nil]
     (let [{:keys [req-id symbol rank] :as val} (select-keys r1 [:req-id :symbol :rank])]
       (if (and r1 rank)
@@ -159,7 +160,24 @@
         (sub publication reqid subscriber)
 
         ;; TODO - Simply forward the data to "market-scanner"
-        #_(consume-subscriber scan-atom subscriber)))
+        ;; New entry point is here:
+
+
+        ;; com.interrupt.edgar.service/get-streaming-stock-data		< com.interrupt.edgar.core.tee.live/tee-fn
+        ;;
+        ;; com.interrupt.edgar.core.edgar/play-live
+        ;; com.interrupt.edgar.ib.market/subscribe-to-market
+        ;; com.interrupt.edgar.ib.market/request-market-data
+        ;;
+        ;; < com.interrupt.edgar.core.tee.live/tee-fn
+        ;; com.interrupt.edgar.core.analysis.lagging/simple-moving-average
+        ;; com.interrupt.edgar.core.analysis.lagging/exponential-moving-average
+        ;; ...
+        ;; < manage-orders
+        ;; < (output-fn) com.interrupt.edgar.service/stream-live
+
+
+        (consume-subscriber scan-atom subscriber)))
 
     scanner-subscriptions))
 

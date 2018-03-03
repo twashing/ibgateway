@@ -35,13 +35,11 @@
 (defn -main [& args]
 
   ;; TODO - do we still need this?
-  ;; (Thread/sleep 5000) ;; a hack, to ensure that the tws machine is available, before we try to connect to it.
+  (Thread/sleep 5000) ;; a hack, to ensure that the tws machine is available, before we try to connect to it.
 
   (init args)
   (start))
 
-(defn -main [& args]
-  (mount/start))
 
 (comment
 
@@ -49,8 +47,11 @@
 
   (-main nil)
 
-  (mount/start)
-  (mount/stop))
+  (mount/start com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (require 'com.interrupt.ibgateway.component.ewrapper))
+
 
 
 ;; TODO

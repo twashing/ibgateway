@@ -1,14 +1,14 @@
-(ns edgar.core.tee.live
+(ns com.interrupt.edgar.core.tee.live
 
-  (:require [edgar.ib.market :as market]
-            [edgar.core.edgar :as edgar]
-            [edgar.core.analysis.lagging :as alagging]
-            [edgar.core.signal.common :as common]
-            [edgar.core.signal.lagging :as slagging]
-            [edgar.core.signal.leading :as sleading]
-            [edgar.core.signal.confirming :as sconfirming]
-            [edgar.core.strategy.strategy :as strategy]
-            [edgar.core.strategy.target :as target]
+  (:require [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.edgar.core.edgar :as edgar]
+            [com.interrupt.edgar.core.analysis.lagging :as alagging]
+            [com.interrupt.edgar.core.signal.common :as common]
+            [com.interrupt.edgar.core.signal.lagging :as slagging]
+            [com.interrupt.edgar.core.signal.leading :as sleading]
+            [com.interrupt.edgar.core.signal.confirming :as sconfirming]
+            [com.interrupt.edgar.core.strategy.strategy :as strategy]
+            [com.interrupt.edgar.core.strategy.target :as target]
             ))
 
 

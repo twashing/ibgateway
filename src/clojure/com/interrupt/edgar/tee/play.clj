@@ -1,6 +1,6 @@
-(ns edgar.tee.play
+(ns com.interrupt.edgar.tee.play
   (:require [clojure.tools.logging :as log]
-            [edgar.datomic :as edatomic]))
+            [com.interrupt.edgar.datomic :as edatomic]))
 
 
 (defn tee-historical

@@ -1,7 +1,7 @@
-(ns edgar.ib.market
+(ns com.interrupt.edgar.ib.market
   (:import [com.ib.client EWrapper EClientSocket Contract Order OrderState ContractDetails Execution])
   (:use [clojure.core.strint])
-  (:require [edgar.eclientsocket :as socket]
+  (:require [com.interrupt.edgar.eclientsocket :as socket]
             [lamina.core :as lamina]
             [overtone.at-at :as at]
             [clj-time.core :as cime]
@@ -12,12 +12,13 @@
 (defn connect-to-market
   "Connect to the IB marketplace. This should return a 'client' object"
   []
-  (socket/connect-to-tws))
+  #_(socket/connect-to-tws)
+  )
 
 (defn disconnect-from-market
   "Disconnect from the IB marketplace."
   []
-  (socket/disconnect-from-tws))
+  #_(socket/disconnect-from-tws))
 
 (defn- create-contract [instrm]
 

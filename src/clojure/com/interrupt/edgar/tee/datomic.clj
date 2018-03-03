@@ -1,8 +1,8 @@
-(ns edgar.tee.datomic
+(ns com.interrupt.edgar.tee.datomic
   (:use [datomic.api :only [q db] :as d])
   (:require [clojure.tools.logging :as log]
-            [edgar.tee.tee :as tns]
-            [edgar.datomic :as edatomic]))
+            [com.interrupt.edgar.tee.tee :as tns]
+            [com.interrupt.edgar.datomic :as edatomic]))
 
 (defn tee-historical
  "Process the list of entities. First, flatten out the :event-list, and merge it into the entity

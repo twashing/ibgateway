@@ -1,6 +1,6 @@
-(ns edgar.server
+(ns com.interrupt.edgar.server
   (:gen-class) ; for -main method in uberjar
-  (:require [edgar.service :as service]
+  (:require [com.interrupt.edgar.service :as service]
             [io.pedestal.service.http :as bootstrap]))
 
 (def service-instance

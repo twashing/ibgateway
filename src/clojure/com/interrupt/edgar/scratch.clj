@@ -1,16 +1,16 @@
-(ns edgar.scratch)
+(ns com.interrupt.edgar.scratch)
 
 
 ;; Ad-Hoc connect get a day's worth of IBM historical data
 (def data-list (ref []))
 (defn handler-fn [evt] (dosync (alter data-list conj evt)))
 
-(require '[edgar.ib.market :as market])
+(require '[com.interrupt.edgar.ib.market :as market])
 (market/subscribe-to-market handler-fn)
 
 (def connect-result (market/connect-to-market))
 ; user> connect-result
-; {:esocket #<EClientSocket com.ib.client.EClientSocket@7cd84a10>, :ewrapper #<EWrapperImpl com.interrupt.edgar.EWrapperImpl@55877de5>}
+; {:esocket #<EClientSocket com.ib.client.EClientSocket@7cd84a10>, :ewrapper #<EWrapperImpl com.interrupt.com.interrupt.edgar.EWrapperImpl@55877de5>}
 
 (market/request-historical-data (:esocket connect-result) 0 "IBM" "1 D" "1 secs" "TRADES")
 
@@ -25,8 +25,8 @@
 ;; TEST Setup for live play
 
 (use '[clojure.repl])
-(require '[edgar.tee.play :as tplay])
-(require '[edgar.ib.handler.live :as live])
+(require '[com.interrupt.edgar.tee.play :as tplay])
+(require '[com.interrupt.edgar.ib.handler.live :as live])
 
 (def tick-list (ref (read-string (slurp "etc/test-live-list.edn"))))
 (def tee-list [(partial tplay/tee-market @tick-list)])

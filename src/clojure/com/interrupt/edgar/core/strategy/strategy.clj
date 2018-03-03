@@ -1,7 +1,7 @@
-(ns edgar.core.strategy.strategy
+(ns com.interrupt.edgar.core.strategy.strategy
 
-  (:require [edgar.core.signal.common :as common]
-            [edgar.core.signal.leading :as sleading]))
+  (:require [com.interrupt.edgar.core.signal.common :as common]
+            [com.interrupt.edgar.core.signal.leading :as sleading]))
 
 
 (defn price-increase? [tick-list]

@@ -1,6 +1,5 @@
 (ns com.interrupt.ibgateway.component.ewrapper
   (:require [mount.core :refer [defstate] :as mount]
-            #_[com.stuartsierra.component :as component]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ewi]))
 
 
@@ -41,5 +40,5 @@
             (.eDisconnect client))))
 
 (comment
-  (mount/start)
-  (mount/stop))
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper))

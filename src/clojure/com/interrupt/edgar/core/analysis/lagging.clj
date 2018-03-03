@@ -1,6 +1,6 @@
-(ns edgar.core.analysis.lagging
-  (:require [clojure.spec :as s]
-            [clojure.spec.test :as stest]))
+(ns com.interrupt.edgar.core.analysis.lagging
+  (:require [clojure.spec.alpha :as s]
+            [clojure.spec.test.alpha :as stest]))
 
 
 (defn average [list-sum list-count]

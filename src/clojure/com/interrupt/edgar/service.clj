@@ -1,19 +1,19 @@
-(ns edgar.service
+(ns com.interrupt.edgar.service
   (:import [javax.servlet.http HttpServletRequest HttpServletResponse]
            [java.text SimpleDateFormat])
-  (:require [edgar.core.edgar :as edgar]
-            [edgar.datomic :as edatomic]
-            [edgar.ib.market :as market]
-            [edgar.ib.handler.live :as live]
-            [edgar.core.analysis.lagging :as alagging]
-            [edgar.core.signal.lagging :as slagging]
-            [edgar.core.signal.leading :as sleading]
-            [edgar.core.signal.confirming :as sconfirming]
-            [edgar.core.strategy.strategy :as strategy]
-            [edgar.core.strategy.target :as target]
-            [edgar.core.signal.common :as common]
-            [edgar.core.tee.live :as tlive]
-            [edgar.server.handler :as shandler]
+  (:require [com.interrupt.edgar.core.edgar :as edgar]
+            [com.interrupt.edgar.datomic :as edatomic]
+            [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.edgar.ib.handler.live :as live]
+            [com.interrupt.edgar.core.analysis.lagging :as alagging]
+            [com.interrupt.edgar.core.signal.lagging :as slagging]
+            [com.interrupt.edgar.core.signal.leading :as sleading]
+            [com.interrupt.edgar.core.signal.confirming :as sconfirming]
+            [com.interrupt.edgar.core.strategy.strategy :as strategy]
+            [com.interrupt.edgar.core.strategy.target :as target]
+            [com.interrupt.edgar.core.signal.common :as common]
+            [com.interrupt.edgar.core.tee.live :as tlive]
+            [com.interrupt.edgar.server.handler :as shandler]
 
             [clojure.java.io :as io]
             [clojure.walk :as walk]
@@ -59,7 +59,9 @@
 
   (let [response-result (ring-resp/response result-map)]
 
-    (log/info (str "... resume-historical > paused-context class[" (class context) "] > response [" (class response-result) "] [" response-result "]"))
+    (log/info :resume-historical (str "... resume-historical > paused-context class["
+                                      (class context) "] > response ["
+                                      (class response-result) "] [" response-result "]"))
     (iimpl/resume
      (-> context
          (assoc :response response-result)))))
@@ -71,12 +73,12 @@
         time-duration (-> paused-context :request :query-params :time-duration)
         time-interval (-> paused-context :request :query-params :time-interval)]
 
-    (log/info (str "... async-historical 1 > paused-context class["
-                   (class paused-context) "] > stock-selection["
-                   stock-selection "] > time-duration["
-                   time-duration "] > time-interval["
-                   time-interval "] > client-from-session["
-                   (:session (:request paused-context)) "]"))
+    (log/info :async-historical (str "... async-historical 1 > paused-context class["
+                                     (class paused-context) "] > stock-selection["
+                                     stock-selection "] > time-duration["
+                                     time-duration "] > time-interval["
+                                     time-interval "] > client-from-session["
+                                     (:session (:request paused-context)) "]"))
 
     (market/create-event-channel)
 
@@ -186,7 +188,7 @@
 (def stored-streaming-context (atom nil))
 
 (defn init-streaming-stock-data [sse-context]
-  (log/info (str "... init-streaming-stock-data CALLED > sse-context[" sse-context "]"))
+  (log/info :init-streaming-stock-data (str "... init-streaming-stock-data CALLED > sse-context[" sse-context "]"))
   (reset! stored-streaming-context sse-context))
 
 (defn stop-streaming-stock-data
@@ -199,7 +201,7 @@
 
 (defn stream-live [event-name result]
 
-  (log/info (str "... stream-live > context[" streaming-context "] > event-name[" event-name "] response[" result "]"))
+  #_(log/info :stream-live (str "... stream-live > context[" streaming-context "] > event-name[" event-name "] response[" result "]"))
 
   (try
     (sse/send-event @stored-streaming-context event-name (pr-str result))

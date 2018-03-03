@@ -1,4 +1,4 @@
-(ns edgar.core.signal.common)
+(ns com.interrupt.edgar.core.signal.common)
 
 
 (defn find-peaks-valleys
