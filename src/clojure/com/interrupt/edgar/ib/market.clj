@@ -22,13 +22,19 @@
 
 (defn- create-contract [instrm]
 
-  (let [contract (Contract.)]
-    (set! (.m_symbol contract) instrm)
-    (set! (.m_secType contract) "STK")
-    (set! (.m_exchange contract) "SMART")
-    (set! (.m_currency contract) "USD")
+  #_(let [contract (Contract.)]
+      (set! (.m_symbol contract) instrm)
+      (set! (.m_secType contract) "STK")
+      (set! (.m_exchange contract) "SMART")
+      (set! (.m_currency contract) "USD")
 
-    contract))
+      contract)
+
+  (doto (Contract.)
+    (.symbol instrm)
+    (.secType "STK")
+    (.exchange "SMART")
+    (.currency "USD")))
 
 (defn- create-order [action qty price]
 
@@ -56,17 +62,32 @@
      (let [contract (create-contract instrm)
            nnow (time/local-now)
            tformat (format/formatter "yyyyMMdd HH:mm:ss z")
-           tstring (format/unparse tformat nnow)
-           ]
-       (.reqHistoricalData client idx contract tstring duration-str bar-size what-to-show 1 1)
-       )
-     ))
+           tstring (format/unparse tformat nnow)]
+       (.reqHistoricalData client idx contract tstring duration-str bar-size what-to-show 1 1) )))
 
 (defn cancel-historical-data
   "Cancel the request ID, used in 'request-historical-data'"
   [client idx]
   (.cancelHistoricalData client idx))
 
+
+
+
+(use '[clojure.reflect :only [reflect]])
+(use '[clojure.string :only [join]])
+
+(defn inspect [obj]
+  "nicer output for reflecting on an object's methods"
+  (let [reflection (reflect obj)
+        members (sort-by :name (:members reflection))]
+    (println "Class:" (.getClass obj))
+    (println "Bases:" (:bases reflection))
+    (println "---------------------\nConstructors:")
+    (doseq [constructor (filter #(instance? clojure.reflect.Constructor %) members)]
+      (println (:name constructor) "(" (join ", " (:parameter-types constructor)) ")"))
+    (println "---------------------\nMethods:")
+    (doseq [method (filter #(instance? clojure.reflect.Method %) members)]
+      (println (:name method) "(" (join ", " (:parameter-types method)) ") ;=>" (:return-type method)))))
 
 
 ;; ====
@@ -80,7 +101,15 @@
   ([client idx instrm genericTicklist snapshot]
      (let [contract (create-contract instrm)]
 
-       (.reqMktData client idx contract genericTicklist snapshot))))
+       ;; reqMktData(int, com.ib.client.Contract, java.lang.String, boolean);
+
+       #spy/d idx
+       #spy/d contract
+       #spy/d genericTicklist
+       #spy/d snapshot
+       (.reqMktData client (.intValue idx) contract genericTicklist snapshot nil)
+
+       )))
 
 (defn cancel-market-data
   "Cancel the request ID, used in 'request-market-data'"

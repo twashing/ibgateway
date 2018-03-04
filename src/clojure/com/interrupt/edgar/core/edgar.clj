@@ -72,7 +72,7 @@
                                   (market/request-market-data client req-id ech "233" false)
 
                                   ;; increment the request ID for the next stock symbol
-                                  (inc req-id)))
+                                  (swap! req-id inc req-id)))
                               @*ticker-id-index*
                               stock-selection)]
        (swap! *ticker-id-index* (fn [inp] result-id)))))

@@ -604,6 +604,12 @@
   (pprint scanner-subscriptions)
 
 
+  ;; Edgar
+  (require '[com.interrupt.edgar.core.edgar :as edg])
+
+  (edg/play-live client ["IBM"])
+
+
   ;; HISTORICAL
 
   ;; (def historical-atom (atom {}))

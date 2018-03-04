@@ -41,7 +41,7 @@
                  ;;
                  ;; ;; Edgar proper
                  [org.clojure/core.incubator "0.1.2"]
-                 #_[jtsclient/jtsclient "9.8.3"]
+                 ;; [jtsclient/jtsclient "9.8.3"]
                  [org.clojure/data.csv "0.1.2"]
                  [overtone/at-at "1.1.1"]
                  [cljs-uuid "0.0.4"]
@@ -61,8 +61,7 @@
                  ;; [jayq "2.3.0"]
 
                  ;; Java Libraries
-                 [joda-time "2.2"]
-                 ]
+                 [joda-time "2.2"]]
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
