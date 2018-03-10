@@ -73,7 +73,7 @@
 
                                   ;; increment the request ID for the next stock symbol
                                   (swap! req-id inc req-id)))
-                              @*ticker-id-index*
+                              *ticker-id-index*
                               stock-selection)]
        (swap! *ticker-id-index* (fn [inp] result-id)))))
 

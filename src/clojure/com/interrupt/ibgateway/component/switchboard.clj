@@ -18,7 +18,10 @@
             [mount.core :refer [defstate] :as mount]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.switchboard.store :as store]
-            [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]))
+            [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
+            [com.interrupt.edgar.core.tee.live :as tlive]
+            [com.interrupt.edgar.ib.market :as market]))
+
 
 
 #_(def topic-scanner-command "scanner-command")
@@ -605,10 +608,17 @@
 
 
   ;; Edgar
-  (require '[com.interrupt.edgar.core.edgar :as edg])
+  (require '[com.interrupt.edgar.core.edgar :as edg]
+           '[com.interrupt.edgar.ib.market :as mkt])
 
-  (edg/play-live client ["IBM"])
+  (let [stock-name "IBM"
+        stream-live (fn stream-live [event-name result]
+                      (println :stream-live (str "... stream-live > event-name["
+                                                 event-name "] response[" result "]")))]
 
+    (edg/play-live client [stock-name] [(partial tlive/tee-fn stream-live stock-name)]))
+
+  (mkt/cancel-market-data client 0)
 
   ;; HISTORICAL
 
