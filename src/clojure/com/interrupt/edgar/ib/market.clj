@@ -102,14 +102,7 @@
      (let [contract (create-contract instrm)]
 
        ;; reqMktData(int, com.ib.client.Contract, java.lang.String, boolean);
-
-       #spy/d idx
-       #spy/d contract
-       #spy/d genericTicklist
-       #spy/d snapshot
-       (.reqMktData client (.intValue idx) contract genericTicklist snapshot nil)
-
-       )))
+       (.reqMktData client (.intValue idx) contract genericTicklist snapshot nil))))
 
 (defn cancel-market-data
   "Cancel the request ID, used in 'request-market-data'"

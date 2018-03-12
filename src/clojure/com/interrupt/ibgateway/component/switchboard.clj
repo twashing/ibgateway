@@ -17,11 +17,11 @@
             [datomic.api :as d]
             [mount.core :refer [defstate] :as mount]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
+            [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
             [com.interrupt.ibgateway.component.switchboard.store :as store]
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
             [com.interrupt.edgar.core.tee.live :as tlive]
             [com.interrupt.edgar.ib.market :as market]))
-
 
 
 #_(def topic-scanner-command "scanner-command")
@@ -175,7 +175,7 @@
 
             (clear-subscriptions! c))))))
 
-(comment  ;; Workbench to consume from Kafka
+#_(comment  ;; Workbench to consume from Kafka
 
     (consume-topic-example)
 
@@ -204,13 +204,26 @@
     (pprint (seq records))
     (.close consumer))
 
-#_(comment  ;; DB workbench
+(comment  ;; DB workbench
 
 
     ;; Schema
 
-
     ;; Examples
+
+    ;; HISTORICAL entry
+    {:open 313.97
+     :date "20180104  20:17:00"
+     :req-id 4002
+     :topic :historical-data
+     :close 313.95
+     :has-gaps false
+     :volume 21
+     :high 314.04
+     :wap 314.01
+     :count 19
+     :low 313.95}
+
     {:switchboard/scanner :stock-scanner
      :switchboard/state :on}
 
@@ -263,8 +276,80 @@
        {:db/ident :switchboard/stock-price}
        {:db/ident :switchboard/stock-historical}])
 
-    (def schema-transact-result (d/transact conn scanner-schema))
+    ;; Live data keys
+    :total-volume
+    :last-trade-size
+    :vwap
+    :last-trade-price
 
+    (def historical-schema
+      [{:db/ident :historical/open
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/float}
+
+       {:db/ident :historical/date
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/instant}
+
+       {:db/ident :historical/req-id
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/long}
+
+       {:db/ident :historical/topic
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/keyword}
+
+       {:db/ident :historical/close
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/double}
+
+       {:db/ident :historical/has-gaps
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/boolean}
+
+       {:db/ident :historical/volume
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/long}
+
+       {:db/ident :historical/high
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/double}
+
+       {:db/ident :historical/low
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/double}
+
+       {:db/ident :historical/wap
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/double}
+
+       {:db/ident :historical/count
+        :db/cardinality :db.cardinality/one
+        :db/valueType :db.type/long}])
+
+
+    (def schema-transact-result (d/transact conn scanner-schema))
+    (def schema-historical-result (d/transact conn historical-schema))
+
+    ;; #inst "20180104  20:17:00"
+    (def historical-input [{:historical/open 313.97
+                            :historical/date #inst "2018-01-04T20:17:00Z"
+                            :historical/req-id 4002
+                            :historical/topic :historical-data
+                            :historical/close 313.95
+                            :historical/has-gaps false
+                            :historical/volume 21
+                            :historical/high 314.04
+                            :historical/wap 314.01
+                            :historical/count 19
+                            :historical/low 313.95}])
+
+    (def result (d/transact conn historical-input))
+
+    (pprint (d/q '[:find (pull ?e [*])
+                   :where
+                   [?e :historical/topic :historical-data]]
+                 (d/db conn)))
 
     ;; TURN ON
     (def scanner-on [{:switchboard/scanner :switchboard/stock-scanner
@@ -390,8 +475,6 @@
                      [?s :db/ident :stock-historical-state/off]]
                    (d/db conn))))
 
-
-
 #_(comment  ;; State Machine
 
     ;; reqMktData
@@ -508,6 +591,8 @@
     )
 
 
+
+
 #_(defn subscribed? [conn scan instrument]
 
     (d/q '[:find (pull ?e [{:switchboard/state [*]}
@@ -611,39 +696,89 @@
   (require '[com.interrupt.edgar.core.edgar :as edg]
            '[com.interrupt.edgar.ib.market :as mkt])
 
+
+  ;; LIVE
   (let [stock-name "IBM"
         stream-live (fn stream-live [event-name result]
-                      (println :stream-live (str "... stream-live > event-name["
-                                                 event-name "] response[" result "]")))]
+                      (println :stream-live (str "... stream-live > event-name[" event-name
+                                                 "] response[" result "]")))]
 
     (edg/play-live client [stock-name] [(partial tlive/tee-fn stream-live stock-name)]))
 
   (mkt/cancel-market-data client 0)
 
-  ;; HISTORICAL
+  ;; LIVE output
+  ;; ...
 
-  ;; (def historical-atom (atom {}))
-  ;; (def historical-subscriptions (historical-start 4002 client publication historical-atom))
-  ;;
-  ;; ;; ====
-  ;; ;; Requesting historical data
-  ;;
-  ;; ;; (def cal (Calendar/getInstance))
-  ;; ;; #_(.add cal Calendar/MONTH -6)
-  ;; ;;
-  ;; ;; (def form (SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
-  ;; ;; (def formatted (.format form (.getTime cal)))
-  ;; ;;
-  ;; ;; (let [contract (doto (Contract.)
-  ;; ;;                  (.symbol "TSLA")
-  ;; ;;                  (.secType "STK")
-  ;; ;;                  (.currency "USD")
-  ;; ;;                  (.exchange "SMART")
-  ;; ;;                  #_(.primaryExch "ISLAND"))]
-  ;; ;;
-  ;; ;;   (.reqHistoricalData client 4002 contract formatted "4 W" "1 min" "MIDPOINT" 1 1 nil))
-  ;;
-  ;;
+  ;; HISTORICAL
+  (defn consume-subscriber-historical [historical-atom subscriber-chan]
+    (go-loop [r1 nil]
+
+      (let [{:keys [req-id date open high low close volume count wap has-gaps] :as val} r1]
+        (swap! historical-atom assoc date val))
+      (recur (<! subscriber-chan))))
+
+  (defn historical-start [req-id client publication historical-atom]
+
+    (let [subscriber (chan)]
+      (ei/historical-subscribe req-id client)
+      (sub publication req-id subscriber)
+      (consume-subscriber-historical historical-atom subscriber)))
+
+  (defn historical-stop [])
+
+
+  (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def publication
+    (pub publisher #(:req-id %)))
+
+  (def historical-atom (atom {}))
+  (def historical-subscriptions (historical-start 4002 client publication historical-atom))
+
+
+  ;; HISTORICAL output
+  #_([nil nil]
+   ["20171121  20:14:00"
+    {:open 316.91,
+     :date "20171121  20:14:00",
+     :req-id 4002,
+     :topic :historical-data,
+     :close 316.77,
+     :has-gaps false,
+     :volume 47,
+     :high 316.91,
+     :wap 316.771,
+     :count 26,
+     :low 316.7}]
+   ["20171116  16:23:00"
+    {:open 314.74,
+     :date "20171116  16:23:00",
+     :req-id 4002,
+     :topic :historical-data,
+     :close 314.88,
+     :has-gaps false,
+     :volume 80,
+     :high 314.99,
+     :wap 314.85,
+     :count 49,
+     :low 314.6}]
+   ["20180104  20:17:00"
+    {:open 313.97,
+     :date "20180104  20:17:00",
+     :req-id 4002,
+     :topic :historical-data,
+     :close 313.95,
+     :has-gaps false,
+     :volume 21,
+     :high 314.04,
+     :wap 314.01,
+     :count 19,
+     :low 313.95}])
+
+
+
+
   ;; (require '[clojure.string :as str])
   ;;
   ;; (pprint (take 6 (->> @historical-atom

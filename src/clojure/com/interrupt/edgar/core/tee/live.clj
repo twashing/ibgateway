@@ -1,5 +1,4 @@
 (ns com.interrupt.edgar.core.tee.live
-
   (:require [com.interrupt.edgar.ib.market :as market]
             [com.interrupt.edgar.core.edgar :as edgar]
             [com.interrupt.edgar.core.analysis.lagging :as alagging]
@@ -8,8 +7,7 @@
             [com.interrupt.edgar.core.signal.leading :as sleading]
             [com.interrupt.edgar.core.signal.confirming :as sconfirming]
             [com.interrupt.edgar.core.strategy.strategy :as strategy]
-            [com.interrupt.edgar.core.strategy.target :as target]
-            ))
+            [com.interrupt.edgar.core.strategy.target :as target]))
 
 
 (def ^:dynamic *tracking-data* (ref []))
@@ -185,7 +183,7 @@
           ;; ... TODO: track orderId for sale
           ;; ... TODO: stock-symbol has to be tied to the tickerId
           (println "==> BUY now")
-          (dosync (alter *tracking-data* (fn [inp]
+          #_(dosync (alter *tracking-data* (fn [inp]
 
                                            (let [result-filter (filter #(= (-> % second :tickerId) (:tickerId (first tick-list-N)))
                                                                        (map-indexed (fn [idx itm] [idx itm]) inp))]
@@ -217,7 +215,7 @@
           (do
 
             (println "==> SELL now / test[" (filter #(= (:tickerId %) (-> tick-list-N first :tickerId)) @*tracking-data*) "] ")
-            (dosync (alter *tracking-data* (fn [inp]
+            #_(dosync (alter *tracking-data* (fn [inp]
 
                                              (let [result-filter (filter #(= (-> % second :tickerId) (:tickerId (first tick-list-N)))
                                                                          (map-indexed (fn [idx itm] [idx itm]) inp))]
