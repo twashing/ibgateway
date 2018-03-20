@@ -50,7 +50,8 @@
        (market/subscribe-to-market (partial historical/snapshot-handler options))
        (historical/schedule-historical-data options))))
 
-(def ^:dynamic *ticker-id-index* (atom 0))
+
+(def ^:dynamic *ticker-id-index* 0)
 (defn play-live
   "1) takes a selection of stock symbols
    2) gets a live market feed
@@ -73,10 +74,10 @@
                                   (market/request-market-data client req-id ech "233" false)
 
                                   ;; increment the request ID for the next stock symbol
-                                  (swap! req-id inc req-id)))
+                                  (inc req-id)))
                               *ticker-id-index*
                               stock-selection)]
-       (swap! *ticker-id-index* (fn [inp] result-id)))))
+       result-id)))
 
 (defn initialize-workbench []
   (def ^:dynamic *interactive-brokers-workbench* {:interactive-brokers-client (:esocket (market/connect-to-market))})

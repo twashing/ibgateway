@@ -143,11 +143,18 @@
 (defn close-market-channel []
   (lamina/force-close @event-channel))
 
+
+(def kludge (atom []))
+
 (defn subscribe-to-market [handle-fn]
-  (lamina/receive-all @event-channel handle-fn))
+
+  (lamina/receive-all @event-channel handle-fn)
+  #_(lamina/receive-all @event-channel #(swap! kludge conj %))
+  )
 
 (defn publish-event [^clojure.lang.PersistentHashMap event]
-  (lamina/enqueue @event-channel event))
+  (lamina/enqueue @event-channel event)
+  (swap! kludge conj event))
 
 
 ;; transform java.util.HashMap to a Clojure map

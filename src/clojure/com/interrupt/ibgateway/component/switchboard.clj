@@ -680,6 +680,7 @@
   ;; com.interrupt.ibgateway.component.ewrapper/ewrapper
 
 
+  ;; SCANNER
   ;; TODO -   ;; Brokerage
   ;; subscribe / unsubscribe - with reqid state
   ;; process-message under differing system states
@@ -692,20 +693,60 @@
   (pprint scanner-subscriptions)
 
 
-  ;; Edgar
+
+  ;; LIVE
   (require '[com.interrupt.edgar.core.edgar :as edg]
            '[com.interrupt.edgar.ib.market :as mkt])
 
+  (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
+  (def publication
+    (pub publisher #(:req-id %)))
 
-  ;; LIVE
   (let [stock-name "IBM"
         stream-live (fn stream-live [event-name result]
                       (println :stream-live (str "... stream-live > event-name[" event-name
                                                  "] response[" result "]")))]
 
-    (edg/play-live client [stock-name] [(partial tlive/tee-fn stream-live stock-name)]))
+    ;; TODO - replace this with analogy to brok/scanner-start
+    (edg/play-live client [stock-name] [(partial tlive/tee-fn stream-live stock-name)])
+    #_(brok/live-subscribe req-id client stock-name))
 
+  (pprint mkt/kludge)
   (mkt/cancel-market-data client 0)
+
+
+  ;; STATE
+  (mount/find-all-states)
+  #_("#'com.interrupt.ibgateway.component.repl-server/server" "#'com.interrupt.ibgateway.component.ewrapper/ewrapper" "#'com.interrupt.ibgateway.component.switchboard.store/conn" "#'com.interrupt.ibgateway.core/state")
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+
+  ;; LOCAL data loading
+  (def input (read-string (slurp "live.1.clj")))
+  (doseq [{:keys [dispatch] :as ech} input]
+
+    (case dispatch
+      :tick-string (as-> ech e
+                     (dissoc e :dispatch)
+                     (vals e)
+                     (apply #(.tickString ewrapper-impl %1 %2 %3) e))
+      :tick-price (as-> ech e
+                    (dissoc e :dispatch)
+                    (vals e)
+                    (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+      :tick-size (as-> ech e
+                   (dissoc e :dispatch)
+                   (vals e)
+                   (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+  #_(.tickPrice ewrapper-impl 0 0 1.2 0)
+  #_(.tickSize ewrapper-impl 0 1 2)
+  #_(.tickString ewrapper-impl 0 1 "Foo")
+
 
   ;; LIVE output
   ;; ...
