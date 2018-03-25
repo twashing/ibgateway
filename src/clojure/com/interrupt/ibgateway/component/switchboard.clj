@@ -592,7 +592,6 @@
 
 
 
-
 #_(defn subscribed? [conn scan instrument]
 
     (d/q '[:find (pull ?e [{:switchboard/state [*]}
@@ -655,7 +654,6 @@
 
 
     )
-
 
 (comment
 
@@ -935,5 +933,78 @@
   (clojure.pprint/pprint intersection-subsets)
   (clojure.pprint/pprint sorted-intersections)
   (clojure.pprint/pprint or-volatility-volume-price-change)
+
+  )
+
+(comment
+
+
+  ;; LIVE
+  (require '[com.interrupt.edgar.core.edgar :as edg]
+           '[com.interrupt.edgar.ib.market :as mkt])
+
+  (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
+  (def publication
+    (pub publisher #(:topic %)))
+
+  (let [stock-name "TSLA"
+        stream-live (fn stream-live [event-name result]
+                      (println :stream-live (str "... stream-live > event-name[" event-name
+                                                 "] response[" result "]")))]
+
+    ;; TODO - replace this with analogy to brok/scanner-start
+    (edg/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)
+                                                  ;; TODO - put a datomic tee fn
+                                                  ])
+    #_(brok/live-subscribe req-id client stock-name))
+
+  #_(pprint mkt/kludge)
+  (mkt/cancel-market-data client 0)
+
+
+  ;; STATE
+  #_("#'com.interrupt.ibgateway.component.repl-server/server"
+     "#'com.interrupt.ibgateway.component.ewrapper/ewrapper"
+     "#'com.interrupt.ibgateway.component.switchboard.store/conn"
+     "#'com.interrupt.ibgateway.core/state")
+  (mount/find-all-states)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+
+  (defn take-and-print [channel]
+    (go-loop []
+      (println (<! channel))
+      (recur)))
+
+
+  (def subscriber (chan))
+  (sub publication :tick-price subscriber)
+  (sub publication :tick-size subscriber)
+  (sub publication :tick-string subscriber)
+  (take-and-print subscriber)
+
+  ;; LOCAL data loading
+  (def input (read-string (slurp "live.1.clj")))
+  (doseq [{:keys [dispatch] :as ech} input]
+
+    #_(println)
+    (println "Sanity Check: " ech)
+    (case dispatch
+      :tick-string (as-> ech e
+                     (dissoc e :dispatch)
+                     (vals e)
+                     (apply #(.tickString ewrapper-impl %1 %2 %3) e))
+      :tick-price (as-> ech e
+                    (dissoc e :dispatch)
+                    (vals e)
+                    (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+      :tick-size (as-> ech e
+                   (dissoc e :dispatch)
+                   (vals e)
+                   (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
 
   )

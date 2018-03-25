@@ -241,7 +241,7 @@
 
 (defn tee-fn [output-fn stock-name result-map]
 
-  #_(println (str "get-streaming-stock-data result-map[" result-map "]"))
+  (println (str "get-streaming-stock-data result-map[" result-map "]"))
   (let [tick-list-N (map (fn [inp]
                            (assoc inp
                              :total-volume (read-string (:total-volume inp))

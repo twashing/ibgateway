@@ -67,9 +67,9 @@
                       (:tick-window options)
                       40)]
 
-    (log/debug "com.interrupt.edgar.core.edgar/handle-event [" evt
-               "] FILTER[" (-> options :stock-match :ticker-id-filter)
-               "] > tick-list size[" (count @tick-list) "]")
+    (println "com.interrupt.edgar.core.edgar/handle-event [" evt
+             "] FILTER[" (-> options :stock-match :ticker-id-filter)
+             "] > tick-list size[" (count @tick-list) "]")
 
 
     ;; handle tickPrice
@@ -91,9 +91,9 @@
           tail-evt (first trimmed-list)]
 
 
-      (println "")
-      (println "")
-      (println "com.interrupt.edgar.core.edgar/handle-event VS > trimmed[" (count trimmed-list)
+      #_(println "")
+      #_(println "")
+      #_(println "com.interrupt.edgar.core.edgar/handle-event VS > trimmed[" (count trimmed-list)
                "][" "] tick-list[" (count @tick-list)
                "][" "] > CHECK[" (>= (count trimmed-list) tick-window) "]")
 
@@ -131,12 +131,15 @@
 
   (let [stock-match (:stock-match options)]
 
-    (log/info "feed-handler > tickerID[" (:ticker-id-filter stock-match)
-              "] > stock-symbol[" (:symbol stock-match)
-              "] > SOME[" (= (evt "tickerId") (:ticker-id-filter stock-match)) "]")
-    (if (-> options :stock-match :ticker-id-filter)
+    (println "feed-handler > condition 1 [" (not (nil? (-> options :stock-match :ticker-id-filter)))
+             "] condition 2 [" (= (int (:ticker-id evt))
+                                  (int (-> options :stock-match :ticker-id-filter)))
+             "] / event[" evt "]")
 
-      ;; check if this event passes the filter
-      (if (= (evt "tickerId") (-> options :stock-match :ticker-id-filter))
+    (if (not (nil? (-> options :stock-match :ticker-id-filter)))
+
+      ;; Check if this event passes the filter
+      (if (= (int (:ticker-id evt))
+             (int (-> options :stock-match :ticker-id-filter)))
 
         (handle-event (assoc options :tick-window 40) evt)))))

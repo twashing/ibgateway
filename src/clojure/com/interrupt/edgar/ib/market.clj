@@ -3,6 +3,7 @@
   (:use [clojure.core.strint])
   (:require [com.interrupt.edgar.eclientsocket :as socket]
             [lamina.core :as lamina]
+            [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [overtone.at-at :as at]
             [clj-time.core :as cime]
             [clj-time.local :as time]
@@ -146,11 +147,26 @@
 
 (def kludge (atom []))
 
-(defn subscribe-to-market [handle-fn]
 
-  (lamina/receive-all @event-channel handle-fn)
+(defn consume [handle-fn channel]
+  (go-loop []
+    (handle-fn (<! channel))
+    (recur)))
+
+(defn subscribe-to-market [publisher handle-fn]
+
+  #_(lamina/receive-all @event-channel handle-fn)
   #_(lamina/receive-all @event-channel #(swap! kludge conj %))
-  )
+
+
+  (let [publication (pub publisher #(:topic %))
+        subscriber (chan)]
+
+    (sub publication :tick-price subscriber)
+    (sub publication :tick-size subscriber)
+    (sub publication :tick-string subscriber)
+
+    (consume handle-fn subscriber)))
 
 (defn publish-event [^clojure.lang.PersistentHashMap event]
   (lamina/enqueue @event-channel event)

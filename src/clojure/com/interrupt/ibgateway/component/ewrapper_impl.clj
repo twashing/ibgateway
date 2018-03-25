@@ -73,30 +73,30 @@
 
     (tickPrice [^Integer tickerId ^Integer field ^Double price ^Integer canAutoExecute]
 
-      (println "New - Tick Price. Ticker Id:" tickerId " Field: " field " Price: " price " CanAutoExecute: " canAutoExecute)
+      ;; (println "New - Tick Price. Ticker Id:" tickerId " Field: " field " Price: " price " CanAutoExecute: " canAutoExecute)
       (let [ch-value {:topic TICKPRICE
                       :ticker-id tickerId
                       :field field
                       :price price
                       :can-auto-execute canAutoExecute}]
-        #_(go (>! publisher ch-value))))
+        (go (>! publisher ch-value))))
 
     (tickSize [^Integer tickerId ^Integer field ^Integer size]
 
-      (println "New - Tick Size. Ticker Id:"  tickerId  " Field: "  field  " Size: "  size)
+      ;; (println "New - Tick Size. Ticker Id:"  tickerId  " Field: "  field  " Size: "  size)
       (let [ch-value {:topic TICKSIZE
                       :ticker-id tickerId
                       :field field
                       :size size}]
-        #_(go (>! publisher ch-value))))
+        (go (>! publisher ch-value))))
 
     (tickString [^Integer tickerId ^Integer tickType ^String value]
-      (println "New - Tick String. Ticker Id:"  tickerId  " Type: "  tickType  " Value: "  value)
+      ;; (println "New - Tick String. Ticker Id:"  tickerId  " Type: "  tickType  " Value: "  value)
       (let [ch-value {:topic TICKSTRING
                       :ticker-id tickerId
                       :tick-type tickType
                       :value value}]
-        #_(go (>! publisher ch-value))))
+        (go (>! publisher ch-value))))
 
     (scannerParameters [^String xml]
 
@@ -170,7 +170,8 @@
 
 (defn ewrapper
 
-  ([] (ewrapper 1))
+  ([]
+   (ewrapper 1))
   ([no-of-topics]
 
    ;; Setup client, wrapper, process messages

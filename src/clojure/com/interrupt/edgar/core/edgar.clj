@@ -56,9 +56,9 @@
   "1) takes a selection of stock symbols
    2) gets a live market feed
    3) plays back the results in real-time"
-  ([client stock-selection]
-     (play-live client stock-selection nil))
-  ([client stock-selection tee-fn-list]
+  ([client publisher stock-selection]
+   (play-live client publisher stock-selection nil))
+  ([client publisher stock-selection tee-fn-list]
 
      {:pre [(not (nil? client))
             (not (nil? stock-selection))]}
@@ -70,8 +70,8 @@
                                       options {:tick-list tick-list :tee-list tee-list
                                                :stock-match {:symbol ech :ticker-id-filter req-id}}]
 
-                                  (market/subscribe-to-market (partial live/feed-handler options))
-                                  (market/request-market-data client req-id ech "233" false)
+                                  (market/subscribe-to-market publisher (partial live/feed-handler options))
+                                  #_(market/request-market-data client req-id ech "233" false)
 
                                   ;; increment the request ID for the next stock symbol
                                   (inc req-id)))
