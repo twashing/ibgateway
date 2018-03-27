@@ -33,28 +33,27 @@
 (defn handle-tick-price
   " Format will look like:
 
-    {type tickPrice, tickerId 0, timeStamp #<DateTime 2013-05-01T13:29:38.129-04:00>, price 412.14, canAutoExecute 0, field 4}
-  "
+    {type tickPrice, tickerId 0, timeStamp #<DateTime 2013-05-01T13:29:38.129-04:00>, price 412.14, canAutoExecute 0, field 4}"
   [options evt]
 
+  (println "handle-tick-price > options[" options "] evt[" evt "]")
   (dosync (alter (:tick-list options)
                  (fn [inp] (conj inp (walk/keywordize-keys (merge evt {:uuid (str (uuid/make-random))})))))))
 
 (defn handle-tick-string
   "Format will look like:
 
-   {type tickString, tickerId 0, tickType 48, value 412.14;1;1367429375742;1196;410.39618025;true}
-  "
+   {type tickString, tickerId 0, tickType 48, value 412.14;1;1367429375742;1196;410.39618025;true}"
   [options evt]
 
-  (log/debug "handle-tick-string > options[" options "] evt[" evt "]")
+  (println "handle-tick-string > options[" options "] evt[" evt "]")
   (let [tkeys [:last-trade-price :last-trade-size :last-trade-time :total-volume :vwap :single-trade-flag]
-        tvalues (cstring/split (evt "value") #";")  ;; parsing RTVolume data
+        tvalues (cstring/split (:value evt) #";")  ;; parsing RTVolume data
         result-map (zipmap tkeys tvalues)]
 
     (dosync (alter (:tick-list options)
-                   (fn [inp] (conj inp (merge result-map {:tickerId (evt "tickerId")
-                                                         :type (evt "type")
+                   (fn [inp] (conj inp (merge result-map {:tickerId (:ticker-id evt)
+                                                         :type (:topic evt)
                                                          :uuid (str (uuid/make-random))}) ))))))
 
 (defn handle-event [options evt]
@@ -73,12 +72,12 @@
 
 
     ;; handle tickPrice
-    #_(if (= "tickPrice" (evt "type")) (handle-tick-price options evt))
+    (if (= :tick-price (:topic evt)) (handle-tick-price options evt))
 
 
     ;; handle tickString
-    (if (and (= "tickString" (evt "type"))
-             (= 48 (evt "tickType")))
+    (if (and (= :tick-string (:topic evt))
+             (= 48 (:tick-type evt)))
       (handle-tick-string options evt))
 
 
@@ -94,8 +93,8 @@
       #_(println "")
       #_(println "")
       #_(println "com.interrupt.edgar.core.edgar/handle-event VS > trimmed[" (count trimmed-list)
-               "][" "] tick-list[" (count @tick-list)
-               "][" "] > CHECK[" (>= (count trimmed-list) tick-window) "]")
+               "] tick-list[" (count @tick-list)
+               "] > CHECK[" (>= (count trimmed-list) tick-window) "]")
 
 
       ;; i. spit the data out to DB and
@@ -131,7 +130,7 @@
 
   (let [stock-match (:stock-match options)]
 
-    (println "feed-handler > condition 1 [" (not (nil? (-> options :stock-match :ticker-id-filter)))
+    #_(println "feed-handler > condition 1 [" (not (nil? (-> options :stock-match :ticker-id-filter)))
              "] condition 2 [" (= (int (:ticker-id evt))
                                   (int (-> options :stock-match :ticker-id-filter)))
              "] / event[" evt "]")

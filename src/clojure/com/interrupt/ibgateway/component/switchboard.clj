@@ -954,7 +954,8 @@
                       (println :stream-live (str "... stream-live > event-name[" event-name
                                                  "] response[" result "]")))]
 
-    ;; TODO - replace this with analogy to brok/scanner-start
+    ;; TODO - implement
+    ;; (tee-input-to-datomic publisher)
     (edg/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)
                                                   ;; TODO - put a datomic tee fn
                                                   ])

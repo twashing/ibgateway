@@ -71,7 +71,7 @@
                                                :stock-match {:symbol ech :ticker-id-filter req-id}}]
 
                                   (market/subscribe-to-market publisher (partial live/feed-handler options))
-                                  #_(market/request-market-data client req-id ech "233" false)
+                                  (market/request-market-data client req-id ech "233" false)
 
                                   ;; increment the request ID for the next stock symbol
                                   (inc req-id)))

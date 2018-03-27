@@ -67,6 +67,7 @@
   :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[drift "1.5.3"]
                                   [spyscope "0.1.5"]
+                                  [com.bhauman/rebel-readline "0.1.1"]
                                   [im.chit/lucid.core.inject "1.3.13"]
                                   [com.gfredericks/test.chuck "0.2.8"]
                                   [http-kit.fake "0.2.1"]
@@ -90,5 +91,8 @@
                              ;; we have to wait for an update.
 
                              ;; [refactor-nrepl "2.4.0-SNAPSHOT"]
-                             ]}}
+                             ]
+
+                   :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}}
+
   :main com.interrupt.ibgateway.core)
