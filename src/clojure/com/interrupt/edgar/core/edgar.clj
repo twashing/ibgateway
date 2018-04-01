@@ -56,8 +56,10 @@
   "1) takes a selection of stock symbols
    2) gets a live market feed
    3) plays back the results in real-time"
+
   ([client publisher stock-selection]
    (play-live client publisher stock-selection nil))
+
   ([client publisher stock-selection tee-fn-list]
 
      {:pre [(not (nil? client))

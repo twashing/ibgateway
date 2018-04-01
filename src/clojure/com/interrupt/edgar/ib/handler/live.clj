@@ -9,8 +9,8 @@
             [clojure.pprint :as pprint]
             [cljs-uuid.core :as uuid]
             [com.interrupt.edgar.tee.datomic :as tdatomic]
-            [com.interrupt.edgar.core.analysis.lagging :as lagging])
-  )
+            [com.interrupt.edgar.core.analysis.lagging :as lagging]))
+
 
 (defn load-filtered-results
   "Find entity.symbol (and entire entity) where price-difference is greatest"
@@ -19,16 +19,13 @@
   (let [historical-entities (q '[:find ?p ?s ?c :where
                                  [?h :historical/price-difference ?p]
                                  [?h :historical/symbol ?s]
-                                 [?h :historical/company ?c]
-                                 ] (db conn))
+                                 [?h :historical/company ?c]]
+                               (db conn))
         sorted-entities (reverse (sort-by first historical-entities))]
 
     (if limit
       (take limit sorted-entities)
-      sorted-entities)
-    )
-  )
-
+      sorted-entities)))
 
 (defn handle-tick-price
   " Format will look like:
@@ -36,7 +33,7 @@
     {type tickPrice, tickerId 0, timeStamp #<DateTime 2013-05-01T13:29:38.129-04:00>, price 412.14, canAutoExecute 0, field 4}"
   [options evt]
 
-  (println "handle-tick-price > options[" options "] evt[" evt "]")
+  (println "handle-tick-price > options[" (dissoc options :tick-list) "] evt[" evt "]")
   (dosync (alter (:tick-list options)
                  (fn [inp] (conj inp (walk/keywordize-keys (merge evt {:uuid (str (uuid/make-random))})))))))
 
@@ -46,13 +43,25 @@
    {type tickString, tickerId 0, tickType 48, value 412.14;1;1367429375742;1196;410.39618025;true}"
   [options evt]
 
-  (println "handle-tick-string > options[" options "] evt[" evt "]")
-  (let [tkeys [:last-trade-price :last-trade-size :last-trade-time :total-volume :vwap :single-trade-flag]
-        tvalues (cstring/split (:value evt) #";")  ;; parsing RTVolume data
+
+  ;; ;0;1522334506905;47098;252.27282467;true
+  ;; 0; ticker-id
+  ;; 1522334506905; timestamp
+  ;; 47098; volume
+  ;; 252.27282467; price
+  ;; true
+
+  (println "handle-tick-string > options[" (dissoc options :tick-list) "] evt[" evt "]")
+  (let [tvalues #spy/d (remove empty?
+                               (cstring/split (:value evt) #";"))
+        tkeys (if (= 5 (count tvalues))
+                [:ticker-id :last-trade-time :total-volume :last-trade-price :single-trade-flag]
+                [:last-trade-price :last-trade-size :last-trade-time :total-volume :vwap :single-trade-flag])
+        ;; parsing RTVolume data
         result-map (zipmap tkeys tvalues)]
 
     (dosync (alter (:tick-list options)
-                   (fn [inp] (conj inp (merge result-map {:tickerId (:ticker-id evt)
+                   (fn [inp] (conj inp (merge result-map {:ticker-id (:ticker-id evt)
                                                          :type (:topic evt)
                                                          :uuid (str (uuid/make-random))}) ))))))
 
@@ -70,14 +79,11 @@
              "] FILTER[" (-> options :stock-match :ticker-id-filter)
              "] > tick-list size[" (count @tick-list) "]")
 
+    (when (= :tick-price (:topic evt))
+      (handle-tick-price options evt))
 
-    ;; handle tickPrice
-    (if (= :tick-price (:topic evt)) (handle-tick-price options evt))
-
-
-    ;; handle tickString
-    (if (and (= :tick-string (:topic evt))
-             (= 48 (:tick-type evt)))
+    (when (and (= :tick-string (:topic evt))
+               (= 48 (:tick-type evt)))
       (handle-tick-string options evt))
 
 
@@ -85,14 +91,17 @@
     ;;  - only for RTVolume last ticks
     ;;  - wrt a given tickerId
     (let [trimmed-list (->> @tick-list
-                            (filter #(= "tickString" (% :type)) #_input_here )
-                            (filter #(= (evt "tickerId") (% :tickerId)) #_input_here))
+                            (filter #(= :tick-string (:type %)))
+                            (filter #(if (and (not (nil? (:ticker-id evt)))
+                                              (not (nil? (:ticker-id %))))
+                                       (= (int (:ticker-id evt))
+                                          (int (:ticker-id %))))))
           tail-evt (first trimmed-list)]
 
-
-      #_(println "")
-      #_(println "")
-      #_(println "com.interrupt.edgar.core.edgar/handle-event VS > trimmed[" (count trimmed-list)
+      (println "")
+      (println "Evt: " evt)
+      (println "com.interrupt.edgar.core.edgar/handle-event VS > trimmed[" (count trimmed-list)
+               "] format[" (first @tick-list)
                "] tick-list[" (count @tick-list)
                "] > CHECK[" (>= (count trimmed-list) tick-window) "]")
 
@@ -106,7 +115,7 @@
           (reduce (fn [rslt efn]
 
                     (efn {:symbol (-> options :stock-match :symbol)
-                          :tickerId (-> options :stock-match :ticker-id-filter)
+                          :ticker-id (-> options :stock-match :ticker-id-filter)
                           :event-list trimmed-list}))
                   nil
                   tee-list)
@@ -114,9 +123,12 @@
 
           ;; trim down tick-list if it's greater than the tick-window (defaults to 40)
           (if (>= (count trimmed-list) tick-window)
-            (dosync (alter tick-list
-                           (fn [inp] (into []
-                                          (remove #(= (:uuid tail-evt) (% :uuid)) inp)))))))))))
+            (dosync
+             (alter tick-list
+                    (fn [inp]
+                      (into []
+                            (remove #(= (:uuid tail-evt) (% :uuid))
+                                    inp)))))))))))
 
 
 (defn feed-handler
@@ -131,9 +143,9 @@
   (let [stock-match (:stock-match options)]
 
     #_(println "feed-handler > condition 1 [" (not (nil? (-> options :stock-match :ticker-id-filter)))
-             "] condition 2 [" (= (int (:ticker-id evt))
-                                  (int (-> options :stock-match :ticker-id-filter)))
-             "] / event[" evt "]")
+               "] condition 2 [" (= (int (:ticker-id evt))
+                                    (int (-> options :stock-match :ticker-id-filter)))
+               "] / event[" evt "]")
 
     (if (not (nil? (-> options :stock-match :ticker-id-filter)))
 

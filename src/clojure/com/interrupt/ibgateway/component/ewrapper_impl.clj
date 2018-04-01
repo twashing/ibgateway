@@ -172,6 +172,7 @@
 
   ([]
    (ewrapper 1))
+
   ([no-of-topics]
 
    ;; Setup client, wrapper, process messages

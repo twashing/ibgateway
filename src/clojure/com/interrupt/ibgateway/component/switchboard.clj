@@ -206,274 +206,318 @@
 
 (comment  ;; DB workbench
 
+  ;; Schema
 
-    ;; Schema
+  ;; Examples
 
-    ;; Examples
+  ;; HISTORICAL entry
+  {:open 313.97
+   :date "20180104  20:17:00"
+   :req-id 4002
+   :topic :historical-data
+   :close 313.95
+   :has-gaps false
+   :volume 21
+   :high 314.04
+   :wap 314.01
+   :count 19
+   :low 313.95}
 
-    ;; HISTORICAL entry
-    {:open 313.97
-     :date "20180104  20:17:00"
-     :req-id 4002
-     :topic :historical-data
-     :close 313.95
-     :has-gaps false
-     :volume 21
-     :high 314.04
-     :wap 314.01
-     :count 19
-     :low 313.95}
+  {:switchboard/scanner :stock-scanner
+   :switchboard/state :on}
 
-    {:switchboard/scanner :stock-scanner
-     :switchboard/state :on}
+  {:switchboard/scanner :stock-price
+   :switchboard/state :on
+   :switchboard/instrument "TSLA"}
 
-    {:switchboard/scanner :stock-price
-     :switchboard/state :on
-     :switchboard/instrument "TSLA"}
-
-    {:switchboard/scanner :stock-historical
-     :switchboard/state :on
-     :switchboard/instrument "TSLA"}
-
-
-    (require '[datomic.api :as d])
-    (def uri "datomic:mem://ibgateway")
-
-    (def rdelete (d/delete-database uri))
-    (def rcreate (d/create-database uri))
-    (def conn (d/connect uri))
-    (def db (d/db conn))
+  {:switchboard/scanner :stock-historical
+   :switchboard/state :on
+   :switchboard/instrument "TSLA"}
 
 
-    ;; SCHEMA
-    (def scanner-schema
-      [;; used for > MARKET SCANNER | STOCK | STOCK HISTORICAL
-       {:db/ident :switchboard/scanner
-        :db/valueType :db.type/ref
-        :db/cardinality :db.cardinality/one
-        :db/doc "The type of connection: market scanner | stock | stock historical"}
+  (require '[datomic.api :as d])
+  (def uri "datomic:mem://ibgateway")
 
-       {:db/ident :switchboard/state
-        :db/valueType :db.type/ref
-        :db/cardinality :db.cardinality/one
-        :db/doc "A simple switch on whether or not, to scan"}
-
-       {:db/ident :switchboard/request-id
-        :db/valueType :db.type/long
-        :db/cardinality :db.cardinality/one
-        :db/unique :db.unique/identity
-        :db/doc "Records the request id made to TWS"}
-
-       {:db/ident :switchboard/instrument
-        :db/valueType :db.type/string
-        :db/cardinality :db.cardinality/one
-        :db/doc "The stock symbol being tracked"}
+  (def rdelete (d/delete-database uri))
+  (def rcreate (d/create-database uri))
+  (def conn (d/connect uri))
+  (def db (d/db conn))
 
 
-       {:db/ident :switchboard/on}
-       {:db/ident :switchboard/off}
-       {:db/ident :switchboard/stock-scanner}
-       {:db/ident :switchboard/stock-price}
-       {:db/ident :switchboard/stock-historical}])
+  ;; SCHEMA
+  (def scanner-schema
+    [;; used for > MARKET SCANNER | STOCK | STOCK HISTORICAL
+     {:db/ident :switchboard/scanner
+      :db/valueType :db.type/ref
+      :db/cardinality :db.cardinality/one
+      :db/doc "The type of connection: market scanner | stock | stock historical"}
 
-    ;; Live data keys
-    :total-volume
-    :last-trade-size
-    :vwap
-    :last-trade-price
+     {:db/ident :switchboard/state
+      :db/valueType :db.type/ref
+      :db/cardinality :db.cardinality/one
+      :db/doc "A simple switch on whether or not, to scan"}
 
-    (def historical-schema
-      [{:db/ident :historical/open
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/float}
+     {:db/ident :switchboard/request-id
+      :db/valueType :db.type/long
+      :db/cardinality :db.cardinality/one
+      :db/unique :db.unique/identity
+      :db/doc "Records the request id made to TWS"}
 
-       {:db/ident :historical/date
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/instant}
-
-       {:db/ident :historical/req-id
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/long}
-
-       {:db/ident :historical/topic
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/keyword}
-
-       {:db/ident :historical/close
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/double}
-
-       {:db/ident :historical/has-gaps
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/boolean}
-
-       {:db/ident :historical/volume
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/long}
-
-       {:db/ident :historical/high
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/double}
-
-       {:db/ident :historical/low
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/double}
-
-       {:db/ident :historical/wap
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/double}
-
-       {:db/ident :historical/count
-        :db/cardinality :db.cardinality/one
-        :db/valueType :db.type/long}])
+     {:db/ident :switchboard/instrument
+      :db/valueType :db.type/string
+      :db/cardinality :db.cardinality/one
+      :db/doc "The stock symbol being tracked"}
 
 
-    (def schema-transact-result (d/transact conn scanner-schema))
-    (def schema-historical-result (d/transact conn historical-schema))
+     {:db/ident :switchboard/on}
+     {:db/ident :switchboard/off}
+     {:db/ident :switchboard/stock-scanner}
+     {:db/ident :switchboard/stock-price}
+     {:db/ident :switchboard/stock-historical}])
 
-    ;; #inst "20180104  20:17:00"
-    (def historical-input [{:historical/open 313.97
-                            :historical/date #inst "2018-01-04T20:17:00Z"
-                            :historical/req-id 4002
-                            :historical/topic :historical-data
-                            :historical/close 313.95
-                            :historical/has-gaps false
-                            :historical/volume 21
-                            :historical/high 314.04
-                            :historical/wap 314.01
-                            :historical/count 19
-                            :historical/low 313.95}])
+  ;; Live data keys
+  :total-volume
+  :last-trade-size
+  :vwap
+  :last-trade-price
 
-    (def result (d/transact conn historical-input))
+  (def historical-schema
+    [{:db/ident :historical/open
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/float}
 
-    (pprint (d/q '[:find (pull ?e [*])
-                   :where
-                   [?e :historical/topic :historical-data]]
-                 (d/db conn)))
+     {:db/ident :historical/date
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/instant}
 
-    ;; TURN ON
-    (def scanner-on [{:switchboard/scanner :switchboard/stock-scanner
-                      :switchboard/state :switchboard/on}])
+     {:db/ident :historical/req-id
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
 
-    (def scanner-off [{:switchboard/scanner :switchboard/stock-scanner
-                       :switchboard/state :switchboard/off}])
+     {:db/ident :historical/topic
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/keyword}
 
-    (def stock-scanner-on [{:switchboard/scanner :switchboard/stock-price
-                            :switchboard/state :switchboard/on
-                            :switchboard/instrument "TSLA"}])
+     {:db/ident :historical/close
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
 
-    (def stock-historical-on [{:switchboard/scanner :switchboard/stock-historical
-                               :switchboard/state :switchboard/on
-                               :switchboard/instrument "TSLA"}])
+     {:db/ident :historical/has-gaps
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/boolean}
 
-    (def all-on [{:switchboard/scanner :switchboard/stock-scanner
-                  :switchboard/state :switchboard/on}
+     {:db/ident :historical/volume
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
 
-                 {:switchboard/scanner :switchboard/stock-price
-                  :switchboard/state :switchboard/on
-                  :switchboard/instrument "TSLA"}
+     {:db/ident :historical/high
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
 
-                 {:switchboard/scanner :switchboard/stock-historical
-                  :switchboard/state :switchboard/on
-                  :switchboard/instrument "TSLA"}])
+     {:db/ident :historical/low
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
 
-    #_(d/transact conn scanner-on)
-    #_(d/transact conn scanner-off)
-    #_(d/transact conn stock-scanner-on)
-    #_(d/transact conn stock-historical-on)
+     {:db/ident :historical/wap
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
 
-    (def result (d/transact conn all-on))
+     {:db/ident :historical/count
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}])
 
-    (pprint (->> (for [color [:red :blue]
-                       size [1 2]
-                       type ["a" "b"]]
-                   {:inv/color color
-                    :inv/size size
-                    :inv/type type})
-                 (map-indexed
-                  (fn [idx map]
-                    (assoc map :inv/sku (str "SKU-" idx))))
-                 vec))
+  (def live-schema
+    [{:db/ident :live/tick-price-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-field
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-price
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
+
+     {:db/ident :live/tick-price-canAutoExecute
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
 
 
-    ;; QUERY
-    (pprint (d/q '[:find (pull ?e [:switchboard/instrument
-                                   {:switchboard/scanner [*]}
-                                   {:switchboard/state [*]}])
-                   :where
-                   [?e :switchboard/state]]
-                 (d/db conn)))
+     {:db/ident :live/tick-size-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
 
-    (pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+     {:db/ident :live/tick-size-field
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-size-size
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+
+     {:db/ident :live/tick-string-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-tickType
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-value
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/string}])
+
+
+
+  (def schema-transact-result (d/transact conn scanner-schema))
+  (def schema-historical-result (d/transact conn historical-schema))
+  (def schema-live-result (d/transact conn live-schema))
+
+  ;; #inst "20180104  20:17:00"
+  (def historical-input [{:historical/open 313.97
+                          :historical/date #inst "2018-01-04T20:17:00Z"
+                          :historical/req-id 4002
+                          :historical/topic :historical-data
+                          :historical/close 313.95
+                          :historical/has-gaps false
+                          :historical/volume 21
+                          :historical/high 314.04
+                          :historical/wap 314.01
+                          :historical/count 19
+                          :historical/low 313.95}])
+
+  (def result (d/transact conn historical-input))
+
+  (pprint (d/q '[:find (pull ?e [*])
+                 :where
+                 [?e :historical/topic :historical-data]]
+               (d/db conn)))
+
+  ;; TURN ON
+  (def scanner-on [{:switchboard/scanner :switchboard/stock-scanner
+                    :switchboard/state :switchboard/on}])
+
+  (def scanner-off [{:switchboard/scanner :switchboard/stock-scanner
+                     :switchboard/state :switchboard/off}])
+
+  (def stock-scanner-on [{:switchboard/scanner :switchboard/stock-price
+                          :switchboard/state :switchboard/on
+                          :switchboard/instrument "TSLA"}])
+
+  (def stock-historical-on [{:switchboard/scanner :switchboard/stock-historical
+                             :switchboard/state :switchboard/on
+                             :switchboard/instrument "TSLA"}])
+
+  (def all-on [{:switchboard/scanner :switchboard/stock-scanner
+                :switchboard/state :switchboard/on}
+
+               {:switchboard/scanner :switchboard/stock-price
+                :switchboard/state :switchboard/on
+                :switchboard/instrument "TSLA"}
+
+               {:switchboard/scanner :switchboard/stock-historical
+                :switchboard/state :switchboard/on
+                :switchboard/instrument "TSLA"}])
+
+  #_(d/transact conn scanner-on)
+  #_(d/transact conn scanner-off)
+  #_(d/transact conn stock-scanner-on)
+  #_(d/transact conn stock-historical-on)
+
+  (def result (d/transact conn all-on))
+
+  (pprint (->> (for [color [:red :blue]
+                     size [1 2]
+                     type ["a" "b"]]
+                 {:inv/color color
+                  :inv/size size
+                  :inv/type type})
+               (map-indexed
+                (fn [idx map]
+                  (assoc map :inv/sku (str "SKU-" idx))))
+               vec))
+
+
+  ;; QUERY
+  (pprint (d/q '[:find (pull ?e [:switchboard/instrument
+                                 {:switchboard/scanner [*]}
+                                 {:switchboard/state [*]}])
+                 :where
+                 [?e :switchboard/state]]
+               (d/db conn)))
+
+  (pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                                 :switchboard/instrument])
+                 :where
+                 [?e :switchboard/scanner ?s]
+                 [?s :db/ident :switchboard/stock-scanner]]
+               (d/db conn)))
+
+
+  ;; TURN ON - IBM
+  (def ibm-on [{:switchboard/scanner :switchboard/stock-price
+                :switchboard/state :switchboard/on
+                :switchboard/instrument "IBM"}])
+
+  (d/transact conn ibm-on)
+
+
+  ;; QUERY
+  (pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                                 :switchboard/instrument])
+                 :where
+                 [?e :switchboard/state]
+                 [?e :switchboard/instrument "IBM"]
+                 (d/db conn)]))
+
+
+  ;;ADD an entity
+  (def intl-on [{:switchboard/scanner {:db/id [:db/ident :switchboard/stock-price]}
+                 :switchboard/state {:db/id [:db/ident :switchboard/on]}
+                 :switchboard/instrument "INTL"}])
+
+  (d/transact conn intl-on)
+
+  ;; UPDATE an entity
+  (def ibm-off [[:db/add
+                 [:switchboard/instrument "IBM"]
+                 :switchboard/state :stock-price-state/off]])
+
+  #_(d/transact conn ibm-off)
+
+  ;; QUERY - does a stock price scan exist?
+  #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
                                    :switchboard/instrument])
                    :where
-                   [?e :switchboard/scanner ?s]
-                   [?s :db/ident :switchboard/stock-scanner]]
+                   [?e :switchboard/state ?s]
+                   [?s :db/ident :stock-price-state/on]]
+                 (d/db conn)))
+
+  #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                                   :switchboard/instrument])
+                   :where
+                   [?e :switchboard/state ?s]
+                   [?s :db/ident :stock-price-state/off]]
                  (d/db conn)))
 
 
-    ;; TURN ON - IBM
-    (def ibm-on [{:switchboard/scanner :switchboard/stock-price
-                  :switchboard/state :switchboard/on
-                  :switchboard/instrument "IBM"}])
 
-    (d/transact conn ibm-on)
-
-
-    ;; QUERY
-    (pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+  ;; QUERY - does a historical fetch exist?
+  #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
                                    :switchboard/instrument])
                    :where
-                   [?e :switchboard/state]
-                   [?e :switchboard/instrument "IBM"]
-                   (d/db conn)]))
+                   [?e :switchboard/state ?s]
+                   [?s :db/ident :stock-historical-state/on]]
+                 (d/db conn)))
 
-
-    ;;ADD an entity
-    (def intl-on [{:switchboard/scanner {:db/id [:db/ident :switchboard/stock-price]}
-                   :switchboard/state {:db/id [:db/ident :switchboard/on]}
-                   :switchboard/instrument "INTL"}])
-
-    (d/transact conn intl-on)
-
-    ;; UPDATE an entity
-    (def ibm-off [[:db/add
-                   [:switchboard/instrument "IBM"]
-                   :switchboard/state :stock-price-state/off]])
-
-    #_(d/transact conn ibm-off)
-
-    ;; QUERY - does a stock price scan exist?
-    #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
-                                     :switchboard/instrument])
-                     :where
-                     [?e :switchboard/state ?s]
-                     [?s :db/ident :stock-price-state/on]]
-                   (d/db conn)))
-
-    #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
-                                     :switchboard/instrument])
-                     :where
-                     [?e :switchboard/state ?s]
-                     [?s :db/ident :stock-price-state/off]]
-                   (d/db conn)))
-
-
-
-    ;; QUERY - does a historical fetch exist?
-    #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
-                                     :switchboard/instrument])
-                     :where
-                     [?e :switchboard/state ?s]
-                     [?s :db/ident :stock-historical-state/on]]
-                   (d/db conn)))
-
-    #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
-                                     :switchboard/instrument])
-                     :where
-                     [?e :switchboard/state ?s]
-                     [?s :db/ident :stock-historical-state/off]]
-                   (d/db conn))))
+  #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                                   :switchboard/instrument])
+                   :where
+                   [?e :switchboard/state ?s]
+                   [?s :db/ident :stock-historical-state/off]]
+                 (d/db conn))))
 
 #_(comment  ;; State Machine
 
@@ -778,42 +822,42 @@
 
   ;; HISTORICAL output
   #_([nil nil]
-   ["20171121  20:14:00"
-    {:open 316.91,
-     :date "20171121  20:14:00",
-     :req-id 4002,
-     :topic :historical-data,
-     :close 316.77,
-     :has-gaps false,
-     :volume 47,
-     :high 316.91,
-     :wap 316.771,
-     :count 26,
-     :low 316.7}]
-   ["20171116  16:23:00"
-    {:open 314.74,
-     :date "20171116  16:23:00",
-     :req-id 4002,
-     :topic :historical-data,
-     :close 314.88,
-     :has-gaps false,
-     :volume 80,
-     :high 314.99,
-     :wap 314.85,
-     :count 49,
-     :low 314.6}]
-   ["20180104  20:17:00"
-    {:open 313.97,
-     :date "20180104  20:17:00",
-     :req-id 4002,
-     :topic :historical-data,
-     :close 313.95,
-     :has-gaps false,
-     :volume 21,
-     :high 314.04,
-     :wap 314.01,
-     :count 19,
-     :low 313.95}])
+     ["20171121  20:14:00"
+      {:open 316.91,
+       :date "20171121  20:14:00",
+       :req-id 4002,
+       :topic :historical-data,
+       :close 316.77,
+       :has-gaps false,
+       :volume 47,
+       :high 316.91,
+       :wap 316.771,
+       :count 26,
+       :low 316.7}]
+     ["20171116  16:23:00"
+      {:open 314.74,
+       :date "20171116  16:23:00",
+       :req-id 4002,
+       :topic :historical-data,
+       :close 314.88,
+       :has-gaps false,
+       :volume 80,
+       :high 314.99,
+       :wap 314.85,
+       :count 49,
+       :low 314.6}]
+     ["20180104  20:17:00"
+      {:open 313.97,
+       :date "20180104  20:17:00",
+       :req-id 4002,
+       :topic :historical-data,
+       :close 313.95,
+       :has-gaps false,
+       :volume 21,
+       :high 314.04,
+       :wap 314.01,
+       :count 19,
+       :low 313.95}])
 
 
 
@@ -949,27 +993,96 @@
   (def publication
     (pub publisher #(:topic %)))
 
+
+  (require '[datomic.api :as d])
+  (def uri "datomic:mem://ibgateway")
+
+  (def rdelete (d/delete-database uri))
+  (def rcreate (d/create-database uri))
+  (def conn (d/connect uri))
+  (def db (d/db conn))
+
+  (def live-schema
+    [{:db/ident :live/tick-price-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-field
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-price
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
+
+     {:db/ident :live/tick-price-canAutoExecute
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+
+     {:db/ident :live/tick-size-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-size-field
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-size-size
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+
+     {:db/ident :live/tick-string-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-tickType
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-value
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/string}])
+  (def schema-live-result (d/transact conn live-schema))
+
+
   (let [stock-name "TSLA"
         stream-live (fn stream-live [event-name result]
                       (println :stream-live (str "... stream-live > event-name[" event-name
-                                                 "] response[" result "]")))]
+                                                 "] response[" result "]")))
+        options-datomic {:tick-list (ref [])
+                         :stock-match {:symbol ech :ticker-id-filter req-id}}
 
-    ;; TODO - implement
-    ;; (tee-input-to-datomic publisher)
+        datomic-feed-handler (fn [options evt]
+
+                               ;; Example datomic inputs
+                               #_(def live-input-size [{:live/tick-size-tickerId 0
+                                                      :live/tick-size-field 433
+                                                      :live/tick-size-size 50}])
+
+                               #_(def live-input-string [{:live/tick-string-tickerId 0
+                                                        :live/tick-price-tickType 43
+                                                        :live/tick-price-value ";1;2;3;4"}])
+
+                               #_(def live-input-price [{:live/tick-price-tickerId 0
+                                                       :live/tick-price-field 433
+                                                       :live/tick-price-price 62.45
+                                                       :live/tick-price-canAutoExecute 1}])
+
+                               #_(def result (d/transact conn live-input-string))
+
+                               )]
+
+    (market/subscribe-to-market publisher (partial live/feed-handler options))
+
     (edg/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)
                                                   ;; TODO - put a datomic tee fn
-                                                  ])
-    #_(brok/live-subscribe req-id client stock-name))
+                                                  ]))
 
-  #_(pprint mkt/kludge)
   (mkt/cancel-market-data client 0)
 
-
   ;; STATE
-  #_("#'com.interrupt.ibgateway.component.repl-server/server"
-     "#'com.interrupt.ibgateway.component.ewrapper/ewrapper"
-     "#'com.interrupt.ibgateway.component.switchboard.store/conn"
-     "#'com.interrupt.ibgateway.core/state")
   (mount/find-all-states)
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
