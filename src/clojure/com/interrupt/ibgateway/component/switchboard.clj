@@ -57,7 +57,6 @@
                        :kafka-url kafka-url }) )
 
 
-;; ==
 #_(def running (atom true))
 
 #_(defn consume-topic-example []
@@ -635,7 +634,6 @@
     )
 
 
-
 #_(defn subscribed? [conn scan instrument]
 
     (d/q '[:find (pull ?e [{:switchboard/state [*]}
@@ -747,7 +745,7 @@
     (pub publisher #(:req-id %)))
 
   (let [stock-name "IBM"
-        stream-live (fn stream-live [event-name result]
+        stream-live (fn [event-name result]
                       (println :stream-live (str "... stream-live > event-name[" event-name
                                                  "] response[" result "]")))]
 
@@ -985,7 +983,8 @@
 
   ;; LIVE
   (require '[com.interrupt.edgar.core.edgar :as edg]
-           '[com.interrupt.edgar.ib.market :as mkt])
+           '[com.interrupt.edgar.ib.market :as mkt]
+           '[com.interrupt.edgar.ib.handler.live :as live])
 
   (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
   (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
@@ -1020,6 +1019,7 @@
       :db/valueType :db.type/long}
 
 
+
      {:db/ident :live/tick-size-tickerId
       :db/cardinality :db.cardinality/one
       :db/valueType :db.type/long}
@@ -1033,6 +1033,7 @@
       :db/valueType :db.type/long}
 
 
+
      {:db/ident :live/tick-string-tickerId
       :db/cardinality :db.cardinality/one
       :db/valueType :db.type/long}
@@ -1044,43 +1045,106 @@
      {:db/ident :live/tick-price-value
       :db/cardinality :db.cardinality/one
       :db/valueType :db.type/string}])
+
   (def schema-live-result (d/transact conn live-schema))
 
 
+  ;; TODO
+  ;; 1. Get more data with setting: 233 (RT Volume (Time & Sales))
+  ;; 2. dispatch on the different types of tickPrice + tickSize (reference: https://interactivebrokers.github.io/tws-api/tick_types.html)
+  ;;   Details we need to collect
+  ;;
+  ;;   :last-trade-price
+  ;;   :last-trade-size
+  ;;   :total-volume
+  ;;   ~ :last-trade-time
+  ;;   ~ :vwap
+
+
+  ;; GET the data
   (let [stock-name "TSLA"
         stream-live (fn stream-live [event-name result]
                       (println :stream-live (str "... stream-live > event-name[" event-name
                                                  "] response[" result "]")))
         options-datomic {:tick-list (ref [])
-                         :stock-match {:symbol ech :ticker-id-filter req-id}}
+                         :stock-match {:symbol stock-name :ticker-id-filter 0}}
 
         datomic-feed-handler (fn [options evt]
 
+                               ;; (println "datomic-feed-handler: " options " / " evt)
+                               (spit "live.5.edn" evt :append true)
+
                                ;; Example datomic inputs
                                #_(def live-input-size [{:live/tick-size-tickerId 0
-                                                      :live/tick-size-field 433
-                                                      :live/tick-size-size 50}])
+                                                        :live/tick-size-field 433
+                                                        :live/tick-size-size 50}])
 
                                #_(def live-input-string [{:live/tick-string-tickerId 0
-                                                        :live/tick-price-tickType 43
-                                                        :live/tick-price-value ";1;2;3;4"}])
+                                                          :live/tick-price-tickType 43
+                                                          :live/tick-price-value ";1;2;3;4"}])
 
                                #_(def live-input-price [{:live/tick-price-tickerId 0
-                                                       :live/tick-price-field 433
-                                                       :live/tick-price-price 62.45
-                                                       :live/tick-price-canAutoExecute 1}])
+                                                         :live/tick-price-field 433
+                                                         :live/tick-price-price 62.45
+                                                         :live/tick-price-canAutoExecute 1}])
 
-                               #_(def result (d/transact conn live-input-string))
+                               #_(def result (d/transact conn live-input-string)))]
 
-                               )]
+    (market/subscribe-to-market publisher (partial datomic-feed-handler options-datomic))
 
-    (market/subscribe-to-market publisher (partial live/feed-handler options))
-
-    (edg/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)
-                                                  ;; TODO - put a datomic tee fn
-                                                  ]))
+    (edg/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)]))m
 
   (mkt/cancel-market-data client 0)
+
+
+
+  ;; PLAY the data
+  (require '[overtone.at-at :refer :all]
+           '[com.interrupt.edgar.ib.handler.live :refer [feed-handler]])
+
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
+  (def publication
+    (pub publisher #(:topic %)))
+
+
+  (let [stock-name "TSLA"
+
+        output-fn (fn [event-name result]
+                    (println :stream-live (str "... stream-live > event-name[" event-name "] response[" result "]")))
+
+        options {:tick-list (ref [])
+                 :tee-list [(partial tlive/tee-fn output-fn stock-name)]
+                 :stock-match {:symbol "TSLA" :ticker-id-filter 0}}]
+
+    (market/subscribe-to-market publisher (partial feed-handler options)))
+
+  (def my-pool (mk-pool))
+  (def input-source (atom (read-string (slurp "live.3.edn"))))
+  (def scheduled-fn (every 1000
+                           (fn []
+                             (let [{:keys [topic] :as ech} (first @input-source)]
+
+                               ;; (println "Sanity Check: " ech)
+                               (case topic
+                                 :tick-string (as-> ech e
+                                                (dissoc e :topic)
+                                                (vals e)
+                                                (apply #(.tickString ewrapper-impl %1 %2 %3) e))
+                                 :tick-price (as-> ech e
+                                               (dissoc e :topic)
+                                               (vals e)
+                                               (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+                                 :tick-size (as-> ech e
+                                              (dissoc e :topic)
+                                              (vals e)
+                                              (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+                             (swap! input-source #(rest %)))
+                           my-pool))
+  (stop scheduled-fn)
+
+
 
   ;; STATE
   (mount/find-all-states)
@@ -1119,6 +1183,87 @@
       :tick-size (as-> ech e
                    (dissoc e :dispatch)
                    (vals e)
-                   (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+                   (apply #(.tickSize ewrapper-impl %1 %2 %3) e)))))
+
+(comment   ;; PLAY the data
+
+  (require '[com.interrupt.edgar.core.edgar :as edg]
+           '[com.interrupt.edgar.ib.market :as mkt]
+           '[overtone.at-at :refer :all]
+           '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live])
+
+
+  (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
+  (def publication
+    (pub publisher #(:topic %)))
+
+
+  (let [stock-name "TSLA"
+
+        output-fn (fn [event-name result]
+                    (println (str "stream-live > event-name[" event-name "] response keys[" (keys result) "]"))
+                    (println (str "stream-live > event-name[" event-name "] signals[" (-> result :signals keys) "]"))
+                    (println (str "stream-live > event-name[" event-name "] strategies[" (:strategies result) "]")))
+
+        options {:tick-list (ref [])
+                 :tee-list [(partial tlive/tee-fn output-fn stock-name)]
+                 :stock-match {:symbol "TSLA" :ticker-id-filter 0}}]
+
+    (market/subscribe-to-market publisher (partial feed-handler options)))
+
+  (def my-pool (mk-pool))
+  (def input-source (atom (read-string (slurp "live.4.edn"))))
+  (defn consume-fn []
+    (let [{:keys [topic] :as ech} (first @input-source)]
+
+      ;; (println "Sanity Check: " ech)
+      (case topic
+        :tick-string (as-> ech e
+                       (dissoc e :topic)
+                       (vals e)
+                       (apply #(.tickString ewrapper-impl %1 %2 %3) e))
+        :tick-price (as-> ech e
+                      (dissoc e :topic)
+                      (vals e)
+                      (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+        :tick-size (as-> ech e
+                     (dissoc e :topic)
+                     (vals e)
+                     (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+    (swap! input-source #(rest %)))
+
+  (def scheduled-fn (every 1000
+                           consume-fn
+                           my-pool))
+  (stop scheduled-fn)
+
+
+
+  ;; STATE
+  (mount/find-all-states)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
   )
+
+(comment
+
+  (def tick-list (atom []))
+  (def options {:tick-list tick-list})
+  (def evt1 {:value ";0;1522337866199;67085;253.23364232;true"
+             :topic "tickString"
+             :ticker-id 0})
+  (def evt2 {:value "255.59;1;1522337865948;67077;253.23335428;true"
+             :topic "tickString"
+             :ticker-id 0})
+
+  (live/handle-tick-string options evt1)
+
+  )
+
+;; :value       ;0;1522337866199;67085;253.23364232;true
+;; :value 255.59;1;1522337865948;67077;253.23335428;true

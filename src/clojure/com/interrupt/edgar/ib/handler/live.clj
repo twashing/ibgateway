@@ -33,7 +33,7 @@
     {type tickPrice, tickerId 0, timeStamp #<DateTime 2013-05-01T13:29:38.129-04:00>, price 412.14, canAutoExecute 0, field 4}"
   [options evt]
 
-  (println "handle-tick-price > options[" (dissoc options :tick-list) "] evt[" evt "]")
+  #_(println "handle-tick-price > options[" (dissoc options :tick-list) "] evt[" evt "]")
   (dosync (alter (:tick-list options)
                  (fn [inp] (conj inp (walk/keywordize-keys (merge evt {:uuid (str (uuid/make-random))})))))))
 
@@ -44,19 +44,32 @@
   [options evt]
 
 
+  ;; :value       ;0;1522337866199;67085;253.23364232;true
+  ;; :value 255.59;1;1522337865948;67077;253.23335428;true
+
   ;; ;0;1522334506905;47098;252.27282467;true
+
   ;; 0; ticker-id
   ;; 1522334506905; timestamp
   ;; 47098; volume
   ;; 252.27282467; price
   ;; true
 
+  :last-trade-price
+  :last-trade-size
+  :total-volume
+  :last-trade-time
+  :vwap
+
   (println "handle-tick-string > options[" (dissoc options :tick-list) "] evt[" evt "]")
   (let [tvalues #spy/d (remove empty?
                                (cstring/split (:value evt) #";"))
-        tkeys (if (= 5 (count tvalues))
+        tkeys [:last-trade-price :last-trade-size :last-trade-time :total-volume :vwap :single-trade-flag]
+
+        #_(if (= 5 (count tvalues))
                 [:ticker-id :last-trade-time :total-volume :last-trade-price :single-trade-flag]
                 [:last-trade-price :last-trade-size :last-trade-time :total-volume :vwap :single-trade-flag])
+
         ;; parsing RTVolume data
         result-map (zipmap tkeys tvalues)]
 
@@ -75,7 +88,7 @@
                       (:tick-window options)
                       40)]
 
-    (println "com.interrupt.edgar.core.edgar/handle-event [" evt
+    #_(println "com.interrupt.edgar.core.edgar/handle-event [" evt
              "] FILTER[" (-> options :stock-match :ticker-id-filter)
              "] > tick-list size[" (count @tick-list) "]")
 
@@ -98,12 +111,11 @@
                                           (int (:ticker-id %))))))
           tail-evt (first trimmed-list)]
 
-      (println "")
-      (println "Evt: " evt)
-      (println "com.interrupt.edgar.core.edgar/handle-event VS > trimmed[" (count trimmed-list)
+      (println "com.interrupt.edgar.core.edgar/handle-event vs > trimmed[" (count trimmed-list)
                "] format[" (first @tick-list)
-               "] tick-list[" (count @tick-list)
-               "] > CHECK[" (>= (count trimmed-list) tick-window) "]")
+               "] tick-list count[" (count @tick-list)
+               "] > CHECK[" (>= (count trimmed-list) tick-window)
+               "] > Event[" evt "]")
 
 
       ;; i. spit the data out to DB and

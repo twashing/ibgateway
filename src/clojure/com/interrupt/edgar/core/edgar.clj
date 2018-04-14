@@ -74,6 +74,7 @@
 
                                   (market/subscribe-to-market publisher (partial live/feed-handler options))
                                   (market/request-market-data client req-id ech "233" false)
+                                  #_(market/request-market-data client req-id ech "" false)
 
                                   ;; increment the request ID for the next stock symbol
                                   (inc req-id)))

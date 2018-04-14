@@ -4,7 +4,9 @@
   :license {:name "TODO: Choose a license"
             :url "http://choosealicense.com/"}
   :repositories [["myMavenRepo.read" "https://mymavenrepo.com/repo/HaEY4usKuLXXnqmXBr0z"]
-                 ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]]
+                 ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]
+                 ["my.datomic.com" {:url "https://my.datomic.com/repo"
+                                    :creds :gpg}]]
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.apache.commons/commons-daemon "1.0.9"]
                  [mount "0.1.12"]
@@ -19,6 +21,7 @@
                  [automat "0.2.4"]
                  [reduce-fsm "0.1.4"]
                  [com.datomic/datomic-free "0.9.5656"]
+                 #_[com.datomic/datomic-pro "0.9.5697"]
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
                  [clojure-future-spec "1.9.0-alpha17"]

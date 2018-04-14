@@ -98,6 +98,9 @@
                       :value value}]
         (go (>! publisher ch-value))))
 
+    (tickGeneric [^Integer tickerId ^Integer tickType ^Double value]
+      (println "New - Tick Generic. Ticker Id:"  tickerId  ", Field: " tickType  ", Value: "  value))
+
     (scannerParameters [^String xml]
 
       (println "scannerParameters CALLED")
