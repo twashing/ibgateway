@@ -55,13 +55,13 @@
                                                                          merge-result))))))))
 
               ;; otherwise store them in a hacked-session
-              (dosync (alter *tracking-data* conj {:uuid (:uuid eA)
-                                                 :symbol (:symbol tick-list)
-                                                 :tickerId (:tickerId eA)
-                                                 :orig-trade-price (:last-trade-price eA)
-                                                 :orig-trade-time (:last-trade-time eA)
-                                                 :strategies (:strategies eA)
-                                                 :source-entry eA}))))
+              (dosync (alter *tracking-data* concat (list {:uuid (:uuid eA)
+                                                           :symbol (:symbol tick-list)
+                                                           :tickerId (:tickerId eA)
+                                                           :orig-trade-price (:last-trade-price eA)
+                                                           :orig-trade-time (:last-trade-time eA)
+                                                           :strategies (:strategies eA)
+                                                           :source-entry eA})))))
           []
           strategy-list))
 
@@ -248,22 +248,22 @@
                                   :last-trade-size (read-string (:last-trade-size inp))
                                   :total-volume (read-string (:total-volume inp))
                                   :vwap (read-string (:vwap inp))))
-                         (reverse (:event-list result-map)))
+                         (:event-list result-map))
 
         final-list (reduce (fn [rslt ech]
-                             (conj rslt [(:last-trade-time ech) (:last-trade-price ech)]))
+                             (concat rslt [(:last-trade-time ech) (:last-trade-price ech)]))
                            []
                            tick-list-N)
 
         sma-list (alagging/simple-moving-average nil 20 tick-list-N)
         smaF (reduce (fn [rslt ech]
-                       (conj rslt [(:last-trade-time ech) (:last-trade-price-average ech)]))
+                       (concat rslt [(:last-trade-time ech) (:last-trade-price-average ech)]))
                      []
                      sma-list)
 
         ema-list (alagging/exponential-moving-average nil 20 tick-list-N sma-list)
         emaF (reduce (fn [rslt ech]
-                       (conj rslt [(:last-trade-time ech) (:last-trade-price-exponential ech)]))
+                       (concat rslt [(:last-trade-time ech) (:last-trade-price-exponential ech)]))
                      []
                      ema-list)
 

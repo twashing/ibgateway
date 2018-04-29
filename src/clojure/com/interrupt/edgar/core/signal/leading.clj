@@ -21,28 +21,32 @@
 
   (let [partitioned-list (partition 2 1 (remove nil? macd-list))]
 
-       (reduce (fn [rslt ech]
+    (reduce (fn [rslt ech]
 
-                 (let [fst (first ech)
-                       snd (second ech)
+              (let [fst (first ech)
+                    snd (second ech)
 
-                       macd-cross-A? (macd-cross-abouve? fst snd)
-                       macd-cross-B? (macd-cross-below? fst snd)]
+                    macd-cross-A? (macd-cross-abouve? fst snd)
+                    macd-cross-B? (macd-cross-below? fst snd)]
 
-                   (if (or macd-cross-A? macd-cross-B?)
+                (if (or macd-cross-A? macd-cross-B?)
 
-                     (if macd-cross-A?
-                       (conj rslt (assoc fst :signals [{:signal :up
-                                                        :why :macd-signal-crossover
-                                                        :arguments [ech]
-                                                        #_:function #_macd-cross-abouve?}]))
-                       (conj rslt (assoc fst :signals [{:signal :down
-                                                        :why :macd-signal-crossover
-                                                        :arguments [ech]
-                                                        #_:function #_macd-cross-below?}])))
-                     (conj rslt fst))))
-               []
-               partitioned-list)))
+                  (if macd-cross-A?
+                    (concat rslt (-> fst
+                                     (assoc :signals [{:signal :up
+                                                       :why :macd-signal-crossover
+                                                       :arguments [ech]
+                                                       #_:function #_macd-cross-abouve?}])
+                                     list))
+                    (concat rslt (-> fst
+                                     (assoc :signals [{:signal :down
+                                                       :why :macd-signal-crossover
+                                                       :arguments [ech]
+                                                       #_:function #_macd-cross-below?}])
+                                     list)))
+                  (concat rslt (list fst)))))
+            []
+            partitioned-list)))
 
 (defn macd-divergence
   "** This function assumes the latest tick is on the left**"
@@ -68,15 +72,19 @@
                                     (if (or dUP? dDOWN?)
 
                                       (if dUP?
-                                        (conj rslt (assoc fst :signals [{:signal :up
-                                                                         :why :macd-divergence
-                                                                         :arguments [ech-list price-peaks-valleys macd-peaks-valleys]
-                                                                         #_:function #_common/divergence-up?}]))
-                                        (conj rslt (assoc fst :signals [{:signal :down
-                                                                         :why :macd-divergence
-                                                                         :arguments [ech-list price-peaks-valleys macd-peaks-valleys]
-                                                                         #_:function #_common/divergence-down?}])))
-                                      (conj rslt (first ech-list)))))
+                                        (concat rslt (-> fst
+                                                         (assoc :signals [{:signal :up
+                                                                           :why :macd-divergence
+                                                                           :arguments [ech-list price-peaks-valleys macd-peaks-valleys]
+                                                                           #_:function #_common/divergence-up?}])
+                                                         list))
+                                        (concat rslt (-> fst
+                                                         (assoc :signals [{:signal :down
+                                                                           :why :macd-divergence
+                                                                           :arguments [ech-list price-peaks-valleys macd-peaks-valleys]
+                                                                           #_:function #_common/divergence-down?}])
+                                                         list)))
+                                      (concat rslt (-> ech-list first list)))))
                                 []
                                 partitioned-macd)
 
@@ -124,36 +132,36 @@
    ** This function assumes the latest tick is on the left**"
 
   ([options tick-window tick-list]
-     (macd options tick-window tick-list (lag-analysis/simple-moving-average nil tick-window tick-list)))
+   (macd options tick-window tick-list (lag-analysis/simple-moving-average nil tick-window tick-list)))
 
   ([options tick-window tick-list sma-list]
-     (let [macd-list (lead-analysis/macd options tick-window tick-list sma-list)]
-       (macd options tick-window tick-list sma-list macd-list)))
+   (let [macd-list (lead-analysis/macd options tick-window tick-list sma-list)]
+     (macd options tick-window tick-list sma-list macd-list)))
 
   ([options tick-window tick-list sma-list macd-list]
 
 
-     (let [
+   (let [
 
-           ;; A.
-           macd-A (macd-signal-crossover macd-list)
+         ;; A.
+         macd-A (macd-signal-crossover macd-list)
 
 
-           ;; B.
-           macd-B (macd-divergence 10 macd-list)
+         ;; B.
+         macd-B (macd-divergence 10 macd-list)
 
-           ;; C.
-           ]
+         ;; C.
+         ]
 
-       ;; joining the results of all the signals
-       (map (fn [e1 e2]
+     ;; joining the results of all the signals
+     (map (fn [e1 e2]
 
-              (if (some #(not (nil? (:signals %))) [e1 e2])
-                (assoc e1 :signals (concat (:signals e1)
-                                           (:signals e2)))
-                e1))
-            macd-A
-            macd-B))))
+            (if (some #(not (nil? (:signals %))) [e1 e2])
+              (assoc e1 :signals (concat (:signals e1)
+                                         (:signals e2)))
+              e1))
+          macd-A
+          macd-B))))
 
 (defn is-overbought? [level ech]
   (> (:K ech) level))
@@ -173,15 +181,19 @@
 
               (if (or isOB? isOS?)
                 (if isOB?
-                  (conj rslt (assoc ech :signals [{:signal :down
-                                                   :why :stochastic-overbought
-                                                   :arguments [OVERBOUGHT ech]
-                                                   #_:function #_is-overbought?}]))
-                  (conj rslt (assoc ech :signals [{:signal :up
-                                                   :why :stochastic-oversold
-                                                   :arguments [OVERSOLD ech]
-                                                   #_:function #_is-oversold?}])))
-                (conj rslt ech))))
+                  (concat rslt (-> ech
+                                   (assoc :signals [{:signal :down
+                                                     :why :stochastic-overbought
+                                                     :arguments [OVERBOUGHT ech]
+                                                     #_:function #_is-overbought?}])
+                                   list))
+                  (concat rslt (-> ech
+                                   (assoc :signals [{:signal :up
+                                                     :why :stochastic-oversold
+                                                     :arguments [OVERSOLD ech]
+                                                     #_:function #_is-oversold?}])
+                                   list)))
+                (concat rslt (list ech)))))
           []
           (remove nil? stochastic-list)))
 
@@ -214,15 +226,19 @@
 
               (if (or kA? kB?)
                 (if kA?
-                  (conj rslt (assoc fst :signals [{:signal :down
-                                                   :why :stochastic-crossover
-                                                   :arguments [fst snd]
-                                                   #_:function #_k-crosses-abouve?}]))
-                  (conj rslt (assoc fst :signals [{:signal :up
-                                                   :why :stochastic-crossover
-                                                   :arguments [fst snd]
-                                                   #_:function #_k-crosses-below?}])))
-                (conj rslt fst))))
+                  (concat rslt (-> fst
+                                   (assoc :signals [{:signal :down
+                                                     :why :stochastic-crossover
+                                                     :arguments [fst snd]
+                                                     #_:function #_k-crosses-abouve?}])
+                                   list))
+                  (concat rslt (-> fst
+                                   (assoc :signals [{:signal :up
+                                                     :why :stochastic-crossover
+                                                     :arguments [fst snd]
+                                                     #_:function #_k-crosses-below?}])
+                                   list)))
+                (concat rslt (list fst)))))
           []
           partitioned-stochastic))
 
@@ -247,15 +263,19 @@
                                           (if (or dUP? dDOWN?)
 
                                             (if dUP?
-                                              (conj rslt (assoc fst :signals [{:signal :up
-                                                                               :why :stochastic-divergence
-                                                                               :arguments [ech-list k-peaks-valleys d-peaks-valleys]
-                                                                               #_:function #_common/divergence-up?}]))
-                                              (conj rslt (assoc fst :signals [{:signal :down
-                                                                               :why :stochastic-divergence
-                                                                               :arguments [ech-list k-peaks-valleys d-peaks-valleys]
-                                                                               #_:function #_common/divergence-down?}])))
-                                            (conj rslt (first ech-list)))))
+                                              (concat rslt (-> fst
+                                                               (assoc :signals [{:signal :up
+                                                                                 :why :stochastic-divergence
+                                                                                 :arguments [ech-list k-peaks-valleys d-peaks-valleys]
+                                                                                 #_:function #_common/divergence-up?}])
+                                                               list))
+                                              (concat rslt (-> fst
+                                                               (assoc :signals [{:signal :down
+                                                                                 :why :stochastic-divergence
+                                                                                 :arguments [ech-list k-peaks-valleys d-peaks-valleys]
+                                                                                 #_:function #_common/divergence-down?}])
+                                                               list)))
+                                            (concat rslt (-> ech-list first list)))))
                                       []
                                       partitioned-stochastic)]
 
@@ -271,32 +291,32 @@
    ** This function assumes the latest tick is on the left**"
 
   ([tick-window trigger-window trigger-line tick-list]
-     (let [stochastic-list (lead-analysis/stochastic-oscillator tick-window trigger-window trigger-line tick-list)]
-       (stochastic-oscillator tick-window trigger-window trigger-line tick-list stochastic-list)))
+   (let [stochastic-list (lead-analysis/stochastic-oscillator tick-window trigger-window trigger-line tick-list)]
+     (stochastic-oscillator tick-window trigger-window trigger-line tick-list stochastic-list)))
 
   ([tick-window trigger-window trigger-line tick-list stochastic-list]
 
-     (let [
-           ;; A. is %K abouve or below the overbought or oversold levels
-           stochastic-A (stochastic-level stochastic-list)
+   (let [
+         ;; A. is %K abouve or below the overbought or oversold levels
+         stochastic-A (stochastic-level stochastic-list)
 
 
-           ;; B. Does %K Stochastic line cross over the %D trigger line
-           stochastic-B (stochastic-crossover (partition 2 1 stochastic-list))
+         ;; B. Does %K Stochastic line cross over the %D trigger line
+         stochastic-B (stochastic-crossover (partition 2 1 stochastic-list))
 
 
-           ;; C. Look for Divergence, where i. price makes a higher high AND %K Stochastic makes a lower low
-           stochastic-C (stochastic-divergence 10 stochastic-list)]
+         ;; C. Look for Divergence, where i. price makes a higher high AND %K Stochastic makes a lower low
+         stochastic-C (stochastic-divergence 10 stochastic-list)]
 
 
-       ;; joining the results of all the signals
-       (map (fn [e1 e2 e3]
+     ;; joining the results of all the signals
+     (map (fn [e1 e2 e3]
 
-              (if (some #(not (nil? (:signals %))) [e1 e2 e3])
-                (assoc e1 :signals (concat (:signals e1)
-                                           (:signals e2)
-                                           (:signals e3)))
-                e1))
-            stochastic-A
-            stochastic-B
-            stochastic-C))))
+            (if (some #(not (nil? (:signals %))) [e1 e2 e3])
+              (assoc e1 :signals (concat (:signals e1)
+                                         (:signals e2)
+                                         (:signals e3)))
+              e1))
+          stochastic-A
+          stochastic-B
+          stochastic-C))))

@@ -49,19 +49,18 @@
                     ;; get the average
                     taverage (average tsum (count ech))]
 
-                (cons (merge
+                (concat rslt
 
-                       ;; will produce a map of etal-keys, with associated values in ech
-                       (zipmap etal-keys
-                               (map #(% (first ech)) etal-keys))
+                        ;; will produce a map of etal-keys, with associated values in ech
+                        ;; and merge the output key to the map
+                        (-> etal-keys
+                            (zipmap (map #(% (first ech)) etal-keys))
+                            (merge {output-key taverage
+                                    :population ech})
+                            list))))
 
-                       ;; and merge the output key to the map
-                       {output-key taverage
-                        :population ech})
-                      rslt)))
-
-            ma-list  ;; begin with a reversed tick-list, over which we can iterate
-            (reverse (partition tick-window 1 tick-list)))))
+            ma-list
+            (partition tick-window 1 tick-list))))
 
 
 (defn exponential-moving-average
@@ -83,59 +82,53 @@
 
   ([options tick-window tick-list]
 
-     (exponential-moving-average options tick-window tick-list (simple-moving-average nil tick-window tick-list)))
+   (exponential-moving-average options tick-window tick-list (simple-moving-average nil tick-window tick-list)))
 
   ([options tick-window tick-list sma-list]
 
-     ;; 1. calculate 'k'
-     ;; k = 2 / N + 1
-     ;; N = number of days
-     (let [k (/ 2 (+ tick-window 1))
-           ema-list (into '() (repeat tick-window nil))
+   ;; 1. calculate 'k'
+   ;; k = 2 / N + 1
+   ;; N = number of days
+   (let [k (/ 2 (+ tick-window 1))
+         ema-list (into '() (repeat tick-window nil))
 
-           {input-key :input
-            output-key :output
-            etal-keys :etal
-            :or {input-key :last-trade-price
-                 output-key :last-trade-price-exponential
-                 etal-keys [:last-trade-price :last-trade-time]}} options
-           ]
+         {input-key :input
+          output-key :output
+          etal-keys :etal
+          :or {input-key :last-trade-price
+               output-key :last-trade-price-exponential
+               etal-keys [:last-trade-price :last-trade-time]}} options
+         ]
 
-       ;; 2. get the simple-moving-average for a given tick - 1
-       (reduce (fn [rslt ech]
+     ;; 2. get the simple-moving-average for a given tick - 1
+     (reduce (fn [rslt ech]
 
-                 ;; 3. calculate the EMA ( for the first tick, EMA(yesterday) = MA(yesterday) )
+               ;; 3. calculate the EMA ( for the first tick, EMA(yesterday) = MA(yesterday) )
 
-                 (let [;; price(today)
-                       ltprice (input-key ech)
+               (let [;; price(today)
+                     ltprice (input-key ech)
 
-                       ;; EMA(yesterday)
-                       ema-last (if (output-key (first rslt))
-                                  (output-key (first rslt))
-                                  (input-key ech))
+                     ;; EMA(yesterday)
+                     ema-last (if (output-key (first rslt))
+                                (output-key (first rslt))
+                                (input-key ech))
 
-                       ;; ** EMA now = price(today) * k + EMA(yesterday) * (1 - k)
-                       ema-now (+ (* k (if (string? ltprice)
-                                         (read-string ltprice)
-                                         ltprice))
-                                  (* (if (string? ema-last) (read-string ema-last) ema-last) (- 1 k)))]
+                     ;; ** EMA now = price(today) * k + EMA(yesterday) * (1 - k)
+                     ema-now (+ (* k (if (string? ltprice)
+                                       (read-string ltprice)
+                                       ltprice))
+                                (* (if (string? ema-last) (read-string ema-last) ema-last) (- 1 k)))]
 
-                   (cons (merge
+                 (concat rslt
 
-                          ;; will produce a map of etal-keys, with associated values in ech
-                          (zipmap etal-keys
-                                  (map #(% ech) etal-keys))
-
-                          ;; and merge the output key to the map
-                          {output-key ema-now})
-
-                         ;; and prepend the result to our running list
-                         rslt)
-                   ))
-               ema-list
-               (->> sma-list (remove nil?) reverse)))
-     )
-  )
+                         ;; will produce a map of etal-keys, with associated values in ech 
+                         ;; and merge the output key to the map
+                         (-> etal-keys
+                             (zipmap (map #(% ech) etal-keys))
+                             (merge {output-key ema-now})
+                             list))))
+             ema-list
+             (->> sma-list (remove nil?))))))
 
 (defn bollinger-band
   "From a tick-list, generates an accompanying list with upper-band and lower-band
@@ -151,50 +144,44 @@
    ** This function assumes the latest tick is on the left**"
 
   ([tick-window tick-list]
-     (bollinger-band tick-window tick-list (simple-moving-average nil tick-window tick-list)))
+   (bollinger-band tick-window tick-list (simple-moving-average nil tick-window tick-list)))
 
   ([tick-window tick-list sma-list]
 
-     ;; At each step, the Standard Deviation will be: the square root of the variance (average of the squared differences from the Mean)
+   ;; At each step, the Standard Deviation will be: the square root of the variance (average of the squared differences from the Mean)
 
-     (let [bollinger-list (into '() (repeat tick-window nil))]
+   (let [bollinger-list (into '() (repeat tick-window nil))]
 
-       (reduce (fn [rslt ech]
+     (reduce (fn [rslt ech]
 
-                 (let [;; get the Moving Average
-                       ma (:last-trade-price-average ech)
+               (let [;; get the Moving Average
+                     ma (:last-trade-price-average ech)
 
-                       ;; work out the mean
-                       mean (/ (reduce (fn [rslt ech]
-                                         (+ (if (string? (:last-trade-price ech))
-                                              (read-string (:last-trade-price ech))
-                                              (:last-trade-price ech))
-                                            rslt))
-                                       0
+                     ;; work out the mean
+                     mean (/ (reduce (fn [rslt ech]
+                                       (+ (if (string? (:last-trade-price ech))
+                                            (read-string (:last-trade-price ech))
+                                            (:last-trade-price ech))
+                                          rslt))
+                                     0
+                                     (:population ech))
+                             (count (:population ech)))
+
+                     ;; Then for each number: subtract the mean and square the result (the squared difference)
+                     sq-diff-list (map (fn [ech]
+                                         (let [diff (- mean (if (string? (:last-trade-price ech))
+                                                              (read-string (:last-trade-price ech))
+                                                              (:last-trade-price ech)))]
+                                           (* diff diff)
+                                           ))
                                        (:population ech))
-                               (count (:population ech)))
 
-                       ;; Then for each number: subtract the mean and square the result (the squared difference)
-                       sq-diff-list (map (fn [ech]
-                                           (let [diff (- mean (if (string? (:last-trade-price ech))
-                                                                (read-string (:last-trade-price ech))
-                                                                (:last-trade-price ech)))]
-                                             (* diff diff)
-                                             ))
-                                         (:population ech))
-
-                       variance (/ (reduce + sq-diff-list) (count (:population ech)))
-                       standard-deviation (. Math sqrt variance)
-                       ]
-                   (cons {:last-trade-price (:last-trade-price ech)
-                          :last-trade-time (:last-trade-time ech)
-                          :upper-band (+ ma (* 2 standard-deviation))
-                          :lower-band (- ma (* 2 standard-deviation))
-                          }
-                         rslt)
-                   )
-                 )
-               bollinger-list
-               (->> sma-list (remove nil?) reverse)))
-     )
-  )
+                     variance (/ (reduce + sq-diff-list) (count (:population ech)))
+                     standard-deviation (. Math sqrt variance)
+                     ]
+                 (concat rslt (list {:last-trade-price (:last-trade-price ech)
+                                     :last-trade-time (:last-trade-time ech)
+                                     :upper-band (+ ma (* 2 standard-deviation))
+                                     :lower-band (- ma (* 2 standard-deviation))}))))
+             bollinger-list
+             (->> sma-list (remove nil?))))))

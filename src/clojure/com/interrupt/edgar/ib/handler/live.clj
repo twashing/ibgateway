@@ -35,7 +35,14 @@
 
   #_(println "handle-tick-price > options[" (dissoc options :tick-list) "] evt[" evt "]")
   (dosync (alter (:tick-list options)
-                 (fn [inp] (conj inp (walk/keywordize-keys (merge evt {:uuid (str (uuid/make-random))})))))))
+                 (fn [inp]
+
+                   #_(conj inp (walk/keywordize-keys (merge evt {:uuid (str (uuid/make-random))})))
+                   (as-> evt e
+                     (merge e {:uuid (str (uuid/make-random))})
+                     (walk/keywordize-keys e)
+                     (list e)
+                     (concat inp e))))))
 
 (defn handle-tick-string
   "Format will look like:
@@ -62,8 +69,8 @@
   :vwap
 
   (println "handle-tick-string > options[" (dissoc options :tick-list) "] evt[" evt "]")
-  (let [tvalues #spy/d (remove empty?
-                               (cstring/split (:value evt) #";"))
+  (let [tvalues (remove empty?
+                        (cstring/split (:value evt) #";"))
         tkeys [:last-trade-price :last-trade-size :last-trade-time :total-volume :vwap :single-trade-flag]
 
         #_(if (= 5 (count tvalues))
@@ -74,9 +81,12 @@
         result-map (zipmap tkeys tvalues)]
 
     (dosync (alter (:tick-list options)
-                   (fn [inp] (conj inp (merge result-map {:ticker-id (:ticker-id evt)
-                                                         :type (:topic evt)
-                                                         :uuid (str (uuid/make-random))}) ))))))
+                   (fn [inp] (as-> result-map rm
+                              (merge rm {:ticker-id (:ticker-id evt)
+                                         :type (:topic evt)
+                                         :uuid (str (uuid/make-random))})
+                              (list rm)
+                              (concat inp rm)))))))
 
 (defn handle-event [options evt]
 
@@ -141,7 +151,6 @@
                       (into []
                             (remove #(= (:uuid tail-evt) (% :uuid))
                                     inp)))))))))))
-
 
 (defn feed-handler
   "Event structures will look like 'tickPrice' or 'tickString'
