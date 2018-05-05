@@ -3,7 +3,7 @@
             [clojure.string :as str]
             [clojure.set :as cs]
             [clojure.spec.alpha :as s]
-            [clojure.future :refer :all]
+            
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]))
 
@@ -46,9 +46,9 @@
                :scan-value {}
                :tag :price}]})
 
-(s/def ::reqid pos-int?)
-(s/def ::subscription-element (s/keys :req [::reqid]))
-(s/def ::subscriptions (s/coll-of ::subscription-element))
+#_(s/def ::reqid pos-int?)
+#_(s/def ::subscription-element (s/keys :req [::reqid]))
+#_(s/def ::subscriptions (s/coll-of ::subscription-element))
 
 (defn scannerid-availableid-pairs [scanner-subscriptions]
   (let [scannerids (sort (map ::reqid scanner-subscriptions))
@@ -91,7 +91,7 @@
   (next-reqid [])
   (scannerid-availableid-pairs []))
 
-(s/fdef next-reqid
+#_(s/fdef next-reqid
         :args (s/cat :subscriptions ::subscriptions)
         :ret number?
         :fn (s/and

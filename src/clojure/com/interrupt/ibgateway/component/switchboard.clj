@@ -912,7 +912,7 @@
   ;; (ei/scanner-unsubscribe 11 client)
 
   ;; (def ss (let [scan-names (->> config :scanners (map :scan-name))
-  ;;               scan-subsets #spy/d (map (fn [sname]
+  ;;               scan-subsets (map (fn [sname]
   ;;                                          (->> @scanner-subscriptions
   ;;                                               (filter (fn [e] (= (::scan-name e) sname)))
   ;;                                               first ::scan-value vals (map :symbol)
@@ -1207,10 +1207,11 @@
                     (println (str "stream-live > event-name[" event-name "] signals[" (-> result :signals keys) "]"))
                     (println (str "stream-live > event-name[" event-name "] strategies[" (:strategies result) "]")))
 
-        options {:tick-list (ref [])
+        options {;; :tick-list (ref [])
                  :tee-list [(partial tlive/tee-fn output-fn stock-name)]
                  :stock-match {:symbol "TSLA" :ticker-id-filter 0}}]
 
+    ;; TODO - "market/subscribe-to-market" should use a channel transform
     (market/subscribe-to-market publisher (partial feed-handler options)))
 
   (def my-pool (mk-pool))
@@ -1246,9 +1247,7 @@
   (mount/find-all-states)
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-
-  )
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper))
 
 (comment
 
@@ -1261,9 +1260,8 @@
              :topic "tickString"
              :ticker-id 0})
 
-  (live/handle-tick-string options evt1)
-
-  )
+  (live/handle-tick-string options evt1))
 
 ;; :value       ;0;1522337866199;67085;253.23364232;true
 ;; :value 255.59;1;1522337865948;67077;253.23335428;true
+

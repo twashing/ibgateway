@@ -61,6 +61,13 @@ D) Running the app solo
 lein run -m com.interrupt.ibgateway.core/-main
 ```
 
+## TODO
+
+com.interrupt.edgar.ib.handler.live/feed-handler
+com.interrupt.edgar.core.tee.live/tee-fn
+
+com.interrupt.edgar.core.analysis.lagging/simple-moving-average
+
 
 ## Change Log
 
