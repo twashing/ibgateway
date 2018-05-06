@@ -157,10 +157,10 @@
 
 (def rt-volume-time-and-sales-type 48)
 (def tick-string-type :tick-string)
-(def moving-average-window 40)
+(def moving-average-window 20)
 (def moving-average-increment 1)
 
-(defn filter-rtvolume-time-and-sales [event]
+(defn rtvolume-time-and-sales? [event]
   (and (= rt-volume-time-and-sales-type (:tick-type event))
        (= tick-string-type (:topic event))))
 
@@ -181,12 +181,19 @@
     (as-> (zipmap tkeys tvalues) rm
       (merge rm {:ticker-id (:ticker-id event)
                  :type (:topic event)
-                 :uuid (str (uuid/make-random))}))))
+                 :uuid (str (uuid/make-random))})
+      (assoc rm
+             :last-trade-price (if (not (empty? (:last-trade-price rm)))
+                                 (read-string (:last-trade-price rm)) 0)
+             :last-trade-size (read-string (:last-trade-size rm))
+             :total-volume (read-string (:total-volume rm))
+             :vwap (read-string (:vwap rm))))))
 
-(defn simple-moving-average-format [options event-list]
-  {:symbol (-> options :stock-match :symbol)
-   :ticker-id (-> options :stock-match :ticker-id-filter)
-   :event-list event-list})
+(defn empty-last-trade-price? [event]
+  (-> event :last-trade-price (<= 0)))
+
+#_(defn simple-moving-average-format [sym event]
+  (assoc event :symbol sym))
 
 #_(defn handle-event [options evt]
 
@@ -200,6 +207,12 @@
 
     tee-list))
 
+(def handler-xform
+  (comp (filter rtvolume-time-and-sales?)
+     (map parse-tick-string)
+     (remove empty-last-trade-price?)  ;; TODO For now, ignore empty lots
+     #_(map (partial simple-moving-average-format options))))
+
 (defn feed-handler
   "Event structures will look like 'tickPrice' or 'tickString'
 
@@ -211,17 +224,11 @@
 
   (let [stock-match (:stock-match options)]
 
-    (if (and (not (nil? (-> options :stock-match :ticker-id-filter)))
+    ;; TODO - core.async channel transformations
+    #_(if (and (not (nil? (-> options :stock-match :ticker-id-filter)))
              (= (int (:ticker-id evt))
                 (int (-> options :stock-match :ticker-id-filter))))
-
-      (let [xf (comp (filter filter-rtvolume-time-and-sales)
-                  (map parse-tick-string)
-                  (x/partition moving-average-horizon moving-average-increment (x/into []))
-                  (map (partial simple-moving-average-format options)))]
-
-        ;; TODO - core.async channel transformations
-        ))))
+      )))
 
 
 (comment
@@ -233,7 +240,7 @@
 
   ;; 1
   (->> input-source
-       (filter filter-rtvolume-time-and-sales)
+       (filter rtvolume-time-and-sales?)
 
        (take 100)
        pprint)
@@ -256,18 +263,18 @@
 
   ;; 3
   (->> input-source
-       (filter filter-rtvolume-time-and-sales)
+       (filter rtvolume-time-and-sales?)
        (map parse-tick-string)
 
        (take 10)
        pprint)
 
-  (-> (filter filter-rtvolume-time-and-sales)
+  (-> (filter rtvolume-time-and-sales?)
       (sequence (take 50 input-source))
       pprint)
 
 
-  (def xf (comp (filter filter-rtvolume-time-and-sales)
+  (def xf (comp (filter rtvolume-time-and-sales?)
              (map parse-tick-string)
              (x/partition moving-average-window moving-average-increment (x/into []))
              (map (partial simple-moving-average-format options))))
@@ -275,3 +282,29 @@
 
   (def result (-> xf
                   (sequence (take 500 input-source)))))
+
+(comment
+
+  (def input-source (read-string (slurp "live.4.edn")))
+  (def options {:stock-match {:symbol "TSLA"
+                              :ticker-id-filter 0}})
+
+  (def result (-> handler-xform
+                  (sequence (take 1000 input-source)))))
+
+(comment
+
+  (require '[com.interrupt.edgar.core.analysis.lagging :as al])
+
+  (def input-source (read-string (slurp "live.4.edn")))
+  (def options {:stock-match {:symbol "TSLA"
+                              :ticker-id-filter 0}})
+
+  (def sma-list (-> (comp handler-xform
+                       (x/partition moving-average-window moving-average-increment (x/into []))
+                       (map (partial al/simple-moving-average {})))
+                    (sequence (take 1000 input-source))))
+
+  (def ema-list (al/exponential-moving-average {} moving-average-window sma-list))
+
+  (def bollinger-band (al/bollinger-band moving-average-window sma-list)))

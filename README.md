@@ -65,8 +65,10 @@ lein run -m com.interrupt.ibgateway.core/-main
 
 com.interrupt.edgar.ib.handler.live/feed-handler
 com.interrupt.edgar.core.tee.live/tee-fn
-
 com.interrupt.edgar.core.analysis.lagging/simple-moving-average
+
+Handle live price and size updates
+Handle tick-by-tick data
 
 
 ## Change Log

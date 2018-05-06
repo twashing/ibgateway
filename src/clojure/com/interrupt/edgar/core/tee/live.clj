@@ -242,13 +242,7 @@
 (defn tee-fn [output-fn stock-name result-map]
 
   (println (str "get-streaming-stock-data result-map[" (keys result-map) "]"))
-  (let [tick-list-N (map (fn [inp]
-                           (assoc inp
-                                  :last-trade-price (read-string (:last-trade-price inp))
-                                  :last-trade-size (read-string (:last-trade-size inp))
-                                  :total-volume (read-string (:total-volume inp))
-                                  :vwap (read-string (:vwap inp))))
-                         (:event-list result-map))
+  (let [tick-list-N (:event-list result-map)
 
         final-list (reduce (fn [rslt ech]
                              (concat rslt [(:last-trade-time ech) (:last-trade-price ech)]))

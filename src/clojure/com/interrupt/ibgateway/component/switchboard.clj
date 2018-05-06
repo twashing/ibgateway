@@ -1211,7 +1211,36 @@
                  :tee-list [(partial tlive/tee-fn output-fn stock-name)]
                  :stock-match {:symbol "TSLA" :ticker-id-filter 0}}]
 
-    ;; TODO - "market/subscribe-to-market" should use a channel transform
+    ;; TODO
+    ;; "market/subscribe-to-market" should use a channel transform
+    ;; We want to pipeline:
+    #_[alagging/simple-moving-average
+       alagging/exponential-moving-average
+
+       slagging/moving-averages
+       slagging/bollinger-band
+       sleading/macd
+       sleading/stochastic-oscillator
+       sconfirming/on-balance-volume
+
+       strategy/strategy-A
+       strategy/strategy-C
+
+       {:stock-name stock-name
+        :stock-symbol (:symbol result-map)
+        :stock-list final-list
+        :source-list tick-list-N
+        :sma-list smaF
+        :ema-list emaF
+        :signals {:moving-average signals-ma
+                  :bollinger-band signals-bollinger
+                  :macd signals-macd
+                  :stochastic-oscillator signals-stochastic
+                  :obv signals-obv}
+        :strategies {:strategy-A sA
+                     :strategy-C sC}}]
+
+
     (market/subscribe-to-market publisher (partial feed-handler options)))
 
   (def my-pool (mk-pool))

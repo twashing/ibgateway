@@ -38,7 +38,6 @@
         sma-list
         ema-list)))
 
-
 (defn moving-averages
   "Takes baseline time series, along with 2 other moving averages.
 
@@ -96,13 +95,10 @@
              start-list
              partitioned-join))))
 
-
-
 (defn sort-bollinger-band [bband]
   (let [diffs (map (fn [inp] (assoc inp :difference (- (:upper-band inp) (:lower-band inp))))
                    (remove nil? bband))]
     (sort-by :difference diffs)))
-
 
 (defn bollinger-band
 

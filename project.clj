@@ -65,12 +65,14 @@
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
-  :profiles {:dev {:dependencies [[org.clojure/test.check "0.10.0-alpha2"]
+  :profiles {:dev {:dependencies [[spyscope "0.1.5"]
+                                  [org.clojure/test.check "0.10.0-alpha2"]
                                   [com.gfredericks/test.chuck "0.2.9"]
                                   [im.chit/lucid.core.inject "1.3.13"]
-                                  [http-kit.fake "0.2.2"]
-                                  [org.clojure/tools.nrepl "0.2.13"]]
-                   :injections [(use 'lucid.core.inject)
+                                  [org.clojure/tools.nrepl "0.2.13"]
+                                  [http-kit.fake "0.2.2"]]
+                   :injections [(require 'spyscope.core)
+                                (use 'lucid.core.inject)
                                 (inject '[clojure.core
                                           [clojure.repl dir]
                                           [clojure.pprint pprint]
