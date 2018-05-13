@@ -1193,7 +1193,9 @@
            '[com.interrupt.edgar.ib.market :as mkt]
            '[overtone.at-at :refer :all]
            '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live]
-           '[com.interrupt.edgar.core.analysis.lagging :as al]
+           '[com.interrupt.edgar.core.analysis.lagging :as alag]
+           '[com.interrupt.edgar.core.analysis.leading :as alead]
+           '[com.interrupt.edgar.core.analysis.confirming :as aconf]
            '[net.cgrand.xforms :as x])
 
 
@@ -1202,6 +1204,16 @@
   (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
   (def publication
     (pub publisher-ch #(:topic %)))
+
+
+
+  (defn bind-channel->mult [tick-list-ch]
+
+    (let [tick-list-sma-mult (mult tick-list-ch)
+          tick-list-sma-ch (chan (sliding-buffer 100))]
+
+      (tap tick-list-sma-mult tick-list-sma-ch)
+      tick-list-sma-ch))
 
 
   (let [stock-name "TSLA"
@@ -1216,7 +1228,8 @@
                  :stock-match {:symbol "TSLA" :ticker-id-filter 0}}]
 
     ;; TODO
-    ;; "market/subscribe-to-market" should use a channel transform
+    ;; join together pipeline channels
+    ;; Mount component for pipelines
     ;; We want to pipeline:
     #_[alagging/simple-moving-average
        alagging/exponential-moving-average
@@ -1248,40 +1261,46 @@
 
     (let [n 1
           tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
-          sma-list-ch (chan (sliding-buffer 100))
+
+          ;; TODO Remove :population
+          sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into []) #_(map #(dissoc % :population))))
           ema-list-ch (chan (sliding-buffer 100))
+          bollinger-band-ch (chan (sliding-buffer 100))
 
 
           ;; tick-list
           _ (pipeline n tick-list-ch live/handler-xform publisher-ch)
 
+
           ;; INPUTs < tick-list
-          ;; alagging/simple-moving-average
-
-          ;; tick-list-sma-mult (mult tick-list-ch)
-          ;; tick-list-sma (chan (sliding-buffer 100))
-          ;; _ (tap tick-list-sma-mult tick-list-sma)
-
-          _ (pipeline n sma-list-ch (map (partial al/simple-moving-average options)) tick-list-ch)]
+          ;; alag/simple-moving-average
+          tick-list-sma-ch (bind-channel->mult tick-list-ch)
+          _ (pipeline n sma-list-ch (map (partial alag/simple-moving-average options)) tick-list-sma-ch)
 
 
-      ;; INPUTs < sma-list
-      ;; alagging/exponential-moving-average
-
-      ;; INPUTs < sma-list
-      ;; slagging/bollinger-band
-
-
-      ;; sleading/macd
-      ;; sleading/stochastic-oscillator
-      ;; sconfirming/on-balance-volume
+          ;; INPUTs < sma-list
+          ;; alag/exponential-moving-average
+          sma-list-ema-ch (bind-channel->mult sma-list-ch)
+          _ (pipeline n ema-list-ch (map (partial alag/exponential-moving-average options live/moving-average-window)) sma-list-ema-ch)
 
 
-      (go-loop [r (<! sma-list-ch)]
+          ;; INPUTs < sma-list
+          ;; slag/bollinger-band
+          sma-list-bollinger-band-ch (bind-channel->mult sma-list-ch)
+          _ (pipeline n bollinger-band-ch (map (partial alag/bollinger-band live/moving-average-window)) sma-list-bollinger-band-ch)
+          ]
+
+
+      ;; slead/macd
+      ;; slead/stochastic-oscillator
+      ;; sconf/on-balance-volume
+
+
+      (go-loop [r (<! bollinger-band-ch)]
         (println #_"record: " r)
         (if-not r
           r
-          (recur (<! sma-list-ch))))))
+          (recur (<! bollinger-band-ch))))))
 
   (def my-pool (mk-pool))
   (def input-source (atom (read-string (slurp "live.4.edn"))))
