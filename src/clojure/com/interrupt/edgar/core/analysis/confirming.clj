@@ -39,8 +39,7 @@
                                          prev-obv
                                          (if (> current-price prev-price)
                                            (+ prev-obv current-volume)
-                                           (- prev-obv current-volume)))
-                                   ]
+                                           (- prev-obv current-volume)))]
 
                                (cons {:obv obv
                                       :total-volume (:total-volume (first ech))
@@ -51,13 +50,9 @@
                              (cons {:obv (:total-volume (first ech))
                                     :total-volume (:total-volume (first ech))
                                     :last-trade-price (:last-trade-price (first ech))
-                                    :last-trade-time (:last-trade-time (first ech))} rslt)
-                             )
-
-                           )
+                                    :last-trade-time (:last-trade-time (first ech))} rslt)))
                          '(nil)
-                         (->> tick-list (partition 2 1) reverse))
-        ]
+                         (->> tick-list (partition 2 1) reverse))]
 
     ;; calculate OBV for latest tick
     (if latest-tick
@@ -83,9 +78,7 @@
                :total-volume (:total-volume latest-tick)
                :last-trade-price (:last-trade-price latest-tick)
                :last-trade-time (:last-trade-time latest-tick)} obv-list))
-      obv-list)
-    )
-)
+      obv-list)))
 
 (defn relative-strength-index
   "The Relative Strength Index (RSI) is a momentum oscillator that measures the speed and change of price movements. It oscillates between zero and 100.

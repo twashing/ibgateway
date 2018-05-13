@@ -1,5 +1,5 @@
 (ns com.interrupt.edgar.ib.handler.live
-  #_(:use [clojure.repl]
+  (:use [clojure.repl]
           [clojure.core.strint]
           [clojure.tools.namespace.repl]
           [datomic.api :only [q db] :as d])
@@ -13,7 +13,7 @@
             #_[com.interrupt.edgar.core.analysis.lagging :as lagging]))
 
 
-#_(defn load-filtered-results
+(defn load-filtered-results
     "Find entity.symbol (and entire entity) where price-difference is greatest"
     [limit conn]
 
@@ -211,7 +211,7 @@
   (comp (filter rtvolume-time-and-sales?)
      (map parse-tick-string)
      (remove empty-last-trade-price?)  ;; TODO For now, ignore empty lots
-     #_(map (partial simple-moving-average-format options))))
+     ))
 
 (defn feed-handler
   "Event structures will look like 'tickPrice' or 'tickString'
@@ -231,7 +231,7 @@
       )))
 
 
-(comment
+(comment  ;; Parsing tick-string / xform input -> tick-list
 
   (def input-source (read-string (slurp "live.4.edn")))
   (def options {:stock-match {:symbol "TSLA"
@@ -269,6 +269,7 @@
        (take 10)
        pprint)
 
+  ;; 3.1
   (-> (filter rtvolume-time-and-sales?)
       (sequence (take 50 input-source))
       pprint)
@@ -283,7 +284,7 @@
   (def result (-> xf
                   (sequence (take 500 input-source)))))
 
-(comment
+(comment  ;; Abstracting out xform -> handler-xform
 
   (def input-source (read-string (slurp "live.4.edn")))
   (def options {:stock-match {:symbol "TSLA"
@@ -292,7 +293,7 @@
   (def result (-> handler-xform
                   (sequence (take 1000 input-source)))))
 
-(comment
+(comment  ;; Generating sma-list, ema-list, bollinger-band
 
   (require '[com.interrupt.edgar.core.analysis.lagging :as al])
 
@@ -308,3 +309,128 @@
   (def ema-list (al/exponential-moving-average {} moving-average-window sma-list))
 
   (def bollinger-band (al/bollinger-band moving-average-window sma-list)))
+
+(comment  ;; Playing with promisespromises
+
+  (require '[clojure.core.async :refer [to-chan <!!]]
+           '[manifold.stream :as s]
+           '[prpr.stream.cross :as prpr :refer [event-source->sorted-stream]])
+
+
+  (def c1 (to-chan [{:id 2 :value "a"} {:id 3} {:id 4}]))
+  (def c2 (to-chan [{:id 1} {:id 2 :value "b"} {:id 3}]))
+  (def c3 (to-chan [{:id 0} {:id 1} {:id 2 :value "c"}]))
+
+  (def cs1 (s/->source c1))
+  (def cs2 (s/->source c2))
+  (def cs3 (s/->source c3))
+
+  (def kss {:cs1 cs1 :cs2 cs2 :cs3 cs3})
+  (def os (prpr/full-outer-join-streams
+            {:default-key-fn :id
+             :skey-streams kss}))
+  (def ovs @(s/reduce conj [] os))
+
+
+  #_(def ss1 (prpr/event-source->sorted-stream :id cs1))
+  #_(def ss2 (prpr/event-source->sorted-stream :id cs2))
+  #_(def ss3 (prpr/event-source->sorted-stream :id cs3))
+
+  #_(def result (prpr/set-streams-union {:default-key-fn :id
+                                       :skey-streams {:ss1 ss1
+                                                      :ss2 ss2
+                                                      :ss3 ss3}}))
+
+  #_(s/take! result)
+
+  ;; ClassCastException manifold.deferred.SuccessDeferred cannot be cast to manifold.stream.core.IEventSource  com.interrupt.edgar.ib.handler.live/eval47535 (form-init767747358322570513.clj:266)
+
+  ;;cross-streams
+  ;;sort-merge-streams
+  ;;set-streams-union (which uses cross-streams)
+
+
+  ;;clojure.core.async [mult
+  ;;                    merge mix
+  ;;                    pub sub
+  ;;                    map]
+  ;;net.cgrand/xforms [group-by for]
+
+
+  (let [s0 (s/->source [{:foo 1 :bar 10} {:foo 3 :bar 30} {:foo 4 :bar 40}])
+        s1 (s/->source [{:foo 1 :baz 100} {:foo 2 :baz 200} {:foo 3 :baz 300}])
+        kss {:0 s0 :1 s1}
+
+        os @(prpr/full-outer-join-streams
+             {:default-key-fn :foo
+              :skey-streams kss})
+        ovs @(s/reduce conj [] os)
+        ]
+
+    (println "Foo: " os)
+    (println "Bar: " ovs)
+
+    #_(is (= [{:0 {:foo 1 :bar 10} :1 {:foo 1 :baz 100}}
+            {:1 {:foo 2 :baz 200}}
+            {:0 {:foo 3 :bar 30} :1 {:foo 3 :baz 300}}
+            {:0 {:foo 4 :bar 40}}]
+           ovs))))
+
+(comment  ;; SUCCESS with promisespromises
+
+  (require '[clojure.core.async :refer [to-chan chan go-loop <!]]
+           '[manifold.stream :as stream]
+           '[prpr.stream.cross :as stream.cross]
+           'prpr.stream
+           '[prpr.promise :refer [ddo]]
+           '[xn.transducers :as xn])
+
+  (let [c1 (to-chan [{:id 2 :a "a"} {:id 3} {:id 4}])
+        c2 (to-chan [{:id 1} {:id 2 :b "b"} {:id 3}])
+        c3 (to-chan [{:id 0} {:id 1} {:id 2 :c "c"}])
+        cs1 (stream/->source c1)
+        cs2 (stream/->source c2)
+        cs3 (stream/->source c3)
+        ss1 (stream.cross/event-source->sorted-stream :id cs1)
+        ss2 (stream.cross/event-source->sorted-stream :id cs2)
+        ss3 (stream.cross/event-source->sorted-stream :id cs3)]
+
+
+    #_(let [result (stream.cross/set-streams-union {:default-key-fn :id
+                                                  :skey-streams {:ss1 ss1
+                                                                 :ss2 ss2
+                                                                 :ss3 ss3}})]
+      @(stream/take! @result))
+
+
+    #_(ddo [u-s (stream.cross/set-streams-union {:default-key-fn :id
+                                                 :skey-streams {:ss1 ss1
+                                                                :ss2 ss2
+                                                                :ss3 ss3}})]
+           (->> u-s
+                (stream/map
+                 (fn [r]
+                   (prn r)
+                   r))
+                (prpr.stream/count-all-throw
+                 "count results")))
+
+    #_(stream.cross/set-streams-union {:default-key-fn :id
+                                     :skey-streams {:ss1 ss1
+                                                    :ss2 ss2
+                                                    :ss3 ss3}})
+
+
+    (let [oc (chan 1 (map vals))
+          result (stream.cross/set-streams-union {:default-key-fn :id
+                                                  :skey-streams {:ss1 ss1
+                                                                 :ss2 ss2
+                                                                 :ss3 ss3}})]
+      (stream/connect @result oc)
+      (go-loop [r (<! oc)]
+        (println "record: " r)
+        (println "record merged: " (apply merge r))
+        (println "")
+        (if-not r
+          r
+          (recur (<! oc)))))))

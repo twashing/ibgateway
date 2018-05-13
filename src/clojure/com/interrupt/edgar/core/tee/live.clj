@@ -261,8 +261,9 @@
                      []
                      ema-list)
 
-        signals-ma (slagging/moving-averages 20 tick-list-N sma-list ema-list)
         signals-bollinger (slagging/bollinger-band 20 tick-list-N sma-list)
+
+        signals-ma (slagging/moving-averages 20 tick-list-N sma-list ema-list)
         signals-macd (sleading/macd nil 20 tick-list-N sma-list)
         signals-stochastic (sleading/stochastic-oscillator 14 3 3 tick-list-N)
         signals-obv (sconfirming/on-balance-volume 10 tick-list-N)

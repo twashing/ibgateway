@@ -61,17 +61,20 @@
 
                  ;; Java Libraries
                  [joda-time "2.2"]
-                 [net.cgrand/xforms "0.17.0"]]
+                 [manifold "0.1.7-alpha6"]
+                 [net.cgrand/xforms "0.17.0"]
+                 [employeerepublic/promisespromises "0.5"]
+                 [com.xnlogic/transducers "0.1.0"]]
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
-  :profiles {:dev {:dependencies [[spyscope "0.1.5"]
+  :profiles {:dev {:dependencies [#_[spyscope "0.1.5"]
                                   [org.clojure/test.check "0.10.0-alpha2"]
                                   [com.gfredericks/test.chuck "0.2.9"]
                                   [im.chit/lucid.core.inject "1.3.13"]
                                   [org.clojure/tools.nrepl "0.2.13"]
                                   [http-kit.fake "0.2.2"]]
-                   :injections [(require 'spyscope.core)
+                   :injections [#_(require 'spyscope.core)
                                 (use 'lucid.core.inject)
                                 (inject '[clojure.core
                                           [clojure.repl dir]
@@ -81,13 +84,7 @@
                                           [clojure.repl apropos dir doc find-doc pst source]])]
 
                    :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
-
-                             ;; Latest refactor-nrepl ("2.4.0-SNAPSHOT") isn't sync'd
-                             ;; with this version of cider-nrepl ("0.17.0-SNAPSHOT"). So
-                             ;; we have to wait for an update.
-
-                             ;; [refactor-nrepl "2.4.0-SNAPSHOT"]
-                             ]
+                             [refactor-nrepl "2.4.0-SNAPSHOT"]]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}}
 

@@ -1,5 +1,6 @@
 (ns com.interrupt.ibgateway.component.switchboard
-  (:require [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
+  (:require [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer
+                                        mult tap pipeline]]
             [clojure.set :as cs]
             [clojure.math.combinatorics :as cmb]
             [franzy.clients.producer.client :as producer]
@@ -21,7 +22,8 @@
             [com.interrupt.ibgateway.component.switchboard.store :as store]
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
             [com.interrupt.edgar.core.tee.live :as tlive]
-            [com.interrupt.edgar.ib.market :as market]))
+            [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.edgar.ib.handler.live :as live]))
 
 
 #_(def topic-scanner-command "scanner-command")
@@ -1100,7 +1102,7 @@
 
   ;; PLAY the data
   (require '[overtone.at-at :refer :all]
-           '[com.interrupt.edgar.ib.handler.live :refer [feed-handler]])
+           '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live])
 
   (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
   (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
@@ -1190,14 +1192,16 @@
   (require '[com.interrupt.edgar.core.edgar :as edg]
            '[com.interrupt.edgar.ib.market :as mkt]
            '[overtone.at-at :refer :all]
-           '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live])
+           '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live]
+           '[com.interrupt.edgar.core.analysis.lagging :as al]
+           '[net.cgrand.xforms :as x])
 
 
   (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
-  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def publisher-ch (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
   (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
   (def publication
-    (pub publisher #(:topic %)))
+    (pub publisher-ch #(:topic %)))
 
 
   (let [stock-name "TSLA"
@@ -1240,15 +1244,50 @@
         :strategies {:strategy-A sA
                      :strategy-C sC}}]
 
+    #_(market/subscribe-to-market publisher-ch (partial feed-handler options))
 
-    (market/subscribe-to-market publisher (partial feed-handler options)))
+    (let [n 1
+          tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
+          sma-list-ch (chan (sliding-buffer 100))
+          ema-list-ch (chan (sliding-buffer 100))
+
+
+          ;; tick-list
+          _ (pipeline n tick-list-ch live/handler-xform publisher-ch)
+
+          ;; INPUTs < tick-list
+          ;; alagging/simple-moving-average
+
+          ;; tick-list-sma-mult (mult tick-list-ch)
+          ;; tick-list-sma (chan (sliding-buffer 100))
+          ;; _ (tap tick-list-sma-mult tick-list-sma)
+
+          _ (pipeline n sma-list-ch (map (partial al/simple-moving-average options)) tick-list-ch)]
+
+
+      ;; INPUTs < sma-list
+      ;; alagging/exponential-moving-average
+
+      ;; INPUTs < sma-list
+      ;; slagging/bollinger-band
+
+
+      ;; sleading/macd
+      ;; sleading/stochastic-oscillator
+      ;; sconfirming/on-balance-volume
+
+
+      (go-loop [r (<! sma-list-ch)]
+        (println #_"record: " r)
+        (if-not r
+          r
+          (recur (<! sma-list-ch))))))
 
   (def my-pool (mk-pool))
   (def input-source (atom (read-string (slurp "live.4.edn"))))
   (defn consume-fn []
     (let [{:keys [topic] :as ech} (first @input-source)]
 
-      ;; (println "Sanity Check: " ech)
       (case topic
         :tick-string (as-> ech e
                        (dissoc e :topic)
@@ -1265,7 +1304,7 @@
 
     (swap! input-source #(rest %)))
 
-  (def scheduled-fn (every 1000
+  (def scheduled-fn (every 100
                            consume-fn
                            my-pool))
   (stop scheduled-fn)
@@ -1293,4 +1332,3 @@
 
 ;; :value       ;0;1522337866199;67085;253.23364232;true
 ;; :value 255.59;1;1522337865948;67077;253.23335428;true
-

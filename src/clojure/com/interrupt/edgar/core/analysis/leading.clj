@@ -152,9 +152,5 @@
                          (let [e-list (lagging/exponential-moving-average {:input :K :output :D :etal [:last-trade-time :last-trade-price :highest-price :lowest-price :K]} 3 nil ech)]
                            (cons (first e-list) rslt)))
                        (into '() (repeat tick-window nil))
-                       (reverse (partition trigger-window 1 (remove nil? stochastic-list)))
-                       )
-        ]
-    d-list
-    )
-)
+                       (reverse (partition trigger-window 1 (remove nil? stochastic-list))))]
+    d-list))
