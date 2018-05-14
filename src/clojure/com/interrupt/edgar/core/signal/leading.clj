@@ -280,7 +280,6 @@
                                       partitioned-stochastic)]
 
     divergence-stochastic))
-
 (defn stochastic-oscillator
   "This function searches for signals to overlay on top of a regular Stochastic Oscillator time series.
 

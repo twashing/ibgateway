@@ -1264,43 +1264,49 @@
 
           ;; TODO Remove :population
           sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into []) #_(map #(dissoc % :population))))
-          ema-list-ch (chan (sliding-buffer 100))
-          bollinger-band-ch (chan (sliding-buffer 100))
+          ema-list-ch (chan (sliding-buffer 100) #_(map last))
+          bollinger-band-ch (chan (sliding-buffer 100) #_(map last))
+          macd-ch (chan (sliding-buffer 100))
 
-
-          ;; tick-list
-          _ (pipeline n tick-list-ch live/handler-xform publisher-ch)
-
-
-          ;; INPUTs < tick-list
-          ;; alag/simple-moving-average
           tick-list-sma-ch (bind-channel->mult tick-list-ch)
-          _ (pipeline n sma-list-ch (map (partial alag/simple-moving-average options)) tick-list-sma-ch)
-
-
-          ;; INPUTs < sma-list
-          ;; alag/exponential-moving-average
           sma-list-ema-ch (bind-channel->mult sma-list-ch)
-          _ (pipeline n ema-list-ch (map (partial alag/exponential-moving-average options live/moving-average-window)) sma-list-ema-ch)
-
-
-          ;; INPUTs < sma-list
-          ;; slag/bollinger-band
           sma-list-bollinger-band-ch (bind-channel->mult sma-list-ch)
-          _ (pipeline n bollinger-band-ch (map (partial alag/bollinger-band live/moving-average-window)) sma-list-bollinger-band-ch)
-          ]
 
 
-      ;; slead/macd
-      ;; slead/stochastic-oscillator
-      ;; sconf/on-balance-volume
+          ;; TODO join tick-list, sma-list
+          tick-list-macd-ch (bind-channel->mult tick-list-ch)
 
 
-      (go-loop [r (<! bollinger-band-ch)]
+          tick-list-stochastic-osc-ch (bind-channel->mult tick-list-ch)
+          tick-list-obv-ch (bind-channel->mult tick-list-ch)
+          tick-list-relative-strength-ch (bind-channel->mult tick-list-ch)]
+
+
+      (pipeline n tick-list-ch live/handler-xform publisher-ch)
+      (pipeline n sma-list-ch (map (partial alag/simple-moving-average options)) tick-list-sma-ch)
+      (pipeline n ema-list-ch (map (partial alag/exponential-moving-average options live/moving-average-window)) sma-list-ema-ch)
+      (pipeline n bollinger-band-ch (map (partial alag/bollinger-band live/moving-average-window)) sma-list-bollinger-band-ch)
+
+      (pipeline n macd-ch (map (partial alead/macd options live/moving-average-window)) tick-list-macd-ch #_sma-list-macd-ch)
+
+
+      ;; TODO refactor
+      ;; (alead/stochastic-oscillator tick-window trigger-window trigger-line tick-list)
+
+      ;; (aconf/on-balance-volume latest-tick tick-list)
+      ;; (aconf/relative-strength-index tick-window tick-list)
+
+      ;; (slead/macd options tick-window tick-list sma-list macd-list)
+      ;; (slead/stochastic-oscillator tick-window trigger-window trigger-line tick-list stochastic-list)
+
+      ;; (sconf/on-balance-volume view-window tick-list obv-list)
+
+
+      (go-loop [r (<! macd-ch)]
         (println #_"record: " r)
         (if-not r
           r
-          (recur (<! bollinger-band-ch))))))
+          (recur (<! macd-ch))))))
 
   (def my-pool (mk-pool))
   (def input-source (atom (read-string (slurp "live.4.edn"))))
