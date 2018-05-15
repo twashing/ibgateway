@@ -1189,158 +1189,61 @@
 
 (comment   ;; PLAY the data
 
-  (require '[com.interrupt.edgar.core.edgar :as edg]
-           '[com.interrupt.edgar.ib.market :as mkt]
-           '[overtone.at-at :refer :all]
-           '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live]
+  #_(require '[com.interrupt.edgar.core.edgar :as edg]
+             '[com.interrupt.edgar.ib.market :as mkt]
+             '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live]
            '[com.interrupt.edgar.core.analysis.lagging :as alag]
            '[com.interrupt.edgar.core.analysis.leading :as alead]
            '[com.interrupt.edgar.core.analysis.confirming :as aconf]
            '[net.cgrand.xforms :as x])
 
-
-  (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
-  (def publisher-ch (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
-  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
-  (def publication
-    (pub publisher-ch #(:topic %)))
+  (require '[mount.core :refer [defstate] :as mount]
+           '[overtone.at-at :refer :all]
+           '[com.interrupt.ibgateway.component.ewrapper :as ew]
+           '[com.interrupt.ibgateway.component.processing-pipeline :as pp])
 
 
-
-  (defn bind-channel->mult [tick-list-ch]
-
-    (let [tick-list-sma-mult (mult tick-list-ch)
-          tick-list-sma-ch (chan (sliding-buffer 100))]
-
-      (tap tick-list-sma-mult tick-list-sma-ch)
-      tick-list-sma-ch))
-
-
-  (let [stock-name "TSLA"
-
-        output-fn (fn [event-name result]
-                    (println (str "stream-live > event-name[" event-name "] response keys[" (keys result) "]"))
-                    (println (str "stream-live > event-name[" event-name "] signals[" (-> result :signals keys) "]"))
-                    (println (str "stream-live > event-name[" event-name "] strategies[" (:strategies result) "]")))
-
-        options {;; :tick-list (ref [])
-                 :tee-list [(partial tlive/tee-fn output-fn stock-name)]
-                 :stock-match {:symbol "TSLA" :ticker-id-filter 0}}]
-
-    ;; TODO
-    ;; join together pipeline channels
-    ;; Mount component for pipelines
-    ;; We want to pipeline:
-    #_[alagging/simple-moving-average
-       alagging/exponential-moving-average
-
-       slagging/moving-averages
-       slagging/bollinger-band
-       sleading/macd
-       sleading/stochastic-oscillator
-       sconfirming/on-balance-volume
-
-       strategy/strategy-A
-       strategy/strategy-C
-
-       {:stock-name stock-name
-        :stock-symbol (:symbol result-map)
-        :stock-list final-list
-        :source-list tick-list-N
-        :sma-list smaF
-        :ema-list emaF
-        :signals {:moving-average signals-ma
-                  :bollinger-band signals-bollinger
-                  :macd signals-macd
-                  :stochastic-oscillator signals-stochastic
-                  :obv signals-obv}
-        :strategies {:strategy-A sA
-                     :strategy-C sC}}]
-
-    #_(market/subscribe-to-market publisher-ch (partial feed-handler options))
-
-    (let [n 1
-          tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
-
-          ;; TODO Remove :population
-          sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into []) #_(map #(dissoc % :population))))
-          ema-list-ch (chan (sliding-buffer 100) #_(map last))
-          bollinger-band-ch (chan (sliding-buffer 100) #_(map last))
-          macd-ch (chan (sliding-buffer 100))
-
-          tick-list-sma-ch (bind-channel->mult tick-list-ch)
-          sma-list-ema-ch (bind-channel->mult sma-list-ch)
-          sma-list-bollinger-band-ch (bind-channel->mult sma-list-ch)
-
-
-          ;; TODO join tick-list, sma-list
-          tick-list-macd-ch (bind-channel->mult tick-list-ch)
-
-
-          tick-list-stochastic-osc-ch (bind-channel->mult tick-list-ch)
-          tick-list-obv-ch (bind-channel->mult tick-list-ch)
-          tick-list-relative-strength-ch (bind-channel->mult tick-list-ch)]
-
-
-      (pipeline n tick-list-ch live/handler-xform publisher-ch)
-      (pipeline n sma-list-ch (map (partial alag/simple-moving-average options)) tick-list-sma-ch)
-      (pipeline n ema-list-ch (map (partial alag/exponential-moving-average options live/moving-average-window)) sma-list-ema-ch)
-      (pipeline n bollinger-band-ch (map (partial alag/bollinger-band live/moving-average-window)) sma-list-bollinger-band-ch)
-
-      (pipeline n macd-ch (map (partial alead/macd options live/moving-average-window)) tick-list-macd-ch #_sma-list-macd-ch)
-
-
-      ;; TODO refactor
-      ;; (alead/stochastic-oscillator tick-window trigger-window trigger-line tick-list)
-
-      ;; (aconf/on-balance-volume latest-tick tick-list)
-      ;; (aconf/relative-strength-index tick-window tick-list)
-
-      ;; (slead/macd options tick-window tick-list sma-list macd-list)
-      ;; (slead/stochastic-oscillator tick-window trigger-window trigger-line tick-list stochastic-list)
-
-      ;; (sconf/on-balance-volume view-window tick-list obv-list)
-
-
-      (go-loop [r (<! macd-ch)]
-        (println #_"record: " r)
-        (if-not r
-          r
-          (recur (<! macd-ch))))))
-
-  (def my-pool (mk-pool))
-  (def input-source (atom (read-string (slurp "live.4.edn"))))
-  (defn consume-fn []
-    (let [{:keys [topic] :as ech} (first @input-source)]
-
-      (case topic
-        :tick-string (as-> ech e
-                       (dissoc e :topic)
-                       (vals e)
-                       (apply #(.tickString ewrapper-impl %1 %2 %3) e))
-        :tick-price (as-> ech e
-                      (dissoc e :topic)
-                      (vals e)
-                      (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
-        :tick-size (as-> ech e
-                     (dissoc e :topic)
-                     (vals e)
-                     (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
-
-    (swap! input-source #(rest %)))
-
-  (def scheduled-fn (every 100
-                           consume-fn
-                           my-pool))
-  (stop scheduled-fn)
-
-
-
-  ;; STATE
+  (mount/stop)
+  (mount/start)
   (mount/find-all-states)
 
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper))
+
+  (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
+        my-pool (mk-pool)
+        input-source (atom (read-string (slurp "live.4.edn")))
+        consume-fn (fn []
+                     (let [{:keys [topic] :as ech} (first @input-source)]
+
+                       (case topic
+                         :tick-string (as-> ech e
+                                        (dissoc e :topic)
+                                        (vals e)
+                                        (apply #(.tickString ewrapper-impl %1 %2 %3) e))
+                         :tick-price (as-> ech e
+                                       (dissoc e :topic)
+                                       (vals e)
+                                       (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+                         :tick-size (as-> ech e
+                                      (dissoc e :topic)
+                                      (vals e)
+                                      (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+                     (swap! input-source #(rest %)))]
+
+    (def scheduled-fn (every 100
+                             consume-fn
+                             my-pool)))
+
+  (let [{:keys [tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch]}
+        pp/processing-pipeline]
+
+    (go-loop [r (<! bollinger-band-ch)]
+      (println r)
+      (if-not r
+        r
+        (recur (<! bollinger-band-ch)))))
+
+  (stop scheduled-fn))
 
 (comment
 
