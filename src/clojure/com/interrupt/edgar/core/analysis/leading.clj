@@ -26,7 +26,7 @@
 
   ([options tick-window tick-list sma-list]
 
-   #_(println "sma-list: " sma-list)
+   ;; (println "sma-list: " sma-list)
 
    ;; compute the MACD line
    (let [{macd-fast :macd-window-fast

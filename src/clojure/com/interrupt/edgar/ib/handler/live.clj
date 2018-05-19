@@ -400,10 +400,9 @@
                                                   :skey-streams {:ss1 ss1
                                                                  :ss2 ss2
                                                                  :ss3 ss3}})]
-      @(stream/take! @result))
+        @(stream/take! @result))
 
-
-    #_(ddo [u-s (stream.cross/set-streams-union {:default-key-fn :id
+    (ddo [u-s (stream.cross/set-streams-union {:default-key-fn :id
                                                  :skey-streams {:ss1 ss1
                                                                 :ss2 ss2
                                                                 :ss3 ss3}})]
@@ -420,8 +419,7 @@
                                                     :ss2 ss2
                                                     :ss3 ss3}})
 
-
-    (let [oc (chan 1 (map vals))
+    #_(let [oc (chan 1 (map vals))
           result (stream.cross/set-streams-union {:default-key-fn :id
                                                   :skey-streams {:ss1 ss1
                                                                  :ss2 ss2

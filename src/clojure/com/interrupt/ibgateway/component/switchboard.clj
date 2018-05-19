@@ -1172,7 +1172,7 @@
   (doseq [{:keys [dispatch] :as ech} input]
 
     #_(println)
-    (println "Sanity Check: " ech)
+    #_(println "Sanity Check: " ech)
     (case dispatch
       :tick-string (as-> ech e
                      (dissoc e :dispatch)
@@ -1187,15 +1187,8 @@
                    (vals e)
                    (apply #(.tickSize ewrapper-impl %1 %2 %3) e)))))
 
-(comment   ;; PLAY the data
 
-  #_(require '[com.interrupt.edgar.core.edgar :as edg]
-             '[com.interrupt.edgar.ib.market :as mkt]
-             '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live]
-           '[com.interrupt.edgar.core.analysis.lagging :as alag]
-           '[com.interrupt.edgar.core.analysis.leading :as alead]
-           '[com.interrupt.edgar.core.analysis.confirming :as aconf]
-           '[net.cgrand.xforms :as x])
+(comment   ;; PLAY the data
 
   (require '[mount.core :refer [defstate] :as mount]
            '[overtone.at-at :refer :all]
@@ -1207,6 +1200,8 @@
   (mount/start)
   (mount/find-all-states)
 
+
+  (pp/processing-pipeline)
 
   (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
         my-pool (mk-pool)
@@ -1233,15 +1228,6 @@
     (def scheduled-fn (every 100
                              consume-fn
                              my-pool)))
-
-  (let [{:keys [tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch]}
-        pp/processing-pipeline]
-
-    (go-loop [r (<! bollinger-band-ch)]
-      (println r)
-      (if-not r
-        r
-        (recur (<! bollinger-band-ch)))))
 
   (stop scheduled-fn))
 
