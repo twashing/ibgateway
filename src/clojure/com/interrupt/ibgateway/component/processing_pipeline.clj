@@ -118,10 +118,11 @@
           tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
 
           ;; TODO Remove :population
-          sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into []) #_(map #(dissoc % :population))))
+          sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
           ema-list-ch (chan (sliding-buffer 100))
           bollinger-band-ch (chan (sliding-buffer 100))
           macd-ch (chan (sliding-buffer 100))
+          stochastic-oscillator-ch (chan (sliding-buffer 100))
 
           tick-list->sma-ch (chan (sliding-buffer 100))
           tick-list->macd-ch (chan (sliding-buffer 100))
@@ -170,11 +171,6 @@
       ;;  :population []}
 
       (pipeline n macd-ch (map (partial alead/macd {} live/moving-average-window [])) sma-list->macd-ch)
-      (go-loop [r (<! macd-ch)]
-        (println r)
-        (when r
-          (recur (<! macd-ch))))
-
       #_(let [tick-list->MACD (->> tick-list->macd-ch
                                  stream/->source
                                  (stream.cross/event-source->sorted-stream :id))
@@ -218,12 +214,19 @@
         ;; Final GOAL
         #_(pipeline n macd-ch (map (partial alead/macd options live/moving-average-window)) tick-list->MACD sma-list->MACD))
 
+      (let [stochastic-tick-window 14
+            trigger-window 3
+            trigger-line 3]
+        (pipeline n stochastic-oscillator-ch (map (partial alead/stochastic-oscillator stochastic-tick-window trigger-window trigger-line)) tick-list->stochastic-osc-ch))
+
+      (go-loop [r (<! stochastic-oscillator-ch)]
+        (println r)
+        (when r
+          (recur (<! stochastic-oscillator-ch))))
 
       ;; TODO refactor
-      ;; (alead/stochastic-oscillator tick-window trigger-window trigger-line tick-list)
-
-      ;; (aconf/on-balance-volume latest-tick tick-list)
-      ;; (aconf/relative-strength-index tick-window tick-list)
+      ;; (aconf/on-balance-volume latest-tick tick-list->obv-ch)
+      ;; (aconf/relative-strength-index live/moving-average-window tick-list->relative-strength-ch)
 
       ;; (slead/macd options tick-window tick-list sma-list macd-list)
       ;; (slead/stochastic-oscillator tick-window trigger-window trigger-line tick-list stochastic-list)
