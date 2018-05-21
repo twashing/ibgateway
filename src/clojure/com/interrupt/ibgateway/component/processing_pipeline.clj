@@ -123,6 +123,8 @@
           bollinger-band-ch (chan (sliding-buffer 100))
           macd-ch (chan (sliding-buffer 100))
           stochastic-oscillator-ch (chan (sliding-buffer 100))
+          on-balance-volume-ch (chan (sliding-buffer 100))
+          relative-strength-ch (chan (sliding-buffer 100))
 
           tick-list->sma-ch (chan (sliding-buffer 100))
           tick-list->macd-ch (chan (sliding-buffer 100))
@@ -219,14 +221,16 @@
             trigger-line 3]
         (pipeline n stochastic-oscillator-ch (map (partial alead/stochastic-oscillator stochastic-tick-window trigger-window trigger-line)) tick-list->stochastic-osc-ch))
 
-      (go-loop [r (<! stochastic-oscillator-ch)]
+      (pipeline n on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
+
+      (let [relative-strength 14]
+        (pipeline n relative-strength-ch (map (partial aconf/relative-strength-index relative-strength)) tick-list->relative-strength-ch))
+
+      (go-loop [r (<! relative-strength-ch)]
         (println r)
         (when r
-          (recur (<! stochastic-oscillator-ch))))
+          (recur (<! relative-strength-ch))))
 
-      ;; TODO refactor
-      ;; (aconf/on-balance-volume latest-tick tick-list->obv-ch)
-      ;; (aconf/relative-strength-index live/moving-average-window tick-list->relative-strength-ch)
 
       ;; (slead/macd options tick-window tick-list sma-list macd-list)
       ;; (slead/stochastic-oscillator tick-window trigger-window trigger-line tick-list stochastic-list)

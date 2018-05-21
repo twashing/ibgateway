@@ -15,25 +15,20 @@
       Current OBV = Previous OBV (no change)
 
     ** The first OBV value is the first period's positive/negative volume.
-    ** This function assumes the latest tick is on the left**"
-  [latest-tick tick-list]
+    ** This function assumes the latest tick is on the right**"
+  #_[latest-tick tick-list]
+  [tick-list]
 
 
   ;; accumulate OBV on historical tick-list
-  (let [obv-list (reduce (fn [rslt ech]
+  (let [obv-list (reduce (fn [acc ech]
 
-                           (if-let [prev-obv (:obv (first rslt))]    ;; handling case where first will not have an OBV
+                           (if-let [prev-obv (:obv (last acc))]    ;; handling case where last will not have an OBV
 
                              ;; normal case
-                             (let [current-price (if (string? (:last-trade-price (first ech)))
-                                                   (read-string (:last-trade-price (first ech)))
-                                                   (:last-trade-price (first ech)))
-                                   prev-price (if (string? (:last-trade-price (second ech)))
-                                                (read-string (:last-trade-price (second ech)))
-                                                (:last-trade-price (second ech)))
-                                   current-volume (if (string? (:total-volume (first ech)))
-                                                    (read-string (:total-volume (first ech)))
-                                                    (:total-volume (first ech)))
+                             (let [current-price (:last-trade-price (last ech))
+                                   prev-price (:last-trade-price (-> ech butlast last))
+                                   current-volume (:total-volume (last ech))
 
                                    obv (if (= current-price prev-price)
                                          prev-obv
@@ -41,32 +36,28 @@
                                            (+ prev-obv current-volume)
                                            (- prev-obv current-volume)))]
 
-                               (cons {:obv obv
-                                      :total-volume (:total-volume (first ech))
-                                      :last-trade-price (:last-trade-price (first ech))
-                                      :last-trade-time (:last-trade-time (first ech))} rslt))
+                               (concat acc (list {:obv obv
+                                                  :total-volume (:total-volume (last ech))
+                                                  :last-trade-price (:last-trade-price (last ech))
+                                                  :last-trade-time (:last-trade-time (last ech))})))
 
-                             ;; otherwise we seed the list with the first entry
-                             (cons {:obv (:total-volume (first ech))
-                                    :total-volume (:total-volume (first ech))
-                                    :last-trade-price (:last-trade-price (first ech))
-                                    :last-trade-time (:last-trade-time (first ech))} rslt)))
-                         '(nil)
-                         (->> tick-list (partition 2 1) reverse))]
+                             ;; otherwise we seed the list with the last entry
+                             (concat acc (list {:obv (:total-volume (last ech))
+                                                :total-volume (:total-volume (last ech))
+                                                :last-trade-price (:last-trade-price (last ech))
+                                                :last-trade-time (:last-trade-time (last ech))}))))
+                         []
+                         (partition 2 1 tick-list))]
+
+    obv-list
 
     ;; calculate OBV for latest tick
-    (if latest-tick
+    #_(if latest-tick
 
-      (let [cprice (if (string? (:last-trade-price latest-tick))
-                     (read-string (:last-trade-price latest-tick))
-                     (:last-trade-price latest-tick))
-            pprice (if (string? (:last-trade-price (first obv-list)))
-                     (read-string (:last-trade-price (first obv-list)))
-                     (:last-trade-price (first obv-list)))
-            cvolume (if (string? (:total-volume latest-tick))
-                      (read-string (:total-volume latest-tick))
-                      (:total-volume latest-tick))
-            pobv (:obv (first obv-list))
+      (let [cprice (:last-trade-price latest-tick)
+            pprice (:last-trade-price (last obv-list))
+            cvolume (:total-volume latest-tick)
+            pobv (:obv (last obv-list))
 
             cobv (if (= cprice pprice)
                    pobv
@@ -74,10 +65,10 @@
                      (+ pobv cvolume)
                      (- pobv cvolume)))]
 
-        (cons {:obv cobv
-               :total-volume (:total-volume latest-tick)
-               :last-trade-price (:last-trade-price latest-tick)
-               :last-trade-time (:last-trade-time latest-tick)} obv-list))
+        (concat obv-list (list {:obv cobv
+                                :total-volume (:total-volume latest-tick)
+                                :last-trade-price (:last-trade-price latest-tick)
+                                :last-trade-time (:last-trade-time latest-tick)})))
       obv-list)))
 
 (defn relative-strength-index
@@ -85,7 +76,7 @@
 
    If no 'tick-window' is given, it defaults to 14
 
-   ** This function assumes the latest tick is on the left**"
+   ** This function assumes the latest tick is on the right**"
   [tick-window tick-list]
 
   (let [twindow (if tick-window tick-window 14)
@@ -97,8 +88,8 @@
               ;; each item will be a population of tick-window (default of 14)
               (let [pass-one (reduce (fn [rslt ech]
 
-                                       (let [fst (:last-trade-price (first ech))
-                                             snd (:last-trade-price (second ech))
+                                       (let [fst (:last-trade-price (last ech))
+                                             snd (:last-trade-price (-> ech butlast last))
 
                                              up? (> fst snd)
                                              down? (< fst snd)
@@ -106,21 +97,19 @@
 
                                          (if (or up? down?)
                                            (if up?
-                                             (conj rslt (assoc (first ech) :signal :up))
-                                             (conj rslt (assoc (first ech) :signal :down)))
-                                           (conj rslt (assoc (first ech) :signal :sideways)))))
+                                             (conj rslt (assoc (last ech) :signal :up))
+                                             (conj rslt (assoc (last ech) :signal :down)))
+                                           (conj rslt (assoc (last ech) :signal :sideways)))))
                                      []
-                                     (partition 2 1 (remove nil? ech)))
+                                     (partition 2 1 ech))
 
 
                     up-list (:up (group-by :signal pass-one))
                     down-list (:down (group-by :signal pass-one))
 
-                    avg-gains (/ (apply +
-                                        (map :last-trade-price up-list))
+                    avg-gains (/ (apply + (map :last-trade-price up-list))
                                  tick-window)
-                    avg-losses (/ (apply +
-                                         (map :last-trade-price down-list))
+                    avg-losses (/ (apply + (map :last-trade-price down-list))
                                   tick-window)
 
                     rs (if-not (= 0 avg-losses)
@@ -128,9 +117,9 @@
                          0)
                     rsi (- 100 (/ 100 (+ 1 rs)))]
 
-                (conj rslt {:last-trade-time (:last-trade-time (first ech))
-                            :last-trade-price (:last-trade-price (first ech))
-                            :rs rs
-                            :rsi rsi})))
+                (concat rslt (list {:last-trade-time (:last-trade-time (last ech))
+                                    :last-trade-price (:last-trade-price (last ech))
+                                    :rs rs
+                                    :rsi rsi}))))
             []
             window-list)))

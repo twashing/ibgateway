@@ -1201,7 +1201,7 @@
   (mount/find-all-states)
 
 
-  (pp/processing-pipeline)
+  #_(pp/processing-pipeline)
 
   (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
         my-pool (mk-pool)
