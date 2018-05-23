@@ -10,6 +10,9 @@
             [com.interrupt.edgar.core.analysis.lagging :as alag]
             [com.interrupt.edgar.core.analysis.leading :as alead]
             [com.interrupt.edgar.core.analysis.confirming :as aconf]
+            [com.interrupt.edgar.core.signal.lagging :as slag]
+            [com.interrupt.edgar.core.signal.leading :as slead]
+            [com.interrupt.edgar.core.signal.confirming :as sconf]
 
             [manifold.stream :as stream]
             [prpr.stream.cross :as stream.cross]
@@ -76,6 +79,16 @@
               r
               (recur (<! oc)))))))
 
+(defn pipeline-stochastic-oscillator [n stochastic-oscillator-ch tick-list->stochastic-osc-ch]
+  (let [stochastic-tick-window 14
+        trigger-window 3
+        trigger-line 3]
+    (pipeline n stochastic-oscillator-ch (map (partial alead/stochastic-oscillator stochastic-tick-window trigger-window trigger-line)) tick-list->stochastic-osc-ch)))
+
+(defn pipeline-relative-strength-index [n relative-strength-ch tick-list->relative-strength-ch]
+  (let [relative-strength 14]
+    (pipeline n relative-strength-ch (map (partial aconf/relative-strength-index relative-strength)) tick-list->relative-strength-ch)))
+
 (defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
 
   (let [output-fn (fn [event-name result]
@@ -126,6 +139,13 @@
           on-balance-volume-ch (chan (sliding-buffer 100))
           relative-strength-ch (chan (sliding-buffer 100))
 
+          ;; strategy-moving-averages
+          ;; strategy-bollinger-band
+          strategy-macd-ch (chan (sliding-buffer 100))
+          strategy-stochastic-oscillator-ch (chan (sliding-buffer 100))
+          strategy-on-balance-volume-ch (chan (sliding-buffer 100))
+
+
           tick-list->sma-ch (chan (sliding-buffer 100))
           tick-list->macd-ch (chan (sliding-buffer 100))
           sma-list->ema-ch (chan (sliding-buffer 100))
@@ -137,7 +157,11 @@
 
           tick-list->stochastic-osc-ch (chan (sliding-buffer 100))
           tick-list->obv-ch (chan (sliding-buffer 100))
-          tick-list->relative-strength-ch (chan (sliding-buffer 100))]
+          tick-list->relative-strength-ch (chan (sliding-buffer 100))
+
+          macd->macd-strategy (chan (sliding-buffer 100))
+          macd->stochastic-oscillator-strategy (chan (sliding-buffer 100))
+          macd->on-balance-volume-strategy (chan (sliding-buffer 100))]
 
       (bind-channels->mult tick-list-ch
                            tick-list->sma-ch
@@ -151,28 +175,22 @@
                            sma-list->bollinger-band-ch
                            sma-list->macd-ch)
 
+      (bind-channels->mult macd-ch
+                           macd->macd-strategy
+                           macd->stochastic-oscillator-strategy
+                           macd->on-balance-volume-strategy)
+
+
       (pipeline n tick-list-ch live/handler-xform (ew/ewrapper :publisher))
       (pipeline n sma-list-ch (map (partial alag/simple-moving-average options)) tick-list->sma-ch)
       (pipeline n ema-list-ch (map (partial alag/exponential-moving-average options live/moving-average-window)) sma-list->ema-ch)
       (pipeline n bollinger-band-ch (map (partial alag/bollinger-band live/moving-average-window)) sma-list->bollinger-band-ch)
-
-
-      #_[options tick-window tick-list sma-list]
-
-      #_{input-key :input
-         output-key :output
-         etal-keys :etal
-         :or {input-key :last-trade-price
-              output-key :last-trade-price-average
-              etal-keys [:last-trade-price :last-trade-time :uuid]}}
-
-      ;; {:last-trade-price 295.26,
-      ;;  :last-trade-time 1524063528019,
-      ;;  :uuid #uuid 3a889b10-4131-42ae-aefb-133acc63acfa,
-      ;;  :last-trade-price-average 294.844,
-      ;;  :population []}
-
       (pipeline n macd-ch (map (partial alead/macd {} live/moving-average-window [])) sma-list->macd-ch)
+      (pipeline-stochastic-oscillator n stochastic-oscillator-ch tick-list->stochastic-osc-ch)
+      (pipeline n on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
+      (pipeline-relative-strength-index n relative-strength-ch tick-list->relative-strength-ch)
+
+
       #_(let [tick-list->MACD (->> tick-list->macd-ch
                                  stream/->source
                                  (stream.cross/event-source->sorted-stream :id))
@@ -216,27 +234,17 @@
         ;; Final GOAL
         #_(pipeline n macd-ch (map (partial alead/macd options live/moving-average-window)) tick-list->MACD sma-list->MACD))
 
-      (let [stochastic-tick-window 14
-            trigger-window 3
-            trigger-line 3]
-        (pipeline n stochastic-oscillator-ch (map (partial alead/stochastic-oscillator stochastic-tick-window trigger-window trigger-line)) tick-list->stochastic-osc-ch))
+      ;; slag/moving-averages -> ** join tick-list sma-list ema-list
+      ;; slag/bollinger-band -> ** join tick-list sma-list ema-list
 
-      (pipeline n on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
+      (pipeline n strategy-macd-ch (map slead/macd) macd->macd-strategy) ;; -> uses only macd-list
+      (pipeline n strategy-stochastic-oscillator-ch (map slead/stochastic-oscillator) macd->stochastic-oscillator-strategy) ;; -> uses only stochastic-list
+      ;; sconf/on-balance-volume -> uses only obv-list
 
-      (let [relative-strength 14]
-        (pipeline n relative-strength-ch (map (partial aconf/relative-strength-index relative-strength)) tick-list->relative-strength-ch))
-
-      (go-loop [r (<! relative-strength-ch)]
+      (go-loop [r (<! strategy-stochastic-oscillator-ch)]
         (println r)
         (when r
-          (recur (<! relative-strength-ch))))
-
-
-      ;; (slead/macd options tick-window tick-list sma-list macd-list)
-      ;; (slead/stochastic-oscillator tick-window trigger-window trigger-line tick-list stochastic-list)
-
-      ;; (sconf/on-balance-volume view-window tick-list obv-list)
-
+          (recur (<! strategy-stochastic-oscillator-ch))))
 
       {:tick-list-ch tick-list-ch
        :sma-list-ch sma-list-ch

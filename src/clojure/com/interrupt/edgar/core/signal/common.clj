@@ -9,17 +9,9 @@
          :or {input-key :last-trade-price}} options]
 
     (reduce (fn [rslt ech]
-              (let [fst (if (string? (input-key (first ech)))
-                          (read-string (input-key (first ech)))
-                          (input-key (first ech)))
-
-                    snd (if (string? (input-key (second ech)))
-                          (read-string (input-key (second ech)))
-                          (input-key (second ech)))
-
-                    thd (if (string? (input-key (nth ech 2)))
-                          (read-string (input-key (nth ech 2)))
-                          (input-key (nth ech 2)))
+              (let [fst (input-key (first ech))
+                    snd (input-key (second ech))
+                    thd (input-key (nth ech 2))
 
                     valley? (and (and (-> fst nil? not) (-> snd nil? not) (-> thd nil? not))
                                  (> fst snd)
@@ -30,12 +22,15 @@
 
                 (if (or valley? peak?)
                   (if peak?
-                    (conj rslt (assoc (second ech) :signal :peak))
-                    (conj rslt (assoc (second ech) :signal :valley)))
+                    (concat rslt (-> (second ech)
+                                     (assoc :signal :peak)
+                                     list))
+                    (concat rslt (-> (second ech)
+                                     (assoc :signal :valley)
+                                     list)))
                   rslt)))
             []
             (partition 3 1 tick-list))))
-
 
 (defn up-market?
   "** This function assumes the latest tick is on the left**"
@@ -48,7 +43,6 @@
                  (read-string (:last-trade-price (second inp)))
                  (:last-trade-price (second inp)))))
           (take period partitioned-list)))
-
 
 (defn down-market?
   "** This function assumes the latest tick is on the left**"
@@ -66,10 +60,9 @@
   "** This function assumes the latest tick is on the left**"
   [options ech-list price-peaks-valleys macd-peaks-valleys]
 
-  (let [
-        first-ech (first ech-list)
-        first-price (first price-peaks-valleys)
-        first-macd (first macd-peaks-valleys)
+  (let [last-ech (last ech-list)
+        last-price (last price-peaks-valleys)
+        last-macd (last macd-peaks-valleys)
 
         {input-top :input-top
          input-bottom :input-bottom
@@ -79,19 +72,19 @@
 
         both-exist-price? (and (not (empty? (remove nil? ech-list)))
                                (not (empty? (remove nil? price-peaks-valleys))))
-        price-higher-high? (and (-> (input-top first-ech) nil? not)
-                                (-> (input-top first-price) nil? not)
+        price-higher-high? (and (-> (input-top last-ech) nil? not)
+                                (-> (input-top last-price) nil? not)
 
                                 both-exist-price?
-                                (> (input-top first-ech) (input-top first-price)))
+                                (> (input-top last-ech) (input-top last-price)))
 
         both-exist-macd? (and (not (empty? (remove nil? ech-list)))
                               (not (empty? (remove nil? macd-peaks-valleys))))
-        macd-lower-high? (and (-> (input-bottom first-ech) nil? not)
-                              (-> (input-bottom first-macd) nil? not)
+        macd-lower-high? (and (-> (input-bottom last-ech) nil? not)
+                              (-> (input-bottom last-macd) nil? not)
 
                               both-exist-macd?
-                              (< (input-bottom first-ech) (input-bottom first-macd)))]
+                              (< (input-bottom last-ech) (input-bottom last-macd)))]
 
     (and price-higher-high? macd-lower-high?)))
 
@@ -99,10 +92,9 @@
   "** This function assumes the latest tick is on the left**"
   [options ech-list price-peaks-valleys macd-peaks-valleys]
 
-  (let [
-        first-ech (first ech-list)
-        first-price (first price-peaks-valleys)
-        first-macd (first macd-peaks-valleys)
+  (let [last-ech (last ech-list)
+        last-price (last price-peaks-valleys)
+        last-macd (last macd-peaks-valleys)
 
         {input-top :input-top
          input-bottom :input-bottom
@@ -112,18 +104,18 @@
 
         both-exist-price? (and (not (empty? (remove nil? ech-list)))
                                (not (empty? (remove nil? price-peaks-valleys))))
-        price-lower-high? (and (-> (input-top first-ech) nil? not)
-                               (-> (input-top first-price) nil? not)
+        price-lower-high? (and (-> (input-top last-ech) nil? not)
+                               (-> (input-top last-price) nil? not)
 
                                both-exist-price?
-                               (< (input-top (first ech-list)) (input-top (first price-peaks-valleys))))
+                               (< (input-top last-ech) (input-top last-price)))
 
         both-exist-macd? (and (not (empty? (remove nil? ech-list)))
                               (not (empty? (remove nil? macd-peaks-valleys))))
-        macd-higher-high? (and (-> (input-top first-ech) nil? not)
-                               (-> (input-top first-price) nil? not)
+        macd-higher-high? (and (-> (input-top last-ech) nil? not)
+                               (-> (input-top last-price) nil? not)
 
                                both-exist-macd?
-                               (> (input-bottom (first ech-list)) (input-bottom (first macd-peaks-valleys))))]
+                               (> (input-bottom last-ech) (input-bottom last-macd)))]
 
     (and price-lower-high? macd-higher-high?)))

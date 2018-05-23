@@ -1187,7 +1187,6 @@
                    (vals e)
                    (apply #(.tickSize ewrapper-impl %1 %2 %3) e)))))
 
-
 (comment   ;; PLAY the data
 
   (require '[mount.core :refer [defstate] :as mount]
