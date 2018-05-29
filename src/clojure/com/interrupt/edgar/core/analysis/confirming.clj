@@ -49,27 +49,7 @@
                          []
                          (partition 2 1 tick-list))]
 
-    obv-list
-
-    ;; calculate OBV for latest tick
-    #_(if latest-tick
-
-      (let [cprice (:last-trade-price latest-tick)
-            pprice (:last-trade-price (last obv-list))
-            cvolume (:total-volume latest-tick)
-            pobv (:obv (last obv-list))
-
-            cobv (if (= cprice pprice)
-                   pobv
-                   (if (> cprice pprice)
-                     (+ pobv cvolume)
-                     (- pobv cvolume)))]
-
-        (concat obv-list (list {:obv cobv
-                                :total-volume (:total-volume latest-tick)
-                                :last-trade-price (:last-trade-price latest-tick)
-                                :last-trade-time (:last-trade-time latest-tick)})))
-      obv-list)))
+    obv-list))
 
 (defn relative-strength-index
   "The Relative Strength Index (RSI) is a momentum oscillator that measures the speed and change of price movements. It oscillates between zero and 100.

@@ -147,3 +147,14 @@
                 (concat rslt v))))
           []
           sma-list))
+
+
+'([f]
+ (fn [rf]
+   (fn
+     ([] (rf))
+     ([result] (rf result))
+     ([result input]
+      (rf result (f input)))
+     ([result input & inputs]
+      (rf result (apply f input inputs))))))

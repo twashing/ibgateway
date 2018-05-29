@@ -154,7 +154,6 @@
                                     inp)))))))))))
 
 
-
 (def rt-volume-time-and-sales-type 48)
 (def tick-string-type :tick-string)
 (def moving-average-window 20)

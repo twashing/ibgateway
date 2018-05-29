@@ -19,6 +19,8 @@
   ([tick-window tick-list sma-list ema-list]
    (map (fn [titem sitem eitem]
 
+          (log/info titem sitem eitem)
+
           ;; 1. ensure that we have the :last-trade-time for simple and exponential items
           ;; 2. ensure that all 3 time items line up
           (if (and (and (not (nil? (:last-trade-time sitem)))
@@ -48,16 +50,17 @@
 
   ([tick-window tick-list]
 
-   (let [sma-list (analysis/simple-moving-average nil tick-window tick-list)
-         ema-list (analysis/exponential-moving-average nil tick-window tick-list sma-list)]
+   (let [sma-list (analysis/simple-moving-average nil tick-list)
+         ema-list (analysis/exponential-moving-average nil tick-window sma-list)]
      (moving-averages tick-window tick-list sma-list ema-list)))
 
   ([tick-window tick-list sma-list ema-list]
 
    ;; create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid
    (let [joined-list (join-averages tick-window tick-list sma-list ema-list)
-         partitioned-join (partition 2 1 (remove nil? joined-list))
-         start-list (into '() (repeat tick-window nil))]
+
+         ;; _ (log/info "joined-list" joined-list)
+         partitioned-join (partition 2 1 (remove nil? joined-list))]
 
 
      ;; find time points where ema-list (or second list) crosses over the sma-list (or 1st list)
@@ -92,7 +95,7 @@
                                                    :arguments [fst snd]}])
                                  list))
                      (concat rslt (list raw-data))))))
-             start-list
+             []
              partitioned-join))))
 
 (defn sort-bollinger-band [bband]
@@ -284,3 +287,4 @@
                  (concat rslt (-> ech-list first list))))
              []
              (partition tick-window 1 bband)))))
+

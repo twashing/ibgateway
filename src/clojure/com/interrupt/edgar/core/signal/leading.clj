@@ -263,6 +263,9 @@
 
   [stochastic-list]
 
+  ;; (println "stochastic-list" stochastic-list)
+  ;; (println "stochastic-list count" (count stochastic-list))
+
   (let [;; A. is %K abouve or below the overbought or oversold levels
         stochastic-A (stochastic-level stochastic-list)
 

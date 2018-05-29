@@ -1,8 +1,9 @@
 (ns com.interrupt.ibgateway.component.switchboard
-  (:require [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer
+  (:require [clojure.core.async :refer [chan >! <! close! merge go go-loop pub sub unsub-all sliding-buffer
                                         mult tap pipeline]]
             [clojure.set :as cs]
             [clojure.math.combinatorics :as cmb]
+            [clojure.tools.logging :refer [debug info warn error]]
             [franzy.clients.producer.client :as producer]
             [franzy.clients.consumer.client :as consumer]
             [franzy.clients.consumer.callbacks :refer [consumer-rebalance-listener]]
@@ -23,7 +24,12 @@
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
             [com.interrupt.edgar.core.tee.live :as tlive]
             [com.interrupt.edgar.ib.market :as market]
-            [com.interrupt.edgar.ib.handler.live :as live]))
+            [com.interrupt.edgar.ib.handler.live :as live]
+
+            [mount.core :refer [defstate] :as mount]
+            [overtone.at-at :refer :all]
+            [com.interrupt.ibgateway.component.ewrapper :as ew]
+            [com.interrupt.ibgateway.component.processing-pipeline :as pp]))
 
 
 #_(def topic-scanner-command "scanner-command")
@@ -83,9 +89,9 @@
           ;;One could argue though that most data is not as valuable as we are told. I heard this in a dream once or in
           ;;intro to Philosophy.
           rebalance-listener (consumer-rebalance-listener (fn [topic-partitions]
-                                                            (println "topic partitions assigned:" topic-partitions))
+                                                            (info "topic partitions assigned:" topic-partitions))
                                                           (fn [topic-partitions]
-                                                            (println "topic partitions revoked:" topic-partitions)))
+                                                            (info "topic partitions revoked:" topic-partitions)))
           ;;We create custom producer options and set out listener callback like so.
           ;;Now we can avoid passing this callback every call that requires it, if we so desire
           ;;Avoiding the extra cost of creating and garbage collecting a listener is a best practice
@@ -98,7 +104,7 @@
         ;;Alternatively, you can setup another threat that will produce to your topic while you consume, and all should be well
         (subscribe-to-partitions! c [topic])
         ;;Let's see what we subscribed to, we don't need Cumberbatch to investigate here...
-        (println "Partitions subscribed to:" (partition-subscriptions c))
+        (info "Partitions subscribed to:" (partition-subscriptions c))
 
         (loop [records nil]
 
@@ -115,17 +121,17 @@
                   inconceivable-transduction (comp filter-xf value-xf)]
 
 
-              (println "Record count:" (record-count cr))
-              (println "Records by topic:" (records-by-topic cr topic))
+              (info "Record count:" (record-count cr))
+              (info "Records by topic:" (records-by-topic cr topic))
               ;;The source data is a seq, be careful!
-              (println "Records from a topic that doesn't exist:" (records-by-topic cr "no-one-of-consequence"))
-              (println "Records by topic partition:" (records-by-topic-partition cr topic 0))
+              (info "Records from a topic that doesn't exist:" (records-by-topic cr "no-one-of-consequence"))
+              (info "Records by topic partition:" (records-by-topic-partition cr topic 0))
               ;;The source data is a list, so no worries here....
-              (println "Records by a topic partition that doesn't exist:" (records-by-topic-partition cr "no-one-of-consequence" 99))
-              (println "Topic Partitions in the result set:" (record-partitions cr))
+              (info "Records by a topic partition that doesn't exist:" (records-by-topic-partition cr "no-one-of-consequence" 99))
+              (info "Topic Partitions in the result set:" (record-partitions cr))
               (clojure.pprint/pprint (into [] inconceivable-transduction cr))
-                                        ;(println "Now just the values of all distinct records:")
-              (println "Put all the records into a vector (calls IReduceInit):" (into [] cr))
+                                        ;(info "Now just the values of all distinct records:")
+              (info "Put all the records into a vector (calls IReduceInit):" (into [] cr))
 
               ;; TODO
 
@@ -530,7 +536,7 @@
     (require '[reduce-fsm :as fsm])
 
     (defn print-message [[msg & etal]]
-      (println "Message: " msg " / etal: " etal)
+      (info "Message: " msg " / etal: " etal)
       \a)
 
     #_(fsm/defsm process-message
@@ -550,7 +556,7 @@
        [:on \a -> :done]
        [:done {:is-terminal true}]])
 
-    (process-message {:writer println} [{:stock-scanner/state :on}])
+    (process-message {:writer info} [{:stock-scanner/state :on}])
 
 
 
@@ -568,16 +574,16 @@
     (def switchboard-fsm (a/compile switchboard-fsm-template
                                     {:signal :state
                                      :reducers {:received (fn [one two]
-                                                            (println "recieved CALLED: one: " one " / two: " two)
+                                                            (info "recieved CALLED: one: " one " / two: " two)
                                                             (assoc one :received :received))
                                                 :on (fn [one two]
-                                                      (println "on CALLED: one: " one " / two: " two)
+                                                      (info "on CALLED: one: " one " / two: " two)
                                                       (assoc one :on :on))
                                                 :subscribed (fn [one two]
-                                                              (println "subscribed CALLED: one: " one " / two: " two)
+                                                              (info "subscribed CALLED: one: " one " / two: " two)
                                                               (assoc one :subscribed :subscribed))
                                                 :done (fn [one two]
-                                                        (println "done CALLED: one: " one " / two: " two)
+                                                        (info "done CALLED: one: " one " / two: " two)
                                                         (assoc one :done :done))}}))
     (def value {:switchboard/scanner :stock-scanner
                 :switchboard/state :on})
@@ -748,8 +754,8 @@
 
   (let [stock-name "IBM"
         stream-live (fn [event-name result]
-                      (println :stream-live (str "... stream-live > event-name[" event-name
-                                                 "] response[" result "]")))]
+                      (info :stream-live (str "... stream-live > event-name[" event-name
+                                              "] response[" result "]")))]
 
     ;; TODO - replace this with analogy to brok/scanner-start
     (edg/play-live client [stock-name] [(partial tlive/tee-fn stream-live stock-name)])
@@ -1066,14 +1072,14 @@
   ;; GET the data
   (let [stock-name "TSLA"
         stream-live (fn stream-live [event-name result]
-                      (println :stream-live (str "... stream-live > event-name[" event-name
-                                                 "] response[" result "]")))
+                      (info :stream-live (str "... stream-live > event-name[" event-name
+                                              "] response[" result "]")))
         options-datomic {:tick-list (ref [])
                          :stock-match {:symbol stock-name :ticker-id-filter 0}}
 
         datomic-feed-handler (fn [options evt]
 
-                               ;; (println "datomic-feed-handler: " options " / " evt)
+                               ;; (info "datomic-feed-handler: " options " / " evt)
                                (spit "live.5.edn" evt :append true)
 
                                ;; Example datomic inputs
@@ -1113,7 +1119,7 @@
   (let [stock-name "TSLA"
 
         output-fn (fn [event-name result]
-                    (println :stream-live (str "... stream-live > event-name[" event-name "] response[" result "]")))
+                    (info :stream-live (str "... stream-live > event-name[" event-name "] response[" result "]")))
 
         options {:tick-list (ref [])
                  :tee-list [(partial tlive/tee-fn output-fn stock-name)]
@@ -1127,7 +1133,7 @@
                            (fn []
                              (let [{:keys [topic] :as ech} (first @input-source)]
 
-                               ;; (println "Sanity Check: " ech)
+                               ;; (info "Sanity Check: " ech)
                                (case topic
                                  :tick-string (as-> ech e
                                                 (dissoc e :topic)
@@ -1157,7 +1163,7 @@
 
   (defn take-and-print [channel]
     (go-loop []
-      (println (<! channel))
+      (info (<! channel))
       (recur)))
 
 
@@ -1171,8 +1177,8 @@
   (def input (read-string (slurp "live.1.clj")))
   (doseq [{:keys [dispatch] :as ech} input]
 
-    #_(println)
-    #_(println "Sanity Check: " ech)
+    #_(info)
+    #_(info "Sanity Check: " ech)
     (case dispatch
       :tick-string (as-> ech e
                      (dissoc e :dispatch)
@@ -1189,46 +1195,58 @@
 
 (comment   ;; PLAY the data
 
-  (require '[mount.core :refer [defstate] :as mount]
-           '[overtone.at-at :refer :all]
-           '[com.interrupt.ibgateway.component.ewrapper :as ew]
-           '[com.interrupt.ibgateway.component.processing-pipeline :as pp])
-
-
-  (mount/stop)
-  (mount/start)
+  (mount/stop #'ew/ewrapper #'pp/processing-pipeline)
+  (mount/start #'ew/ewrapper #'pp/processing-pipeline)
   (mount/find-all-states)
 
 
-  #_(pp/processing-pipeline)
+  (do
 
-  (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
-        my-pool (mk-pool)
-        input-source (atom (read-string (slurp "live.4.edn")))
-        consume-fn (fn []
-                     (let [{:keys [topic] :as ech} (first @input-source)]
+    (mount/stop #'ew/ewrapper #'pp/processing-pipeline)
+    (mount/start #'ew/ewrapper #'pp/processing-pipeline)
 
-                       (case topic
-                         :tick-string (as-> ech e
+    (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
+          my-pool (mk-pool)
+          input-source (atom (read-string (slurp "live.4.edn")))
+          string-count (atom 0)
+          consume-fn (fn []
+                       (let [{:keys [topic] :as ech} (first @input-source)]
+
+                         (case topic
+                           :tick-string (do
+                                          (when (< @string-count 600)
+                                            (info "Sanity check" (swap! string-count inc)topic))
+                                          (as-> ech e
+                                            (dissoc e :topic)
+                                            (vals e)
+                                            (apply #(.tickString ewrapper-impl %1 %2 %3) e)))
+                           :tick-price (as-> ech e
+                                         (dissoc e :topic)
+                                         (vals e)
+                                         (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+                           :tick-size (as-> ech e
                                         (dissoc e :topic)
                                         (vals e)
-                                        (apply #(.tickString ewrapper-impl %1 %2 %3) e))
-                         :tick-price (as-> ech e
-                                       (dissoc e :topic)
-                                       (vals e)
-                                       (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
-                         :tick-size (as-> ech e
-                                      (dissoc e :topic)
-                                      (vals e)
-                                      (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+                                        (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
 
-                     (swap! input-source #(rest %)))]
+                       (swap! input-source #(rest %)))]
 
-    (def scheduled-fn (every 100
-                             consume-fn
-                             my-pool)))
+      (def scheduled-fn (every 10
+                               consume-fn
+                               my-pool))))
 
-  (stop scheduled-fn))
+  (stop scheduled-fn)
+
+
+  #_(let [;; ch (:strategy-stochastic-oscillator-ch pp/processing-pipeline)
+          ;; ch (:strategy-on-balance-volume-ch pp/processing-pipeline)
+        ch (:moving-averages-strategy-OUT pp/processing-pipeline)]
+
+      (go-loop [r (<! ch)]
+        (info r)
+        (when r
+          (recur (<! ch))))))
+
 
 (comment
 

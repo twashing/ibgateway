@@ -53,6 +53,7 @@
                  ;; #_[midje "1.5.1"]
                  [ring/ring-core "1.6.3"
                   :exclusions [javax.servlet/servlet-api]]
+                 [spootnik/unilog "0.7.22"]
 
                  ;; Clojurescript Libraries
                  ;; [shoreleave/shoreleave-remote "0.3.0"]
@@ -69,6 +70,7 @@
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [#_[spyscope "0.1.5"]
+                                  [org.clojure/tools.trace "0.7.9"]
                                   [org.clojure/test.check "0.10.0-alpha2"]
                                   [com.gfredericks/test.chuck "0.2.9"]
                                   [im.chit/lucid.core.inject "1.3.13"]

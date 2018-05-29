@@ -8,43 +8,41 @@
 
    A. OBV Divergence from price.
 
-   ** This function assumes the latest tick is on the left**"
+   ** This function assumes the latest tick is on the right**"
 
-  ([view-window tick-list]
-   (let [obv-list (aconfirming/on-balance-volume (first tick-list) tick-list)]
-     (on-balance-volume view-window tick-list obv-list)))
-  ([view-window tick-list obv-list]
+  [view-window obv-list]
 
-   (let [divergence-obv
-         (reduce (fn [rslt ech-list]
+  ;; (println "obv-list" obv-list)
+  ;; (println "obv-list count" (count obv-list))
 
-                   (let [fst (first ech-list)
+  (let [divergence-obv
+        (reduce (fn [rslt ech-list]
 
-                         price-peaks-valleys (common/find-peaks-valleys nil ech-list)
-                         obv-peaks-valleys (common/find-peaks-valleys {:input :obv} ech-list)
+                  (let [lst (last ech-list)
 
-                         dUP? (common/divergence-up?
-                               {:input-top :last-trade-price :input-bottom :obv} ech-list price-peaks-valleys obv-peaks-valleys)
-                         dDOWN? (common/divergence-down?
-                                 {:input-top :last-trade-price :input-bottom :obv} ech-list price-peaks-valleys obv-peaks-valleys)]
+                        price-peaks-valleys (common/find-peaks-valleys nil ech-list)
+                        obv-peaks-valleys (common/find-peaks-valleys {:input :obv} ech-list)
 
-                     (if (or dUP? dDOWN?)
+                        dUP? (common/divergence-up?
+                              {:input-top :last-trade-price :input-bottom :obv} ech-list price-peaks-valleys obv-peaks-valleys)
+                        dDOWN? (common/divergence-down?
+                                {:input-top :last-trade-price :input-bottom :obv} ech-list price-peaks-valleys obv-peaks-valleys)]
 
-                       (if dUP?
-                         (concat rslt (-> fst
-                                          (assoc :signals [{:signal :up
-                                                            :why :obv-divergence
-                                                            :arguments [ech-list price-peaks-valleys obv-peaks-valleys]
-                                                            #_:function #_common/divergence-up?}])
-                                          list))
-                         (concat rslt (-> fst
-                                          (assoc :signals [{:signal :down
-                                                            :why :obv-divergence
-                                                            :arguments [ech-list price-peaks-valleys obv-peaks-valleys]
-                                                            #_:function #_common/divergence-down?}])
-                                          list)))
-                       (concat rslt (-> ech-list first list)))))
-                 []
-                 (partition view-window 1 obv-list))]
+                    (if (or dUP? dDOWN?)
 
-     divergence-obv)))
+                      (if dUP?
+                        (concat rslt (-> lst
+                                         (assoc :signals [{:signal :up
+                                                           :why :obv-divergence
+                                                           :arguments [ech-list price-peaks-valleys obv-peaks-valleys]}])
+                                         list))
+                        (concat rslt (-> lst
+                                         (assoc :signals [{:signal :down
+                                                           :why :obv-divergence
+                                                           :arguments [ech-list price-peaks-valleys obv-peaks-valleys]}])
+                                         list)))
+                      (concat rslt (-> ech-list last list)))))
+                []
+                (partition view-window 1 obv-list))]
+
+    divergence-obv))

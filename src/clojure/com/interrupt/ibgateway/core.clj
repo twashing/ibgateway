@@ -1,11 +1,28 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
+             [unilog.config  :refer [start-logging!]]
              [com.interrupt.ibgateway.component.repl-server]
              [com.interrupt.ibgateway.component.switchboard])
   (:import [org.apache.commons.daemon Daemon DaemonContext])
   (:gen-class
    :implements [org.apache.commons.daemon.Daemon]))
 
+
+
+(def logging-config
+  {:level   :info
+   :console true
+   ;; :file "logs/ibgateway.log"
+   :appenders [{:appender :rolling-file
+                :rolling-policy {:type :fixed-window
+                                 :max-index 5}
+                :triggering-policy {:type :size-based
+                                    :max-size 5120}
+                :file     "logs/ibgateway.log"}]
+   :overrides  {"org.apache.http"      :debug
+                "org.apache.http.wire" :error}})
+
+(start-logging! logging-config)
 
 (defstate state
   :start (atom {:running true})
