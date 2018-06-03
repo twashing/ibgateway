@@ -2,7 +2,7 @@
 
 
 (defn find-peaks-valleys
-  "** This function assumes the latest tick is on the left**"
+  "** This function assumes the latest tick is on the right**"
   [options tick-list]
 
   (let [{input-key :input
@@ -33,31 +33,23 @@
             (partition 3 1 tick-list))))
 
 (defn up-market?
-  "** This function assumes the latest tick is on the left**"
+  "** This function assumes the latest tick is on the right**"
   [period partitioned-list]
   (every? (fn [inp]
-            (> (if (string? (:last-trade-price (first inp)))
-                 (read-string (:last-trade-price (first inp)))
-                 (:last-trade-price (first inp)))
-               (if (string? (:last-trade-price (second inp)))
-                 (read-string (:last-trade-price (second inp)))
-                 (:last-trade-price (second inp)))))
+            (> (:last-trade-price (first inp))
+               (:last-trade-price (second inp))))
           (take period partitioned-list)))
 
 (defn down-market?
-  "** This function assumes the latest tick is on the left**"
+  "** This function assumes the latest tick is on the right**"
   [period partitioned-list]
   (every? (fn [inp]
-            (< (if (string? (:last-trade-price (first inp)))
-                 (read-string (:last-trade-price (first inp)))
-                 (:last-trade-price (first inp)))
-               (if (string? (:last-trade-price (second inp)))
-                 (read-string (:last-trade-price (second inp)))
-                 (:last-trade-price (second inp)))))
+            (< (:last-trade-price (first inp))
+               (:last-trade-price (second inp))))
           (take period partitioned-list)))
 
 (defn divergence-up?
-  "** This function assumes the latest tick is on the left**"
+  "** This function assumes the latest tick is on the right**"
   [options ech-list price-peaks-valleys macd-peaks-valleys]
 
   (let [last-ech (last ech-list)
@@ -89,7 +81,7 @@
     (and price-higher-high? macd-lower-high?)))
 
 (defn divergence-down?
-  "** This function assumes the latest tick is on the left**"
+  "** This function assumes the latest tick is on the right**"
   [options ech-list price-peaks-valleys macd-peaks-valleys]
 
   (let [last-ech (last ech-list)

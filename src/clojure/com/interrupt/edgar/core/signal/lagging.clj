@@ -8,7 +8,7 @@
 (defn join-averages
   "Create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid.
 
-   ** This function assumes the latest tick is on the left**"
+   ** This function assumes the latest tick is on the right**"
 
   ([tick-window tick-list]
 
@@ -44,9 +44,9 @@
    Produces a list of signals where the 2nd moving average overlaps (abouve or below) the first.
    By default, this function will produce a Simple Moving Average and an Exponential Moving Average.
 
-   ** This function assumes the latest tick is on the left**"
+   ** This function assumes the latest tick is on the right**"
 
-  ([tick-window {:keys [tick-list sma-list ema-list] :as joined-list}]
+  ([tick-window {:keys [tick-list sma-list ema-list]}]
    (moving-averages tick-window tick-list sma-list ema-list))
 
   ([tick-window tick-list sma-list ema-list]
@@ -94,12 +94,12 @@
              partitioned-join))))
 
 (defn sort-bollinger-band [bband]
-  (let [diffs (map (fn [inp] (assoc inp :difference (- (:upper-band inp) (:lower-band inp))))
-                   (remove nil? bband))]
-    (sort-by :difference diffs)))
+  (->> bband
+       (remove nil?)
+       (map (fn [inp] (assoc inp :difference (- (:upper-band inp) (:lower-band inp)))))
+       (sort-by :difference)))
 
 (defn bollinger-band
-
   "Implementing signals for analysis/bollinger-band. Taken from these videos:
      i. http://www.youtube.com/watch?v=tkwUOUZQZ3s
      ii. http://www.youtube.com/watch?v=7PY4XxQWVfM
@@ -119,46 +119,45 @@
        iii. RSI Divergence; i. price makes a higher high and ii. rsi devergence makes a lower high iii. and divergence should happen abouve the overbought line
        iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
 
-   ** This function assumes the latest tick is on the left**"
-  ([tick-window tick-list]
-   (let [sma-list (analysis/simple-moving-average nil tick-window tick-list)]
-     (bollinger-band tick-window tick-list sma-list)))
+   ** This function assumes the latest tick is on the right**"
+  ([tick-window {:keys [tick-list sma-list]}]
+   (bollinger-band tick-window tick-list sma-list))
 
   ([tick-window tick-list sma-list]
 
-   (let [
-         ;; generate the Bollinger-Band
-         bband (analysis/bollinger-band tick-window tick-list sma-list)]
+   (let [bband (analysis/bollinger-band tick-window sma-list)]
 
      (reduce (fn [rslt ech-list]
 
-               (let [
-                     ;; track widest & narrowest band over the last 'n' ( 3 ) ticks
+               (let [;; Track widest & narrowest band over the last 'n' ( 3 ) ticks
                      sorted-bands (sort-bollinger-band ech-list)
                      most-narrow (take 3 sorted-bands)
                      most-wide (take-last 3 sorted-bands)
 
+                     ;; _ (log/info "Most narrow / wide: " most-narrow most-wide)
 
-                     partitioned-list (partition 2 1 (remove nil? ech-list))
+                     partitioned-list (partition 2 1 ech-list)
 
-                     upM? (common/up-market? 10 (remove nil? partitioned-list))
-                     downM? (common/down-market? 10 (remove nil? partitioned-list))
+                     upM? (common/up-market? 10 partitioned-list)
+                     downM? (common/down-market? 10 partitioned-list)
 
-                     ;; ... TODO - determine how far back to look (defaults to 10 ticks) to decide on an UP or DOWN market
-                     ;; ... TODO - does tick price fluctuate abouve and below the MA
-                     ;; ... TODO - B iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
-                     side-market? (if (and (not upM?)
-                                           (not downM?))
-                                    true
-                                    false)
+                     ;; _ (log/info "upM? / downM?" upM? downM?)
+
+                     ;; TODO - determine how far back to look (defaults to 10 ticks) to decide on an UP or DOWN market
+                     ;; TODO - does tick price fluctuate abouve and below the MA
+                     ;; TODO - B iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
+                     #_side-market? #_(if (and (not upM?) (not downM?))
+                                    true false)
 
                      ;; find last 3 peaks and valleys
-                     peaks-valleys (common/find-peaks-valleys nil (remove nil? ech-list))
+                     peaks-valleys (common/find-peaks-valleys nil ech-list)
                      peaks (:peak (group-by :signal peaks-valleys))
-                     valleys (:valley (group-by :signal peaks-valleys))]
+                     valleys (:valley (group-by :signal peaks-valleys))
 
+                     ;; _ (log/info "peaks-valleys" peaks-valleys)
+                     ]
 
-                 (if (empty? (remove nil? ech-list))
+                 (if (empty? ech-list)
 
                    (concat rslt (list nil))
 
@@ -166,7 +165,7 @@
 
                      ;; A.
                      (let [latest-diff (- (:upper-band (first ech-list)) (:lower-band (first ech-list)))
-                           less-than-any-narrow? (some (fn [inp] (< latest-diff (:difference inp))) most-narrow)]
+                           less-than-any-narrow? (some #(< latest-diff (:difference %)) most-narrow)]
 
                        (if less-than-any-narrow?
 
@@ -281,4 +280,3 @@
                  (concat rslt (-> ech-list first list))))
              []
              (partition tick-window 1 bband)))))
-

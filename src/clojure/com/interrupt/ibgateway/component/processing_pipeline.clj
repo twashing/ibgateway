@@ -92,37 +92,41 @@
   (let [relative-strength 14]
     (pipeline n relative-strength-ch (map (partial aconf/relative-strength-index relative-strength)) tick-list->relative-strength-ch)))
 
-(defn has-all-lists? [averages-map]
-  (subset? #{:tick-list :sma-list :ema-list} (->> averages-map keys (into #{}))))
+(defn has-all-lists?
+  ([averages-map] (has-all-lists? averages-map #{:tick-list :sma-list :ema-list}))
+  ([averages-map completion-set]
+   (subset? completion-set (->> averages-map keys (into #{})))))
 
 (defn update-state-and-complete [state uuid c]
   (swap! state dissoc uuid)
   (assoc c :joined true))
 
-(defn join-averages [state input]
+(defn join-averages
+  ([state input] (join-averages state #{:tick-list :sma-list :ema-list} input))
+  ([state completion-set input]
 
-  ;; (println input)
-  (let [inputF (last input)
-        uuid (:uuid inputF)
-        entry (cond
-                (:last-trade-price-exponential inputF) {:ema-list input}
-                (:last-trade-price-average inputF) {:sma-list input}
-                (:last-trade-price inputF) {:tick-list input})]
+   ;; (println input)
+   (let [inputF (last input)
+         uuid (:uuid inputF)
+         entry (cond
+                 (:last-trade-price-exponential inputF) {:ema-list input}
+                 (:last-trade-price-average inputF) {:sma-list input}
+                 (:last-trade-price inputF) {:tick-list input})]
 
-    ;; (log/info "")
-    ;; (log/info "state" (with-out-str (clojure.pprint/pprint @state)))
+     ;; (log/info "")
+     ;; (log/info "state" (with-out-str (clojure.pprint/pprint @state)))
 
-    (if-let [current (get @state uuid)]
+     (if-let [current (get @state uuid)]
 
-      (let [_ (swap! state update-in [uuid] merge entry)
-            c' (get @state uuid)]
+       (let [_ (swap! state update-in [uuid] merge entry)
+             c' (get @state uuid)]
 
-        (if (has-all-lists? c')
-          (update-state-and-complete state uuid c')
-          input))
+         (if (has-all-lists? c' completion-set)
+           (update-state-and-complete state uuid c')
+           input))
 
-      (do (swap! state merge {uuid entry})
-          input))))
+       (do (swap! state merge {uuid entry})
+           input)))))
 
 (comment
 
@@ -179,10 +183,8 @@
         stochastic-oscillator-ch (chan (sliding-buffer 100))
         on-balance-volume-ch (chan (sliding-buffer 100))
         relative-strength-ch (chan (sliding-buffer 100))
-        moving-averages-strategy-OUT (chan (sliding-buffer 100))
 
         tick-list->sma-ch (chan (sliding-buffer 100))
-        ;; TODO join tick-list, sma-list
         tick-list->macd-ch (chan (sliding-buffer 100))
         sma-list->ema-ch (chan (sliding-buffer 100))
         sma-list->bollinger-band-ch (chan (sliding-buffer 100))
@@ -191,6 +193,7 @@
         tick-list->obv-ch (chan (sliding-buffer 100))
         tick-list->relative-strength-ch (chan (sliding-buffer 100))
 
+        ;; Strategy: Moving Averages
         tick-list->moving-averages-strategy (chan (sliding-buffer 100))
         sma-list->moving-averages-strategy (chan (sliding-buffer 100))
         ema-list->moving-averages-strategy (chan (sliding-buffer 100))
@@ -198,6 +201,16 @@
                                       sma-list->moving-averages-strategy
                                       ema-list->moving-averages-strategy])
         strategy-merged-averages (chan (sliding-buffer 100) (filter :joined))
+        moving-averages-strategy-OUT (chan (sliding-buffer 100))
+
+        ;; Strategy: Bollinger Band
+
+        tick-list->bollinger-band-strategy (chan (sliding-buffer 100))
+        sma-list->bollinger-band-strategy (chan (sliding-buffer 100))
+        merged-bollinger-band (async/merge [tick-list->bollinger-band-strategy
+                                            sma-list->bollinger-band-strategy])
+        strategy-bollinger-band (chan (sliding-buffer 100) (filter :joined))
+        bollinger-band-strategy-OUT  (chan (sliding-buffer 100))
 
 
         macd->macd-strategy (chan (sliding-buffer 100))
@@ -205,9 +218,6 @@
         stochastic-oscillator->stochastic-oscillator-strategy (chan (sliding-buffer 100))
         on-balance-volume->on-balance-volume-ch (chan (sliding-buffer 100))
 
-
-        ;; strategy-moving-averages
-        ;; strategy-bollinger-band
         strategy-macd-ch (chan (sliding-buffer 100))
         strategy-stochastic-oscillator-ch (chan (sliding-buffer 100))
         strategy-on-balance-volume-ch (chan (sliding-buffer 100))]
@@ -218,13 +228,15 @@
                          tick-list->stochastic-osc-ch
                          tick-list->obv-ch
                          tick-list->relative-strength-ch
-                         tick-list->moving-averages-strategy)
+                         tick-list->moving-averages-strategy
+                         tick-list->bollinger-band-strategy)
 
     (bind-channels->mult sma-list-ch
                          sma-list->ema-ch
                          sma-list->bollinger-band-ch
                          sma-list->macd-ch
-                         sma-list->moving-averages-strategy)
+                         sma-list->moving-averages-strategy
+                         sma-list->bollinger-band-strategy)
 
     (bind-channels->mult ema-list-ch
                          ema-list->moving-averages-strategy)
@@ -248,98 +260,21 @@
     (pipeline concurrency on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
     (pipeline-relative-strength-index concurrency relative-strength-ch tick-list->relative-strength-ch)
 
-    ;; slag/moving-averages -> ** join tick-list sma-list ema-list
     (pipeline concurrency strategy-merged-averages (map (partial join-averages (atom {}))) merged-averages)
-
-
-    #_(go-loop [r (<! strategy-merged-averages)]
-      (info "Moving Averages: " (transform [:sma-list ALL] #(dissoc % :population) r))
-      (when r
-        (recur (<! strategy-merged-averages))))
-
-    ;; [tick-window tick-list sma-list ema-list]
     (pipeline concurrency moving-averages-strategy-OUT (map (partial slag/moving-averages live/moving-average-window)) strategy-merged-averages)
 
-    (go-loop [r (<! moving-averages-strategy-OUT)]
-      (info "Moving Averages Strategy OUT: " r)
+    (pipeline concurrency strategy-bollinger-band (map (partial join-averages (atom {}) #{:tick-list :sma-list})) merged-bollinger-band)
+    (pipeline concurrency bollinger-band-strategy-OUT (map (partial slag/bollinger-band live/moving-average-window)) strategy-bollinger-band)
+
+    #_(go-loop [r (<! strategy-bollinger-band)]
+      (info "Bollinger Band: " (transform [:sma-list ALL] #(dissoc % :population) r))
       (when r
-        (recur (<! moving-averages-strategy-OUT))))
+        (recur (<! strategy-bollinger-band))))
+    #_(go-loop [r (<! bollinger-band-strategy-OUT)]
+      (info "Bollinger Band Strategy OUT: " (filter :signals r))
+      (when r
+        (recur (<! bollinger-band-strategy-OUT))))
 
-
-    ;; slag/bollinger-band -> ** join tick-list sma-list ema-list
-
-    ;; ====>
-
-    #_(do ;; ** Based on the nature of async channels, these are already in order
-        (go-loop [r (<! tick-list->moving-averages-strategy)]
-        (info "Tick list: " r)
-        (when r
-          (recur (<! tick-list->moving-averages-strategy))))
-
-      (go-loop [r (<! sma-list->moving-averages-strategy)]
-        (info "SMA list: " (map #(dissoc % :population) r))
-        (when r
-          (recur (<! sma-list->moving-averages-strategy))))
-
-      (go-loop [r (<! ema-list->moving-averages-strategy)]
-        (info "EMA list: " (map #(dissoc % :population) r))
-        (when r
-          (recur (<! ema-list->moving-averages-strategy)))))
-
-    #_(let [tick-list->S (->> tick-list->moving-averages-strategy
-                            stream/->source
-                            (stream.cross/event-source->sorted-stream :uuid))
-          sma-list->S (->> sma-list->moving-averages-strategy
-                           stream/->source
-                           (stream.cross/event-source->sorted-stream :uuid))
-          ema-list-S (->> ema-list->moving-averages-strategy
-                          stream/->source
-                          (stream.cross/event-source->sorted-stream :uuid))
-
-          result (stream.cross/set-streams-union {:default-key-fn :uuid
-                                                  :skey-streams {:tick-list tick-list->S
-                                                                 :sma-list sma-list->S
-                                                                 :ema-list ema-list->S}})
-
-          connector-ch (chan (sliding-buffer 100))]
-
-      #_(comment
-
-        ;; OK
-        (go-loop [r (<! tick-list->macd-ch)]
-            (info "Tick list: " r)
-            (when r
-              (recur (<! tick-list->macd-ch))))
-
-        (go-loop [r (<! sma-list->macd-ch)]
-            (info "SMA: " r)
-            (when r
-              (recur (<! sma-list->macd-ch))))
-
-        ;; OK
-        #_(stream/map (fn [r]
-                        (prn "Tick list: " r)
-                        r)
-                      tick-list->MACD)
-
-        #_(stream/map (fn [r]
-                        (prn "SMA: " r)
-                        r)
-                      sma-list->MACD))
-
-      ;; FAIL
-      (stream/connect @result connector-ch)
-
-      (go-loop [r (<! connector-ch)]
-        (info "record: " r)
-        (if-not r
-          r
-          (recur (<! connector-ch))))
-
-      #_(comment
-
-        ;; Final GOAL
-        (pipeline concurrency macd-ch (map (partial alead/macd options live/moving-average-window)) tick-list->MACD sma-list->MACD)))
     ;; ====>
 
     #_(pipeline concurrency strategy-macd-ch (map slead/macd) macd->macd-strategy) ;; -> uses only macd-list
