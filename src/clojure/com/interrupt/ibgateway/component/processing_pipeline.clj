@@ -20,7 +20,8 @@
             [prpr.stream.cross :as stream.cross]
             prpr.stream
             [prpr.promise :refer [ddo]]
-            [xn.transducers :as xn]))
+            [xn.transducers :as xn]
+            [com.rpl.specter :refer :all]))
 
 
 (defn bind-channels->mult [tick-list-ch & channels]
@@ -123,38 +124,6 @@
       (do (swap! state merge {uuid entry})
           input))))
 
-#_(defn join-averages []
-  (let [state (atom {})]
-    (fn [rf]
-      (fn
-        ([] (rf))
-        ([accumulator] (rf accumulator))
-        ([accumulator input]
-         (let [uuid (:uuid input)
-               entry (cond
-                       (:last-trade-price-exponential input) {:ema-list input}
-                       (:last-trade-price-average input) {:sma-list input}
-                       (:last-trade-price input) {:tick-list input})]
-
-           (if-let [current (get @state uuid)]
-
-             (let [_ (swap! state update-in [uuid] merge entry)
-                   c' (get @state uuid)
-                   r' (rf accumulator (identity input))]
-
-               ;; (log/info "state" (with-out-str (clojure.pprint/pprint @state)))
-               ;; (log/info "c'" c')
-               (log/info "r'" r')
-
-               accumulator
-               #_(if (has-all-lists? c')
-                 accumulator
-                 (rf accumulator (identity input))))
-
-             (do (swap! state merge {uuid entry})
-                 ;; (println "Beginning state" @state)
-                 (rf accumulator input)))))))))
-
 (comment
 
   (let [ema-list [{:uuid "1" :last-trade-price-exponential 10}
@@ -196,26 +165,6 @@
         (when-not (nil? r)
           (log/info "record" r)
           (recur (<! output-ch))))))
-
-(defn pipeline-moving-averages [concurrency moving-averages-ch moving-averages-partial tick-list sma-list ema-list]
-
-  #_(let [mixer (mix moving-averages-ch)]
-
-    (doseq [lst [tick-list sma-list ema-list]]
-      (add-mix mixer lst)))
-
-  #_(go-loop [tick-list-value (<! tick-list)
-            sma-list-value (<! sma-list)
-            ema-list-value (<! ema-list)]
-
-    (log/info tick-list-value (map #(dissoc % :population) sma-list-value) ema-list-value)
-
-    (when (and (not (nil? tick-list-value))
-               (not (nil? sma-list-value))
-               (not (nil? ema-list-value)))
-
-      (>! moving-averages-ch (moving-averages-partial tick-list-value sma-list-value ema-list-value))
-      (recur (<! tick-list) (<! sma-list) (<! ema-list)))))
 
 (defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
 
@@ -303,13 +252,19 @@
     (pipeline concurrency strategy-merged-averages (map (partial join-averages (atom {}))) merged-averages)
 
 
-    #_(pipeline-moving-averages concurrency moving-averages-strategy-OUT (partial slag/moving-averages live/moving-average-window)
-              tick-list->moving-averages-strategy sma-list->moving-averages-strategy ema-list->moving-averages-strategy)
-
-    (go-loop [r (<! strategy-merged-averages)]
-      (info "Moving Averages: " r)
+    #_(go-loop [r (<! strategy-merged-averages)]
+      (info "Moving Averages: " (transform [:sma-list ALL] #(dissoc % :population) r))
       (when r
         (recur (<! strategy-merged-averages))))
+
+    ;; [tick-window tick-list sma-list ema-list]
+    (pipeline concurrency moving-averages-strategy-OUT (map (partial slag/moving-averages live/moving-average-window)) strategy-merged-averages)
+
+    (go-loop [r (<! moving-averages-strategy-OUT)]
+      (info "Moving Averages Strategy OUT: " r)
+      (when r
+        (recur (<! moving-averages-strategy-OUT))))
+
 
     ;; slag/bollinger-band -> ** join tick-list sma-list ema-list
 
@@ -431,7 +386,6 @@
 (defstate processing-pipeline
   :start (setup-publisher-channel "TSLA" 1 0)
   :stop (teardown-publisher-channel processing-pipeline))
-
 
 (comment
 

@@ -19,8 +19,6 @@
   ([tick-window tick-list sma-list ema-list]
    (map (fn [titem sitem eitem]
 
-          (log/info titem sitem eitem)
-
           ;; 1. ensure that we have the :last-trade-time for simple and exponential items
           ;; 2. ensure that all 3 time items line up
           (if (and (and (not (nil? (:last-trade-time sitem)))
@@ -48,11 +46,8 @@
 
    ** This function assumes the latest tick is on the left**"
 
-  ([tick-window tick-list]
-
-   (let [sma-list (analysis/simple-moving-average nil tick-list)
-         ema-list (analysis/exponential-moving-average nil tick-window sma-list)]
-     (moving-averages tick-window tick-list sma-list ema-list)))
+  ([tick-window {:keys [tick-list sma-list ema-list] :as joined-list}]
+   (moving-averages tick-window tick-list sma-list ema-list))
 
   ([tick-window tick-list sma-list ema-list]
 
@@ -210,8 +205,7 @@
                        (if more-than-any-wide?
 
                          ;; B iii RSI Divergence
-                         (let [
-                               OVER_BOUGHT 80
+                         (let [OVER_BOUGHT 80
                                OVER_SOLD 20
                                rsi-list (confirming/relative-strength-index 14 ech-list)
 
