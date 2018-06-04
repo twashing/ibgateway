@@ -170,54 +170,116 @@
           (log/info "record" r)
           (recur (<! output-ch))))))
 
+(defn pipeline-analysis-lagging [concurrency options
+                                 sma-list-ch tick-list->sma-ch
+                                 ema-list-ch sma-list->ema-ch
+                                 bollinger-band-ch sma-list->bollinger-band-ch]
+
+  (pipeline concurrency sma-list-ch (map (partial alag/simple-moving-average options)) tick-list->sma-ch)
+  (pipeline concurrency ema-list-ch (map (partial alag/exponential-moving-average options live/moving-average-window)) sma-list->ema-ch)
+  (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band live/moving-average-window)) sma-list->bollinger-band-ch))
+
+(defn pipeline-analysis-leading [concurrency options moving-average-window
+                                 macd-ch sma-list->macd-ch
+                                 stochastic-oscillator-ch tick-list->stochastic-osc-ch]
+
+  (pipeline concurrency macd-ch (map (partial alead/macd options moving-average-window)) sma-list->macd-ch)
+  (pipeline-stochastic-oscillator concurrency stochastic-oscillator-ch tick-list->stochastic-osc-ch))
+
+(defn pipeline-analysis-confirming [concurrency on-balance-volume-ch tick-list->obv-ch
+                                    relative-strength-ch tick-list->relative-strength-ch]
+
+  (pipeline concurrency on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
+  (pipeline-relative-strength-index concurrency relative-strength-ch tick-list->relative-strength-ch))
+
+(defn pipeline-signals-leading [concurrency moving-average-window
+                                strategy-merged-averages merged-averages moving-averages-strategy-OUT strategy-merged-averages
+                                strategy-bollinger-band merged-bollinger-band bollinger-band-strategy-OUT strategy-bollinger-band]
+
+  (pipeline concurrency strategy-merged-averages (map (partial join-averages (atom {}))) merged-averages)
+  (pipeline concurrency moving-averages-strategy-OUT (map (partial slag/moving-averages live/moving-average-window)) strategy-merged-averages)
+
+  (pipeline concurrency strategy-bollinger-band (map (partial join-averages (atom {}) #{:tick-list :sma-list})) merged-bollinger-band)
+  (pipeline concurrency bollinger-band-strategy-OUT (map (partial slag/bollinger-band live/moving-average-window)) strategy-bollinger-band))
+
+(defn channel-analytics []
+  {:tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
+   :sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
+   :ema-list-ch (chan (sliding-buffer 100))
+   :bollinger-band-ch (chan (sliding-buffer 100))
+   :macd-ch (chan (sliding-buffer 100))
+   :stochastic-oscillator-ch (chan (sliding-buffer 100))
+   :on-balance-volume-ch (chan (sliding-buffer 100))
+   :relative-strength-ch (chan (sliding-buffer 100))})
+
+(defn channel-analytics-mults []
+  {:tick-list->sma-ch (chan (sliding-buffer 100))
+   :tick-list->macd-ch (chan (sliding-buffer 100))
+   :sma-list->ema-ch (chan (sliding-buffer 100))
+   :sma-list->bollinger-band-ch (chan (sliding-buffer 100))
+   :sma-list->macd-ch (chan (sliding-buffer 100))
+   :tick-list->stochastic-osc-ch (chan (sliding-buffer 100))
+   :tick-list->obv-ch (chan (sliding-buffer 100))
+   :tick-list->relative-strength-ch (chan (sliding-buffer 100))})
+
+(defn channel-strategy-moving-averages []
+
+  (let [tick-list->moving-averages-strategy (chan (sliding-buffer 100))
+        sma-list->moving-averages-strategy (chan (sliding-buffer 100))
+        ema-list->moving-averages-strategy (chan (sliding-buffer 100))]
+    {:tick-list->moving-averages-strategy tick-list->moving-averages-strategy
+     :sma-list->moving-averages-strategy sma-list->moving-averages-strategy
+     :ema-list->moving-averages-strategy ema-list->moving-averages-strategy
+     :merged-averages (async/merge [tick-list->moving-averages-strategy
+                                    sma-list->moving-averages-strategy
+                                    ema-list->moving-averages-strategy])
+     :strategy-merged-averages (chan (sliding-buffer 100) (filter :joined))
+     :moving-averages-strategy-OUT (chan (sliding-buffer 100))}))
+
+(defn channel-strategy-bollinger-band []
+
+  (let [tick-list->bollinger-band-strategy (chan (sliding-buffer 100))
+        sma-list->bollinger-band-strategy (chan (sliding-buffer 100))]
+    {:tick-list->bollinger-band-strategy tick-list->bollinger-band-strategy
+     :sma-list->bollinger-band-strategy sma-list->bollinger-band-strategy
+     :merged-bollinger-band (async/merge [tick-list->bollinger-band-strategy
+                                          sma-list->bollinger-band-strategy])
+     :strategy-bollinger-band (chan (sliding-buffer 100) (filter :joined))
+     :bollinger-band-strategy-OUT  (chan (sliding-buffer 100))}))
+
+;; PIPELINES
 (defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
 
+  ;; TODO Remove :population
   (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
 
-        tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
-        ;; TODO Remove :population
-        sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
-        ema-list-ch (chan (sliding-buffer 100))
-        bollinger-band-ch (chan (sliding-buffer 100))
-        macd-ch (chan (sliding-buffer 100))
-        stochastic-oscillator-ch (chan (sliding-buffer 100))
-        on-balance-volume-ch (chan (sliding-buffer 100))
-        relative-strength-ch (chan (sliding-buffer 100))
+        ;; Channels Analytics
+        {:keys [tick-list-ch sma-list-ch ema-list-ch
+                bollinger-band-ch macd-ch stochastic-oscillator-ch
+                on-balance-volume-ch relative-strength-ch]}
+        (channel-analytics)
 
-        tick-list->sma-ch (chan (sliding-buffer 100))
-        tick-list->macd-ch (chan (sliding-buffer 100))
-        sma-list->ema-ch (chan (sliding-buffer 100))
-        sma-list->bollinger-band-ch (chan (sliding-buffer 100))
-        sma-list->macd-ch (chan (sliding-buffer 100))
-        tick-list->stochastic-osc-ch (chan (sliding-buffer 100))
-        tick-list->obv-ch (chan (sliding-buffer 100))
-        tick-list->relative-strength-ch (chan (sliding-buffer 100))
+        ;; Channels Analytics Mults
+        {:keys [tick-list->sma-ch tick-list->macd-ch sma-list->ema-ch sma-list->bollinger-band-ch sma-list->macd-ch
+                tick-list->stochastic-osc-ch tick-list->obv-ch tick-list->relative-strength-ch]}
+        (channel-analytics-mults)
 
-        ;; Strategy: Moving Averages
-        tick-list->moving-averages-strategy (chan (sliding-buffer 100))
-        sma-list->moving-averages-strategy (chan (sliding-buffer 100))
-        ema-list->moving-averages-strategy (chan (sliding-buffer 100))
-        merged-averages (async/merge [tick-list->moving-averages-strategy
-                                      sma-list->moving-averages-strategy
-                                      ema-list->moving-averages-strategy])
-        strategy-merged-averages (chan (sliding-buffer 100) (filter :joined))
-        moving-averages-strategy-OUT (chan (sliding-buffer 100))
+        ;; Channels Strategy: Moving Averages
+        {:keys [tick-list->moving-averages-strategy sma-list->moving-averages-strategy ema-list->moving-averages-strategy
+                merged-averages strategy-merged-averages moving-averages-strategy-OUT]}
+        (channel-strategy-moving-averages)
+
 
         ;; Strategy: Bollinger Band
-
-        tick-list->bollinger-band-strategy (chan (sliding-buffer 100))
-        sma-list->bollinger-band-strategy (chan (sliding-buffer 100))
-        merged-bollinger-band (async/merge [tick-list->bollinger-band-strategy
-                                            sma-list->bollinger-band-strategy])
-        strategy-bollinger-band (chan (sliding-buffer 100) (filter :joined))
-        bollinger-band-strategy-OUT  (chan (sliding-buffer 100))
+        {:keys [tick-list->bollinger-band-strategy sma-list->bollinger-band-strategy
+                merged-bollinger-band strategy-bollinger-band bollinger-band-strategy-OUT]}
+        (channel-strategy-bollinger-band)
 
 
         macd->macd-strategy (chan (sliding-buffer 100))
         macd->on-balance-volume-strategy (chan (sliding-buffer 100))
         stochastic-oscillator->stochastic-oscillator-strategy (chan (sliding-buffer 100))
         on-balance-volume->on-balance-volume-ch (chan (sliding-buffer 100))
-
         strategy-macd-ch (chan (sliding-buffer 100))
         strategy-stochastic-oscillator-ch (chan (sliding-buffer 100))
         strategy-on-balance-volume-ch (chan (sliding-buffer 100))]
@@ -251,33 +313,37 @@
     (bind-channels->mult on-balance-volume-ch
                          on-balance-volume->on-balance-volume-ch)
 
+    ;; TICK LIST
     (pipeline concurrency tick-list-ch live/handler-xform (ew/ewrapper :publisher))
-    (pipeline concurrency sma-list-ch (map (partial alag/simple-moving-average options)) tick-list->sma-ch)
-    (pipeline concurrency ema-list-ch (map (partial alag/exponential-moving-average options live/moving-average-window)) sma-list->ema-ch)
-    (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band live/moving-average-window)) sma-list->bollinger-band-ch)
-    (pipeline concurrency macd-ch (map (partial alead/macd {} live/moving-average-window)) sma-list->macd-ch)
-    (pipeline-stochastic-oscillator concurrency stochastic-oscillator-ch tick-list->stochastic-osc-ch)
-    (pipeline concurrency on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
-    (pipeline-relative-strength-index concurrency relative-strength-ch tick-list->relative-strength-ch)
 
-    (pipeline concurrency strategy-merged-averages (map (partial join-averages (atom {}))) merged-averages)
-    (pipeline concurrency moving-averages-strategy-OUT (map (partial slag/moving-averages live/moving-average-window)) strategy-merged-averages)
+    ;; ANALYSIS
+    (pipeline-analysis-lagging concurrency options sma-list-ch tick-list->sma-ch ema-list-ch sma-list->ema-ch
+                               bollinger-band-ch sma-list->bollinger-band-ch)
 
-    (pipeline concurrency strategy-bollinger-band (map (partial join-averages (atom {}) #{:tick-list :sma-list})) merged-bollinger-band)
-    (pipeline concurrency bollinger-band-strategy-OUT (map (partial slag/bollinger-band live/moving-average-window)) strategy-bollinger-band)
+    (pipeline-analysis-leading concurrency options live/moving-average-window macd-ch sma-list->macd-ch
+                               stochastic-oscillator-ch tick-list->stochastic-osc-ch)
+
+    (pipeline-analysis-confirming concurrency on-balance-volume-ch tick-list->obv-ch
+                                  relative-strength-ch tick-list->relative-strength-ch)
+
+    ;; SIGNALS
+    (pipeline-signals-leading concurrency live/moving-average-window
+                              strategy-merged-averages merged-averages moving-averages-strategy-OUT strategy-merged-averages
+                              strategy-bollinger-band merged-bollinger-band bollinger-band-strategy-OUT strategy-bollinger-band)
 
     #_(go-loop [r (<! strategy-bollinger-band)]
       (info "Bollinger Band: " (transform [:sma-list ALL] #(dissoc % :population) r))
       (when r
         (recur (<! strategy-bollinger-band))))
-    #_(go-loop [r (<! bollinger-band-strategy-OUT)]
-      (info "Bollinger Band Strategy OUT: " (filter :signals r))
-      (when r
-        (recur (<! bollinger-band-strategy-OUT))))
 
     ;; ====>
 
-    #_(pipeline concurrency strategy-macd-ch (map slead/macd) macd->macd-strategy) ;; -> uses only macd-list
+    (pipeline concurrency strategy-macd-ch (map slead/macd) macd->macd-strategy)
+
+    (go-loop [r (<! strategy-macd-ch)]
+      (info "MACD Strategy OUT: " r #_(filter :signals r))
+      (when r
+        (recur (<! strategy-macd-ch))))
 
     #_(pipeline concurrency strategy-stochastic-oscillator-ch (map slead/stochastic-oscillator) ;; -> ** joining the inner signal results
               stochastic-oscillator->stochastic-oscillator-strategy) ;; -> uses only stochastic-list
