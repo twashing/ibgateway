@@ -340,16 +340,16 @@
 
     (pipeline concurrency strategy-macd-ch (map slead/macd) macd->macd-strategy)
 
-    (go-loop [r (<! strategy-macd-ch)]
-      (info "MACD Strategy OUT: " r #_(filter :signals r))
-      (when r
-        (recur (<! strategy-macd-ch))))
-
     #_(pipeline concurrency strategy-stochastic-oscillator-ch (map slead/stochastic-oscillator) ;; -> ** joining the inner signal results
-              stochastic-oscillator->stochastic-oscillator-strategy) ;; -> uses only stochastic-list
+                stochastic-oscillator->stochastic-oscillator-strategy) ;; -> uses only stochastic-list
 
-    #_(pipeline concurrency strategy-on-balance-volume-ch (map (partial sconf/on-balance-volume live/moving-average-window))
-              on-balance-volume->on-balance-volume-ch) ;; -> uses only obv-list
+    (pipeline concurrency strategy-on-balance-volume-ch (map (partial sconf/on-balance-volume live/moving-average-window))
+              on-balance-volume->on-balance-volume-ch)
+
+    (go-loop [r (<! strategy-on-balance-volume-ch)]
+      (info "OBV Strategy OUT: " r #_(filter :signals r))
+      (when r
+        (recur (<! strategy-on-balance-volume-ch))))
 
     {:tick-list-ch tick-list-ch
      :sma-list-ch sma-list-ch
