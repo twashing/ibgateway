@@ -24,10 +24,10 @@
             [com.rpl.specter :refer :all]))
 
 
-(defn bind-channels->mult [tick-list-ch & channels]
-  (let [tick-list-sma-mult (mult tick-list-ch)]
+(defn bind-channels->mult [source-list-ch & channels]
+  (let [source-list->sink-mult (mult source-list-ch)]
     (doseq [c channels]
-      (tap tick-list-sma-mult c))))
+      (tap source-list->sink-mult c))))
 
 #_(let [c1 (to-chan [{:id 2 :a "a"} {:id 3} {:id 4}])
         c2 (to-chan [{:id 1} {:id 2 :b "b"} {:id 3}])
@@ -192,15 +192,28 @@
   (pipeline concurrency on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
   (pipeline-relative-strength-index concurrency relative-strength-ch tick-list->relative-strength-ch))
 
-(defn pipeline-signals-leading [concurrency moving-average-window
-                                strategy-merged-averages merged-averages moving-averages-strategy-OUT strategy-merged-averages
-                                strategy-bollinger-band merged-bollinger-band bollinger-band-strategy-OUT strategy-bollinger-band]
+(defn pipeline-signals-lagging [concurrency moving-average-window strategy-merged-averages merged-averages strategy-moving-averages-ch
+                                strategy-bollinger-band merged-bollinger-band strategy-bollinger-band-ch]
 
   (pipeline concurrency strategy-merged-averages (map (partial join-averages (atom {}))) merged-averages)
-  (pipeline concurrency moving-averages-strategy-OUT (map (partial slag/moving-averages live/moving-average-window)) strategy-merged-averages)
+  (pipeline concurrency strategy-moving-averages-ch (map (partial slag/moving-averages live/moving-average-window)) strategy-merged-averages)
 
   (pipeline concurrency strategy-bollinger-band (map (partial join-averages (atom {}) #{:tick-list :sma-list})) merged-bollinger-band)
-  (pipeline concurrency bollinger-band-strategy-OUT (map (partial slag/bollinger-band live/moving-average-window)) strategy-bollinger-band))
+  (pipeline concurrency strategy-bollinger-band-ch (map (partial slag/bollinger-band live/moving-average-window)) strategy-bollinger-band))
+
+(defn pipeline-signals-leading [concurrency moving-average-window strategy-macd-ch macd->macd-strategy
+                                strategy-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-strategy
+                                strategy-on-balance-volume-ch on-balance-volume->on-balance-volume-ch ]
+
+  (pipeline concurrency strategy-macd-ch (map slead/macd) macd->macd-strategy)
+
+  (pipeline concurrency strategy-stochastic-oscillator-ch (map slead/stochastic-oscillator)
+            stochastic-oscillator->stochastic-oscillator-strategy)
+
+  (pipeline concurrency strategy-on-balance-volume-ch (map (partial sconf/on-balance-volume live/moving-average-window))
+            on-balance-volume->on-balance-volume-ch))
+
+
 
 (defn channel-analytics []
   {:tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
@@ -234,7 +247,7 @@
                                     sma-list->moving-averages-strategy
                                     ema-list->moving-averages-strategy])
      :strategy-merged-averages (chan (sliding-buffer 100) (filter :joined))
-     :moving-averages-strategy-OUT (chan (sliding-buffer 100))}))
+     :strategy-moving-averages-ch (chan (sliding-buffer 100))}))
 
 (defn channel-strategy-bollinger-band []
 
@@ -245,7 +258,50 @@
      :merged-bollinger-band (async/merge [tick-list->bollinger-band-strategy
                                           sma-list->bollinger-band-strategy])
      :strategy-bollinger-band (chan (sliding-buffer 100) (filter :joined))
-     :bollinger-band-strategy-OUT  (chan (sliding-buffer 100))}))
+     :strategy-bollinger-band-ch  (chan (sliding-buffer 100))}))
+
+(defn channel-tracer [sma-list-ch ema-list-ch bollinger-band-ch macd-ch stochastic-oscillator-ch
+                      on-balance-volume-ch relative-strength-ch strategy-moving-averages-ch strategy-bollinger-band-ch
+                      strategy-macd-ch strategy-stochastic-oscillator-ch strategy-on-balance-volume-ch]
+
+  (let [sma-list-ch->tracer (chan (sliding-buffer 100))
+        ema-list-ch->tracer (chan (sliding-buffer 100))
+        bollinger-band-ch->tracer (chan (sliding-buffer 100))
+        macd-ch->tracer (chan (sliding-buffer 100))
+        stochastic-oscillator-ch->tracer (chan (sliding-buffer 100))
+        on-balance-volume-ch->tracer (chan (sliding-buffer 100))
+        relative-strength-ch->tracer (chan (sliding-buffer 100))
+        strategy-moving-averages-ch->tracer (chan (sliding-buffer 100))
+        strategy-bollinger-band-ch->tracer (chan (sliding-buffer 100))
+        strategy-macd-ch->tracer (chan (sliding-buffer 100))
+        strategy-stochastic-oscillator-ch->tracer (chan (sliding-buffer 100))
+        strategy-on-balance-volume-ch->tracer (chan (sliding-buffer 100))]
+
+    (bind-channels->mult sma-list-ch sma-list-ch->tracer)
+    (bind-channels->mult ema-list-ch ema-list-ch->tracer)
+    (bind-channels->mult bollinger-band-ch bollinger-band-ch->tracer)
+    (bind-channels->mult macd-ch macd-ch->tracer)
+    (bind-channels->mult stochastic-oscillator-ch stochastic-oscillator-ch->tracer)
+    (bind-channels->mult on-balance-volume-ch on-balance-volume-ch->tracer)
+    (bind-channels->mult relative-strength-ch relative-strength-ch->tracer)
+    (bind-channels->mult strategy-moving-averages-ch strategy-moving-averages-ch->tracer)
+    (bind-channels->mult strategy-bollinger-band-ch strategy-bollinger-band-ch->tracer)
+    (bind-channels->mult strategy-macd-ch strategy-macd-ch->tracer)
+    (bind-channels->mult strategy-stochastic-oscillator-ch strategy-stochastic-oscillator-ch->tracer)
+    (bind-channels->mult strategy-on-balance-volume-ch strategy-on-balance-volume-ch->tracer)
+
+    {:sma-list-ch->tracer sma-list-ch->tracer
+     :ema-list-ch->tracer ema-list-ch->tracer
+     :bollinger-band-ch->tracer bollinger-band-ch->tracer
+     :macd-ch->tracer macd-ch->tracer
+     :stochastic-oscillator-ch->tracer stochastic-oscillator-ch->tracer
+     :on-balance-volume-ch->tracer on-balance-volume-ch->tracer
+     :relative-strength-ch->tracer relative-strength-ch->tracer
+     :strategy-moving-averages-ch->tracer strategy-moving-averages-ch->tracer
+     :strategy-bollinger-band-ch->tracer strategy-bollinger-band-ch->tracer
+     :strategy-macd-ch->tracer strategy-macd-ch->tracer
+     :strategy-stochastic-oscillator-ch->tracer strategy-stochastic-oscillator-ch->tracer
+     :strategy-on-balance-volume-ch->tracer strategy-on-balance-volume-ch->tracer}))
 
 ;; PIPELINES
 (defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
@@ -266,13 +322,13 @@
 
         ;; Channels Strategy: Moving Averages
         {:keys [tick-list->moving-averages-strategy sma-list->moving-averages-strategy ema-list->moving-averages-strategy
-                merged-averages strategy-merged-averages moving-averages-strategy-OUT]}
+                merged-averages strategy-merged-averages strategy-moving-averages-ch]}
         (channel-strategy-moving-averages)
 
 
         ;; Strategy: Bollinger Band
         {:keys [tick-list->bollinger-band-strategy sma-list->bollinger-band-strategy
-                merged-bollinger-band strategy-bollinger-band bollinger-band-strategy-OUT]}
+                merged-bollinger-band strategy-bollinger-band strategy-bollinger-band-ch]}
         (channel-strategy-bollinger-band)
 
 
@@ -313,8 +369,10 @@
     (bind-channels->mult on-balance-volume-ch
                          on-balance-volume->on-balance-volume-ch)
 
+
     ;; TICK LIST
     (pipeline concurrency tick-list-ch live/handler-xform (ew/ewrapper :publisher))
+
 
     ;; ANALYSIS
     (pipeline-analysis-lagging concurrency options sma-list-ch tick-list->sma-ch ema-list-ch sma-list->ema-ch
@@ -327,29 +385,26 @@
                                   relative-strength-ch tick-list->relative-strength-ch)
 
     ;; SIGNALS
-    (pipeline-signals-leading concurrency live/moving-average-window
-                              strategy-merged-averages merged-averages moving-averages-strategy-OUT strategy-merged-averages
-                              strategy-bollinger-band merged-bollinger-band bollinger-band-strategy-OUT strategy-bollinger-band)
+    (pipeline-signals-lagging concurrency live/moving-average-window
+                              strategy-merged-averages merged-averages strategy-moving-averages-ch
+                              strategy-bollinger-band merged-bollinger-band strategy-bollinger-band-ch)
 
-    #_(go-loop [r (<! strategy-bollinger-band)]
-      (info "Bollinger Band: " (transform [:sma-list ALL] #(dissoc % :population) r))
-      (when r
-        (recur (<! strategy-bollinger-band))))
+    (pipeline-signals-leading concurrency live/moving-average-window strategy-macd-ch macd->macd-strategy
+                              strategy-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-strategy
+                              strategy-on-balance-volume-ch on-balance-volume->on-balance-volume-ch)
 
-    ;; ====>
+    (let [{:keys [sma-list-ch->tracer ema-list-ch->tracer bollinger-band-ch->tracer macd-ch->tracer
+                  stochastic-oscillator-ch->tracer on-balance-volume-ch->tracer relative-strength-ch->tracer
+                  strategy-moving-averages-ch->tracer strategy-bollinger-band-ch->tracer strategy-macd-ch->tracer
+                  strategy-stochastic-oscillator-ch->tracer strategy-on-balance-volume-ch->tracer]}
+          (channel-tracer sma-list-ch ema-list-ch bollinger-band-ch macd-ch stochastic-oscillator-ch
+                          on-balance-volume-ch relative-strength-ch strategy-moving-averages-ch strategy-bollinger-band-ch
+                          strategy-macd-ch strategy-stochastic-oscillator-ch strategy-on-balance-volume-ch)]
 
-    (pipeline concurrency strategy-macd-ch (map slead/macd) macd->macd-strategy)
-
-    (pipeline concurrency strategy-stochastic-oscillator-ch (map slead/stochastic-oscillator)
-              stochastic-oscillator->stochastic-oscillator-strategy)
-
-    (pipeline concurrency strategy-on-balance-volume-ch (map (partial sconf/on-balance-volume live/moving-average-window))
-              on-balance-volume->on-balance-volume-ch)
-
-    (go-loop [r (<! strategy-stochastic-oscillator-ch)]
-      (info "Stochastic Oscillator Signals OUT: " r #_(filter :signals r))
-      (when r
-        (recur (<! strategy-stochastic-oscillator-ch))))
+      (go-loop [r (<! strategy-macd-ch->tracer)]
+          (info "result: " r)
+          (when r
+            (recur (<! strategy-macd-ch->tracer)))))
 
     {:tick-list-ch tick-list-ch
      :sma-list-ch sma-list-ch
@@ -378,7 +433,7 @@
      :strategy-on-balance-volume-ch strategy-on-balance-volume-ch
 
      :strategy-merged-averages strategy-merged-averages
-     :moving-averages-strategy-OUT moving-averages-strategy-OUT}))
+     :strategy-moving-averages-ch strategy-moving-averages-ch}))
 
 (defn teardown-publisher-channel [processing-pipeline]
   (doseq [vl (vals processing-pipeline)]

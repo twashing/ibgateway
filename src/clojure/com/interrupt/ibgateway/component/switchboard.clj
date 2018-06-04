@@ -1214,7 +1214,7 @@
 
                          (case topic
                            :tick-string (do
-                                          (when (< @string-count 600)
+                                          #_(when (< @string-count 600)
                                             (info "Sanity check" (swap! string-count inc)topic))
                                           (as-> ech e
                                             (dissoc e :topic)
