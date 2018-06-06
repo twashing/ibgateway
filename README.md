@@ -56,7 +56,12 @@ docker-compose up
 docker-compose up --force-recreate --build
 ```
 
-D) Running the app solo
+D) Connecting to a container
+```
+$ docker exec -it ibgateway_tws_1 /bin/bashs
+```
+
+Running the app solo
 ```
 lein run -m com.interrupt.ibgateway.core/-main
 ```

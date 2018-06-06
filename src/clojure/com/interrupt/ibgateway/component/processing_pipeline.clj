@@ -216,7 +216,8 @@
 
 
 (defn channel-analytics []
-  {:tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
+  {:source-list-ch (chan (sliding-buffer 100))
+   :tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
    :sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
    :ema-list-ch (chan (sliding-buffer 100))
    :bollinger-band-ch (chan (sliding-buffer 100))
@@ -260,11 +261,13 @@
      :strategy-bollinger-band (chan (sliding-buffer 100) (filter :joined))
      :strategy-bollinger-band-ch  (chan (sliding-buffer 100))}))
 
-(defn channel-tracer [sma-list-ch ema-list-ch bollinger-band-ch macd-ch stochastic-oscillator-ch
+(defn channel-tracer [source-list-ch tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch macd-ch stochastic-oscillator-ch
                       on-balance-volume-ch relative-strength-ch strategy-moving-averages-ch strategy-bollinger-band-ch
                       strategy-macd-ch strategy-stochastic-oscillator-ch strategy-on-balance-volume-ch]
 
-  (let [sma-list-ch->tracer (chan (sliding-buffer 100))
+  (let [source-list-ch->tracer (chan (sliding-buffer 100))
+        tick-list-ch->tracer (chan (sliding-buffer 100))
+        sma-list-ch->tracer (chan (sliding-buffer 100))
         ema-list-ch->tracer (chan (sliding-buffer 100))
         bollinger-band-ch->tracer (chan (sliding-buffer 100))
         macd-ch->tracer (chan (sliding-buffer 100))
@@ -277,6 +280,8 @@
         strategy-stochastic-oscillator-ch->tracer (chan (sliding-buffer 100))
         strategy-on-balance-volume-ch->tracer (chan (sliding-buffer 100))]
 
+    (bind-channels->mult source-list-ch source-list-ch->tracer)
+    (bind-channels->mult tick-list-ch tick-list-ch->tracer)
     (bind-channels->mult sma-list-ch sma-list-ch->tracer)
     (bind-channels->mult ema-list-ch ema-list-ch->tracer)
     (bind-channels->mult bollinger-band-ch bollinger-band-ch->tracer)
@@ -290,7 +295,9 @@
     (bind-channels->mult strategy-stochastic-oscillator-ch strategy-stochastic-oscillator-ch->tracer)
     (bind-channels->mult strategy-on-balance-volume-ch strategy-on-balance-volume-ch->tracer)
 
-    {:sma-list-ch->tracer sma-list-ch->tracer
+    {:source-list-ch->tracer source-list-ch->tracer
+     :tick-list-ch->tracer tick-list-ch->tracer
+     :sma-list-ch->tracer sma-list-ch->tracer
      :ema-list-ch->tracer ema-list-ch->tracer
      :bollinger-band-ch->tracer bollinger-band-ch->tracer
      :macd-ch->tracer macd-ch->tracer
@@ -310,7 +317,7 @@
   (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
 
         ;; Channels Analytics
-        {:keys [tick-list-ch sma-list-ch ema-list-ch
+        {:keys [source-list-ch tick-list-ch sma-list-ch ema-list-ch
                 bollinger-band-ch macd-ch stochastic-oscillator-ch
                 on-balance-volume-ch relative-strength-ch]}
         (channel-analytics)
@@ -339,6 +346,9 @@
         strategy-macd-ch (chan (sliding-buffer 100))
         strategy-stochastic-oscillator-ch (chan (sliding-buffer 100))
         strategy-on-balance-volume-ch (chan (sliding-buffer 100))]
+
+    (bind-channels->mult source-list-ch
+                         tick-list-ch)
 
     (bind-channels->mult tick-list-ch
                          tick-list->sma-ch
@@ -371,7 +381,8 @@
 
 
     ;; TICK LIST
-    (pipeline concurrency tick-list-ch live/handler-xform (ew/ewrapper :publisher))
+    (pipeline concurrency source-list-ch live/handler-xform (ew/ewrapper :publisher))
+    ;; (pipeline concurrency tick-list-ch live/handler-xform source-list-ch)
 
 
     ;; ANALYSIS
@@ -393,18 +404,26 @@
                               strategy-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-strategy
                               strategy-on-balance-volume-ch on-balance-volume->on-balance-volume-ch)
 
-    (let [{:keys [sma-list-ch->tracer ema-list-ch->tracer bollinger-band-ch->tracer macd-ch->tracer
-                  stochastic-oscillator-ch->tracer on-balance-volume-ch->tracer relative-strength-ch->tracer
+    (let [{:keys [source-list-ch->tracer tick-list-ch->tracer sma-list-ch->tracer ema-list-ch->tracer bollinger-band-ch->tracer
+                  macd-ch->tracer stochastic-oscillator-ch->tracer on-balance-volume-ch->tracer relative-strength-ch->tracer
                   strategy-moving-averages-ch->tracer strategy-bollinger-band-ch->tracer strategy-macd-ch->tracer
                   strategy-stochastic-oscillator-ch->tracer strategy-on-balance-volume-ch->tracer]}
-          (channel-tracer sma-list-ch ema-list-ch bollinger-band-ch macd-ch stochastic-oscillator-ch
+          (channel-tracer source-list-ch tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch macd-ch stochastic-oscillator-ch
                           on-balance-volume-ch relative-strength-ch strategy-moving-averages-ch strategy-bollinger-band-ch
                           strategy-macd-ch strategy-stochastic-oscillator-ch strategy-on-balance-volume-ch)]
 
-      (go-loop [r (<! strategy-macd-ch->tracer)]
-          (info "result: " r)
-          (when r
-            (recur (<! strategy-macd-ch->tracer)))))
+      (async/go
+        (let [result (async/<!
+                       (async/reduce #(concat %1 (list %2))
+                                     []
+                                     (async/take 100 source-list-ch->tracer)))]
+          (log/info result)
+          (spit "foo.edn" (apply str result))))
+
+      #_(go-loop [r (<! source-list-ch->tracer)]
+        (info "result: " r)
+        (when r
+          (recur (<! source-list-ch->tracer)))))
 
     {:tick-list-ch tick-list-ch
      :sma-list-ch sma-list-ch
