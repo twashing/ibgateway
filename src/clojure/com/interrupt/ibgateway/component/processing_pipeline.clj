@@ -412,7 +412,7 @@
                           on-balance-volume-ch relative-strength-ch strategy-moving-averages-ch strategy-bollinger-band-ch
                           strategy-macd-ch strategy-stochastic-oscillator-ch strategy-on-balance-volume-ch)]
 
-      (async/go
+      #_(async/go
         (let [result (async/<!
                        (async/reduce #(concat %1 (list %2))
                                      []

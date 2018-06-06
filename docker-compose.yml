@@ -45,6 +45,7 @@ services:
     shm_size: 1G
     ports:
       - 5554:5554
+      - 8080:8080
     volumes:
       - .:${PWD}
     entrypoint: lein run -m com.interrupt.ibgateway.core/-main

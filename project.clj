@@ -7,7 +7,8 @@
                  ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]
                  ["my.datomic.com" {:url "https://my.datomic.com/repo"
                                     :creds :gpg}]]
-  :dependencies [[org.clojure/clojure "1.9.0"]
+  :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
+                 #_[org.clojure/clojure "1.9.0"]
                  [org.apache.commons/commons-daemon "1.0.9"]
                  [mount "0.1.12"]
                  [org.clojure/core.async "0.4.474"]
@@ -22,7 +23,7 @@
                  [org.clojure/math.combinatorics "0.1.4"]
                  [cider/cider-nrepl "0.17.0-SNAPSHOT"]
                  [refactor-nrepl "2.4.0-SNAPSHOT"]
-                 #_[clojure-future-spec "1.9.0-alpha17"]
+                 [clojure-future-spec "1.9.0-alpha17"]
 
 
                  ;; KLUDGE libraries
@@ -59,6 +60,15 @@
                  ;; [shoreleave/shoreleave-remote "0.3.0"]
                  ;; [shoreleave/shoreleave-remote-ring "0.3.0"]
                  ;; [jayq "2.3.0"]
+
+                 [io.pedestal/pedestal.service "0.5.2"]
+                 [com.cognitect/pedestal.vase "0.9.1"]
+                 [io.pedestal/pedestal.jetty "0.5.2"]
+
+                 ;; [ch.qos.logback/logback-classic "1.1.8" :exclusions [org.slf4j/slf4j-api]]
+                 ;; [org.slf4j/jul-to-slf4j "1.7.22"]
+                 ;; [org.slf4j/jcl-over-slf4j "1.7.22"]
+                 ;; [org.slf4j/log4j-over-slf4j "1.7.22"]
 
                  ;; Java Libraries
                  [joda-time "2.2"]
