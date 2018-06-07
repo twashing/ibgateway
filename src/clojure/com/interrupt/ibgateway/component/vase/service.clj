@@ -1,9 +1,13 @@
 (ns com.interrupt.ibgateway.component.vase.service
-  (:require [io.pedestal.http :as http]
+  (:require [clojure.core.async :as async]
+            [io.pedestal.http :as http]
+            [io.pedestal.log :as log]
             [io.pedestal.http.route :as route]
             [io.pedestal.http.body-params :as body-params]
+            [io.pedestal.http.jetty.websockets :as ws]
             [ring.util.response :as ring-resp]
-            [com.cognitect.vase :as vase]))
+            [com.cognitect.vase :as vase])
+  (:import [org.eclipse.jetty.websocket.api Session]))
 
 (defn about-page
   [request]
@@ -23,6 +27,43 @@
 ;; Tabular routes
 (def routes #{["/" :get (conj common-interceptors `home-page)]
               ["/about" :get (conj common-interceptors `about-page)]})
+
+;; ==>
+
+(def ws-clients (atom {}))
+
+(defn new-ws-client
+  [ws-session send-ch]
+  (async/put! send-ch "This will be a text message")
+  (swap! ws-clients assoc ws-session send-ch))
+
+;; This is just for demo purposes
+(defn send-and-close! []
+  (let [[ws-session send-ch] (first @ws-clients)]
+    (async/put! send-ch "A message from the server")
+    ;; And now let's close it down...
+    (async/close! send-ch)
+    ;; And now clean up
+    (swap! ws-clients dissoc ws-session)))
+
+;; Also for demo purposes...
+(defn send-message-to-all!
+  [message]
+  (doseq [[^Session session channel] @ws-clients]
+    ;; The Pedestal Websocket API performs all defensive checks before sending,
+    ;;  like `.isOpen`, but this example shows you can make calls directly on
+    ;;  on the Session object if you need to
+    (when (.isOpen session)
+      (async/put! channel message))))
+
+(def ws-paths
+  {"/ws" {:on-connect (ws/start-ws-connection new-ws-client)
+          :on-text (fn [msg] (log/info :msg (str "A client sent - " msg)))
+          :on-binary (fn [payload offset length] (log/info :msg "Binary Message!" :bytes payload))
+          :on-error (fn [t] (log/error :msg "WS Error happened" :exception t))
+          :on-close (fn [num-code reason-text]
+                      (log/info :msg "WS Closed:" :reason reason-text))}})
+;; ==>
 
 (def service
   {:env :prod
@@ -57,4 +98,5 @@
                              ;:keystore "test/hp/keystore.jks"
                              ;:key-password "password"
                              ;:ssl-port 8443
-                             :ssl? false}})
+                             :ssl? false
+                             :context-configurator #(ws/add-ws-endpoints % ws-paths)}})
