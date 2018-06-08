@@ -6,7 +6,8 @@
             [io.pedestal.http.body-params :as body-params]
             [io.pedestal.http.jetty.websockets :as ws]
             [ring.util.response :as ring-resp]
-            [com.cognitect.vase :as vase])
+            [com.cognitect.vase :as vase]
+            [net.cgrand.enlive-html :as enl])
   (:import [org.eclipse.jetty.websocket.api Session]))
 
 (defn about-page
@@ -15,9 +16,18 @@
                               (clojure-version)
                               (route/url-for ::about-page))))
 
-(defn home-page
-  [request]
-  (ring-resp/response "Hello World!"))
+(defn home-page [req]
+
+  (log/debug "index-handler CALLED > req [%s]" req)
+
+  (enl/deftemplate t1 "public/index.html" []
+    [:#app]
+    (enl/set-attr :data-key "foo"))
+
+  #_(ring-resp/response (apply str (t1)))
+  (-> (apply str (t1))
+      ring-resp/response
+      (assoc :headers {"Content-Type" "text/html"})))
 
 ;; Defines "/" and "/about" routes with their associated :get handlers.
 ;; The interceptors defined after the verb map (e.g., {:get home-page}

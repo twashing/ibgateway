@@ -65,7 +65,8 @@
                  [net.cgrand/xforms "0.17.0"]
                  [employeerepublic/promisespromises "0.5"]
                  [com.xnlogic/transducers "0.1.0"]
-                 [com.rpl/specter "1.1.1"]]
+                 [com.rpl/specter "1.1.1"]
+                 [enlive "1.1.6"]]
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
