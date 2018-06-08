@@ -1,5 +1,6 @@
 (ns com.interrupt.ibgateway.component.vase.service
   (:require [clojure.core.async :as async]
+            [clojure.java.io :as io]
             [io.pedestal.http :as http]
             [io.pedestal.log :as log]
             [io.pedestal.http.route :as route]
@@ -10,24 +11,30 @@
             [net.cgrand.enlive-html :as enl])
   (:import [org.eclipse.jetty.websocket.api Session]))
 
+
+(enl/deftemplate t1 "public/index.html" []
+  [:#app]
+  (enl/set-attr :data-key "foo"))
+
 (defn about-page
   [request]
   (ring-resp/response (format "Clojure %s - served from %s"
                               (clojure-version)
                               (route/url-for ::about-page))))
 
-(defn home-page [req]
+(defn home-page [request]
 
-  (log/debug "index-handler CALLED > req [%s]" req)
-
-  (enl/deftemplate t1 "public/index.html" []
-    [:#app]
-    (enl/set-attr :data-key "foo"))
-
-  #_(ring-resp/response (apply str (t1)))
+  (log/debug "index-handler CALLED > request [%s]" request)
   (-> (apply str (t1))
       ring-resp/response
-      (assoc :headers {"Content-Type" "text/html"})))
+      (ring-resp/content-type "text/html")
+      (ring-resp/header "Access-Control-Expose-Headers" "Content-Length, Last-Modified, Content-Type")))
+
+(defn favicon [_]
+  (-> (io/resource "public/favicon.ico")
+      slurp
+      ring-resp/response
+      (ring-resp/content-type "image/x-icon")))
 
 ;; Defines "/" and "/about" routes with their associated :get handlers.
 ;; The interceptors defined after the verb map (e.g., {:get home-page}
@@ -36,7 +43,14 @@
 
 ;; Tabular routes
 (def routes #{["/" :get (conj common-interceptors `home-page)]
-              ["/about" :get (conj common-interceptors `about-page)]})
+              ["/about" :get (conj common-interceptors `about-page)]
+              ["/favicon.ico" :get `favicon]
+
+              #_[true (fn [req]
+                      {:body (slurp
+                               (io/resource (str "public/"
+                                                 (:uri req))))})]})
+
 
 ;; ==>
 
@@ -102,6 +116,9 @@
    ::http/type :jetty
    ;;::http/host "localhost"
    ::http/port 8080
+
+   ::http/secure-headers {:content-security-policy-settings {:object-src "'none'"}}
+
    ;; Options to pass to the container (Jetty)
    ::http/container-options {:h2c? true
                              :h2? false

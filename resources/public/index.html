@@ -16,20 +16,45 @@
     <script src="https://use.typekit.net/ktm4usi.js"></script>
     <script>try{Typekit.load({ async: true });}catch(e){}</script>
 
+    <!-- <script src= "/js/highstock.js" type="text/javascript"></script> -->
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/exporting.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/export-data.js"></script>
   </head>
 
   <body fullbleed vertical layout>
 
-    <div id="app"></div>
+      <div id="app"></div>
+      <div id="container" style="width:100%; height:400px;"></div>
 
-    <div class="tk-league-gothic" style="font-size:3em">Gently</div>
-    <div class="tk-open-sans">A Rich Internet Applicaiton Baseline</div>
+      <div class="tk-league-gothic" style="font-size:3em">Gently</div>
+      <div class="tk-open-sans">A Rich Internet Applicaiton Baseline</div>
 
 
     <!-- Ensuring users of IE can't use Compatibility Mode, as this will break Persona.
          (https://developer.mozilla.org/en-US/Persona/Quick_setup) -->
     <meta http-equiv="X-UA-Compatible" content="IE=Edge">
 
-    <script src= "js/compiled/gently.js" type="text/javascript"></script>
+    <!-- <script src= "js/compiled/gently.js" type="text/javascript"></script> -->
+    <script>
+
+     $.getJSON('/aapl-c.json', function (data) {
+         Highcharts.stockChart('container', {
+             rangeSelector: {
+                 selected: 1
+             },
+             title: {
+                 text: 'AAPL Stock Price'
+             },
+             series: [{
+                 name: 'AAPL',
+                 data: data,
+                 tooltip: {
+                     valueDecimals: 2
+                 }
+             }]
+         })});
+    </script>
   </body>
 </html>
