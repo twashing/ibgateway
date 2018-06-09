@@ -2,11 +2,11 @@
   (:require  [mount.core :refer [defstate] :as mount]
              [unilog.config  :refer [start-logging!]]
              [com.interrupt.ibgateway.component.repl-server]
-             [com.interrupt.ibgateway.component.switchboard])
+             [com.interrupt.ibgateway.component.switchboard]
+             [com.interrupt.ibgateway.component.vase])
   (:import [org.apache.commons.daemon Daemon DaemonContext])
   (:gen-class
    :implements [org.apache.commons.daemon.Daemon]))
-
 
 
 (def logging-config
@@ -28,7 +28,7 @@
   :start (atom {:running true})
   :stop (swap! state assoc :running false))
 
-(defn init [args]
+(defn init [_]
   (mount/start))
 
 (defn start []
@@ -64,9 +64,14 @@
 
   (-main nil)
 
-  (mount/start com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/stop com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
+  (mount/start #'com.interrupt.ibgateway.component.vase/server)
+
+  (mount/start)
+  (mount/stop)
+  (mount/find-all-states)
   (require 'com.interrupt.ibgateway.component.ewrapper))
 
 
