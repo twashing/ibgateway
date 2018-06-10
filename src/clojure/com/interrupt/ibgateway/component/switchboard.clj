@@ -1247,6 +1247,42 @@
         (when r
           (recur (<! ch))))))
 
+(defn kickoff-stream-workbench []
+
+  (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
+        my-pool (mk-pool)
+        input-source (atom (read-string (slurp "live.4.edn")))
+        string-count (atom 0)
+        consume-fn (fn []
+                     (let [{:keys [topic] :as ech} (first @input-source)]
+
+                       (case topic
+                         :tick-string (do
+                                        #_(when (< @string-count 600)
+                                          (info "Sanity check" (swap! string-count inc)topic))
+                                        (as-> ech e
+                                          (dissoc e :topic)
+                                          (vals e)
+                                          (apply #(.tickString ewrapper-impl %1 %2 %3) e)))
+                         :tick-price (as-> ech e
+                                       (dissoc e :topic)
+                                       (vals e)
+                                       (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+                         :tick-size (as-> ech e
+                                      (dissoc e :topic)
+                                      (vals e)
+                                      (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+                     (swap! input-source #(rest %)))]
+
+    (def scheduled-fn (every 10
+                             consume-fn
+                             my-pool))))
+
+(defn stop-stream-workbench []
+  (stop scheduled-fn))
+
+
 (comment
 
   (def tick-list (atom []))

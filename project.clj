@@ -66,7 +66,8 @@
                  [employeerepublic/promisespromises "0.5"]
                  [com.xnlogic/transducers "0.1.0"]
                  [com.rpl/specter "1.1.1"]
-                 [enlive "1.1.6"]]
+                 [enlive "1.1.6"]
+                 [com.cognitect/transit-clj "0.8.309"]]
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]

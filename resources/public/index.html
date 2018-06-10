@@ -40,15 +40,17 @@
 
      function loadData() {
          $.getJSON('/aapl-c.json', function (data) {
+
+             console.log(data);
              Highcharts.stockChart('container', {
                  rangeSelector: {
                      selected: 1
                  },
                  title: {
-                     text: 'AAPL Stock Price'
+                     text: 'TSLA Stock Price'
                  },
                  series: [{
-                     name: 'AAPL',
+                     name: 'TSLA',
                      data: data,
                      tooltip: {
                          valueDecimals: 2
@@ -58,7 +60,18 @@
      };
 
      $('document').ready(function(){
+
          loadData();
+
+         w = new WebSocket("ws://localhost:8080/ws")
+         w.onmessage = function(e) {
+
+             console.log(eval(e.data));
+             Highcharts.charts[0].series[0].addPoint(eval(e.data), true, true);
+             // Highcharts.charts[0].series[1].addPoint(eval(e.data), true, true);
+         }
+         w.onclose = function(e) {  console.log("The connection to the server has closed."); }
+         // w.send("Hello from the Client!");
      });
 
     </script>

@@ -1,15 +1,21 @@
 (ns com.interrupt.ibgateway.component.vase.service
-  (:require [clojure.core.async :as async]
+  (:require [clojure.core.async :refer [go-loop <!] :as async]
             [clojure.java.io :as io]
             [io.pedestal.http :as http]
             [io.pedestal.log :as log]
             [io.pedestal.http.route :as route]
             [io.pedestal.http.body-params :as body-params]
             [io.pedestal.http.jetty.websockets :as ws]
+            [mount.core :refer [defstate] :as mount]
             [ring.util.response :as ring-resp]
             [com.cognitect.vase :as vase]
-            [net.cgrand.enlive-html :as enl])
-  (:import [org.eclipse.jetty.websocket.api Session]))
+            [net.cgrand.enlive-html :as enl]
+            [cognitect.transit :as transit]
+            [com.interrupt.ibgateway.component.switchboard :as sw]
+            [com.interrupt.ibgateway.component.processing-pipeline :as pp])
+  (:import [org.eclipse.jetty.websocket.api Session]
+           [java.io ByteArrayInputStream ByteArrayOutputStream]))
+
 
 
 (enl/deftemplate t1 "public/index.html" []
@@ -56,8 +62,9 @@
 
 (def ws-clients (atom {}))
 
-(defn new-ws-client
-  [ws-session send-ch]
+(defn new-ws-client [ws-session send-ch]
+
+  (log/info :msg (str "new-ws-client CALLED: " ws-session send-ch))
   (async/put! send-ch "This will be a text message")
   (swap! ws-clients assoc ws-session send-ch))
 
@@ -74,11 +81,22 @@
 (defn send-message-to-all!
   [message]
   (doseq [[^Session session channel] @ws-clients]
-    ;; The Pedestal Websocket API performs all defensive checks before sending,
-    ;;  like `.isOpen`, but this example shows you can make calls directly on
-    ;;  on the Session object if you need to
-    (when (.isOpen session)
-      (async/put! channel message))))
+
+    (let [out (ByteArrayOutputStream. 4096)
+          writer (transit/writer out :json)]
+
+      (transit/write writer message)
+
+      ;; The Pedestal Websocket API performs all defensive checks before sending,
+      ;;  like `.isOpen`, but this example shows you can make calls directly on
+      ;;  on the Session object if you need to
+      (when (.isOpen session)
+        (async/put! channel (.toString out))))))
+
+(defn send-message-to-all-2!
+  [message]
+  (doseq [[^Session session channel] @ws-clients]
+    (async/put! channel message)))
 
 (def ws-paths
   {"/ws" {:on-connect (ws/start-ws-connection new-ws-client)
@@ -87,6 +105,24 @@
           :on-error (fn [t] (log/error :msg "WS Error happened" :exception t))
           :on-close (fn [num-code reason-text]
                       (log/info :msg "WS Closed:" :reason reason-text))}})
+
+
+(comment
+
+  (mount/start)
+
+  (sw/stop-stream-workbench)
+
+  (sw/kickoff-stream-workbench)
+
+  (let [ch (:source-list-ch->tracer pp/processing-pipeline)]
+
+    (go-loop [{:keys [last-trade-time last-trade-price] :as r} (<! ch)]
+      ;; (log/info :msg r)
+      (send-message-to-all-2! (str "[" (Long/parseLong last-trade-time) ", " last-trade-price "]"))
+      (when r
+        (recur (<! ch))))))
+
 ;; ==>
 
 (def service

@@ -412,47 +412,49 @@
                           on-balance-volume-ch relative-strength-ch strategy-moving-averages-ch strategy-bollinger-band-ch
                           strategy-macd-ch strategy-stochastic-oscillator-ch strategy-on-balance-volume-ch)]
 
+
       #_(async/go
-        (let [result (async/<!
-                       (async/reduce #(concat %1 (list %2))
-                                     []
-                                     (async/take 100 source-list-ch->tracer)))]
-          (log/info result)
-          (spit "foo.edn" (apply str result))))
+          (let [result (async/<!
+                         (async/reduce #(concat %1 (list %2))
+                                       []
+                                       (async/take 100 source-list-ch->tracer)))]
+            (log/info result)
+            (spit "foo.edn" (apply str result))))
 
       #_(go-loop [r (<! source-list-ch->tracer)]
-        (info "result: " r)
-        (when r
-          (recur (<! source-list-ch->tracer)))))
+          (info "result: " r)
+          (when r
+            (recur (<! source-list-ch->tracer))))
 
-    {:tick-list-ch tick-list-ch
-     :sma-list-ch sma-list-ch
-     :ema-list-ch ema-list-ch
-     :bollinger-band-ch bollinger-band-ch
-     :macd-ch macd-ch
-     :stochastic-oscillator-ch stochastic-oscillator-ch
-     :on-balance-volume-ch on-balance-volume-ch
-     :relative-strength-ch relative-strength-ch
-     :tick-list->sma-ch tick-list->sma-ch
-     :sma-list->ema-ch sma-list->ema-ch
-     :sma-list->bollinger-band-ch sma-list->bollinger-band-ch
-     :sma-list->macd-ch sma-list->macd-ch
-     ;; :tick-list->macd-ch tick-list->macd-ch
-     :tick-list->stochastic-osc-ch tick-list->stochastic-osc-ch
-     :tick-list->obv-ch tick-list->obv-ch
-     :tick-list->relative-strength-ch tick-list->relative-strength-ch
-     :macd->macd-strategy macd->macd-strategy
-     :macd->on-balance-volume-strategy macd->on-balance-volume-strategy
-     :stochastic-oscillator->stochastic-oscillator-strategy stochastic-oscillator->stochastic-oscillator-strategy
-     :on-balance-volume->on-balance-volume-ch on-balance-volume->on-balance-volume-ch
-     ;; :strategy-moving-averages strategy-moving-averages
-     ;; :strategy-bollinger-band strategy-bollinger-band
-     :strategy-macd-ch strategy-macd-ch
-     :strategy-stochastic-oscillator-ch strategy-stochastic-oscillator-ch
-     :strategy-on-balance-volume-ch strategy-on-balance-volume-ch
+      {:source-list-ch->tracer source-list-ch->tracer
+       :tick-list-ch tick-list-ch
+       :sma-list-ch sma-list-ch
+       :ema-list-ch ema-list-ch
+       :bollinger-band-ch bollinger-band-ch
+       :macd-ch macd-ch
+       :stochastic-oscillator-ch stochastic-oscillator-ch
+       :on-balance-volume-ch on-balance-volume-ch
+       :relative-strength-ch relative-strength-ch
+       :tick-list->sma-ch tick-list->sma-ch
+       :sma-list->ema-ch sma-list->ema-ch
+       :sma-list->bollinger-band-ch sma-list->bollinger-band-ch
+       :sma-list->macd-ch sma-list->macd-ch
+       ;; :tick-list->macd-ch tick-list->macd-ch
+       :tick-list->stochastic-osc-ch tick-list->stochastic-osc-ch
+       :tick-list->obv-ch tick-list->obv-ch
+       :tick-list->relative-strength-ch tick-list->relative-strength-ch
+       :macd->macd-strategy macd->macd-strategy
+       :macd->on-balance-volume-strategy macd->on-balance-volume-strategy
+       :stochastic-oscillator->stochastic-oscillator-strategy stochastic-oscillator->stochastic-oscillator-strategy
+       :on-balance-volume->on-balance-volume-ch on-balance-volume->on-balance-volume-ch
+       ;; :strategy-moving-averages strategy-moving-averages
+       ;; :strategy-bollinger-band strategy-bollinger-band
+       :strategy-macd-ch strategy-macd-ch
+       :strategy-stochastic-oscillator-ch strategy-stochastic-oscillator-ch
+       :strategy-on-balance-volume-ch strategy-on-balance-volume-ch
 
-     :strategy-merged-averages strategy-merged-averages
-     :strategy-moving-averages-ch strategy-moving-averages-ch}))
+       :strategy-merged-averages strategy-merged-averages
+       :strategy-moving-averages-ch strategy-moving-averages-ch})))
 
 (defn teardown-publisher-channel [processing-pipeline]
   (doseq [vl (vals processing-pipeline)]
