@@ -1,5 +1,5 @@
 (ns com.interrupt.ibgateway.component.vase.service
-  (:require [clojure.core.async :refer [go-loop <!] :as async]
+  (:require [clojure.core.async :refer [go-loop <! chan sliding-buffer] :as async]
             [clojure.java.io :as io]
             [io.pedestal.http :as http]
             [io.pedestal.log :as log]
@@ -115,13 +115,27 @@
 
   (sw/kickoff-stream-workbench)
 
-  (let [ch (:source-list-ch->tracer pp/processing-pipeline)]
+  (let [left-ch (chan (sliding-buffer 100) (take 100))
+        right-ch (chan (sliding-buffer 100) (drop 100))
+        ch (:source-list-ch->tracer pp/processing-pipeline)]
 
-    (go-loop [{:keys [last-trade-time last-trade-price] :as r} (<! ch)]
-      ;; (log/info :msg r)
+    (pp/bind-channels->mult ch left-ch right-ch)
+
+    (go-loop [acc []
+              {:keys [last-trade-time last-trade-price] :as ech} (<! left-ch)]
+      (if ech
+        (let [nac (concat acc [[(Long/parseLong last-trade-time) last-trade-price]])]
+          (recur nac (<! left-ch)))
+        (do
+          (def left-data acc)
+          (log/info :msg "Left DONE"))))
+
+
+    (go-loop [{:keys [last-trade-time last-trade-price] :as r} (<! right-ch)]
+      (log/info :msg r)
       (send-message-to-all-2! (str "[" (Long/parseLong last-trade-time) ", " last-trade-price "]"))
       (when r
-        (recur (<! ch))))))
+        (recur (<! right-ch))))))
 
 ;; ==>
 
