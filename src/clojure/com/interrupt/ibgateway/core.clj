@@ -25,14 +25,14 @@
 (start-logging! logging-config)
 
 (defstate state
-  :start (atom {:running true})
-  :stop (swap! state assoc :running false))
+  :start {:running true}
+  :stop (assoc state :running false))
 
 (defn init [_]
   (mount/start))
 
 (defn start []
-  (while (:running @state)
+  (while (:running state)
     ;; (println "tick")
     (Thread/sleep 2000)))
 
