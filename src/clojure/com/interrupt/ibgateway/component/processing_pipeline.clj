@@ -412,7 +412,6 @@
                           on-balance-volume-ch relative-strength-ch strategy-moving-averages-ch strategy-bollinger-band-ch
                           strategy-macd-ch strategy-stochastic-oscillator-ch strategy-on-balance-volume-ch)]
 
-
       #_(async/go
           (let [result (async/<!
                          (async/reduce #(concat %1 (list %2))
@@ -421,10 +420,12 @@
             (log/info result)
             (spit "foo.edn" (apply str result))))
 
-      #_(go-loop [r (<! source-list-ch->tracer)]
-          (info "result: " r)
-          (when r
-            (recur (<! source-list-ch->tracer))))
+      (go-loop [c 0
+                r (<! source-list-ch->tracer)]
+        (info "count: " c " / result: " r)
+        (spit "")
+        (when r
+          (recur (inc c) (<! source-list-ch->tracer))))
 
       {:source-list-ch->tracer source-list-ch->tracer
        :tick-list-ch tick-list-ch

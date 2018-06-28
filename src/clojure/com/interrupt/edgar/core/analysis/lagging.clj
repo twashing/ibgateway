@@ -1,6 +1,65 @@
 (ns com.interrupt.edgar.core.analysis.lagging
   (:require [clojure.spec.alpha :as s]
-            [clojure.spec.test.alpha :as stest]))
+            [clojure.spec.gen.alpha :as g]
+            [clojure.spec.test.alpha :as stest]
+            [clojure.test.check.generators :as gen]))
+
+
+;; ==>
+
+(s/def ::input-key #{:foo :bar})
+
+(def a-tuple (g/bind (s/gen ::input-key)
+                     (fn [x]
+                       (g/tuple (g/return x)
+                                (g/double* {:min 1.0 :infinite? false, :NaN? false})))))
+
+(def b-tuple (g/tuple (g/return :b)
+                      (g/large-integer)))
+
+(def my-map (gen/let [at a-tuple
+                      tt b-tuple]
+
+              (->> [:input-key (first at)]
+                   (concat at tt)
+                   (apply array-map))))
+
+(g/generate my-map)
+
+;; ==>
+
+
+(s/def ::input-key #{:last-trade-price :last-trade-price-average})
+(s/def ::last-trade-time (set (range 10000 90000)))
+(s/def ::tick-entry (s/keys :req [::input-key ::last-trade-time]))
+
+(def tick-price-tuple (g/bind (s/gen ::input-key)
+                              (fn [x]
+                                (g/tuple (g/return x)
+                                         (g/double* {:min 1.0 :infinite? false, :NaN? false})))))
+
+(def tick-time-tuple (g/tuple (g/return :last-trade-time)
+                              (g/large-integer)))
+
+(def tick-event (gen/let [price-tuple tick-price-tuple
+                          time-tuple tick-time-tuple]
+
+                  (->> [:input-key (first price-tuple)]
+                       (concat price-tuple time-tuple)
+                       (apply array-map))))
+
+(g/generate tick-event)
+
+(s/def ::my-map (s/merge (s/keys :req [::input-key ::last-trade-time])
+                         (s/map-of #{::input-key ::last-trade-time} #_::tick-price-tuple any?)))
+
+(g/generate (s/gen ::my-map))
+
+(s/def ::my-list (s/coll-of ::my-map))
+
+(g/generate (s/gen ::my-list))
+
+;; ==>
 
 
 (defn average [list-sum list-count]
@@ -16,6 +75,18 @@
              (+ ltprice %1))
           0 tick-list))
 
+#_(s/fdef sum
+        :args (s/cat :tick-list (comp not empty?) :input-key keyword?)
+        :ret number?)
+
+(defn time-increases-left-to-right? [tick-list]
+  (->> tick-list
+       (partition 2 1)
+       (every? (fn [[l r]]
+                 (let [{ltime :last-trade-time} l
+                       {rtime :last-trade-time} r]
+                   (< ltime rtime))))))
+
 (defn simple-moving-average
   "Takes the tick-list, and moves back as far as the tick window will take it.
 
@@ -28,6 +99,7 @@
 
    ** This function assumes the latest tick is on the right**"
   [options tick-list]
+  {:pre [(time-increases-left-to-right? tick-list)]}
 
   (let [{input-key :input
          output-key :output
@@ -62,6 +134,7 @@
    ** This function assumes the latest tick is on the right**"
 
   [options tick-window sma-list]
+  {:pre [(time-increases-left-to-right? sma-list)]}
 
   ;; 1. calculate 'k'
   ;; k = 2 / N + 1
@@ -70,7 +143,7 @@
         {input-key :input
          output-key :output
          etal-keys :etal
-         :or {input-key :last-trade-price
+         :or {input-key :last-trade-price-average
               output-key :last-trade-price-exponential
               etal-keys [:last-trade-price :last-trade-time :uuid]}} options]
 
@@ -113,8 +186,8 @@
    where preceding tick-list allows.
 
    ** This function assumes the latest tick is on the right**"
-
   [tick-window sma-list]
+  {:pre [(time-increases-left-to-right? sma-list)]}
 
   ;; At each step, the Standard Deviation will be:
   ;; the square root of the variance (average of the squared differences from the Mean)
@@ -147,14 +220,3 @@
                 (concat rslt v))))
           []
           sma-list))
-
-
-'([f]
- (fn [rf]
-   (fn
-     ([] (rf))
-     ([result] (rf result))
-     ([result input]
-      (rf result (f input)))
-     ([result input & inputs]
-      (rf result (apply f input inputs))))))

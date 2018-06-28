@@ -17,7 +17,6 @@
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 
-
 (enl/deftemplate t1 "public/index.html" []
   [:#app]
   (enl/set-attr :data-key "foo"))
@@ -125,8 +124,8 @@
 
   (sw/kickoff-stream-workbench)
 
-  (let [left-ch (chan (sliding-buffer 100) (take 100))
-        right-ch (chan (sliding-buffer 100) (drop 100))
+  (let [left-ch (chan 100 (take 100))
+        right-ch (chan 100 (drop 100))
         ch (:source-list-ch->tracer pp/processing-pipeline)]
 
     (pp/bind-channels->mult ch left-ch right-ch)
@@ -141,11 +140,12 @@
           (log/info :msg "Left DONE"))))
 
 
-    (go-loop [{:keys [last-trade-time last-trade-price] :as r} (<! right-ch)]
-      (log/info :msg r)
+    (go-loop [c 0
+              {:keys [last-trade-time last-trade-price] :as r} (<! right-ch)]
+      ;; (log/info :msg (merge {:count c} r))
       (send-message-to-all-2! (str "[" (Long/parseLong last-trade-time) ", " last-trade-price "]"))
       (when r
-        (recur (<! right-ch))))))
+        (recur (inc c) (<! right-ch))))))
 
 ;; ==>
 

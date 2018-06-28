@@ -78,6 +78,7 @@
                                   [im.chit/lucid.core.inject "1.3.13"]
                                   [org.clojure/tools.nrepl "0.2.13"]
                                   [http-kit.fake "0.2.2"]]
+                   :resource-paths ["dev-resources"]
                    :injections [#_(require 'spyscope.core)
                                 (use 'lucid.core.inject)
                                 (inject '[clojure.core
@@ -90,6 +91,7 @@
                    :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
                              [refactor-nrepl "2.4.0-SNAPSHOT"]]
 
-                   :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}}
+                   :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}
+             :test {:resource-paths ["test/resources"]}}
 
   :main com.interrupt.ibgateway.core)

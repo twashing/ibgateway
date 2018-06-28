@@ -641,7 +641,6 @@
 
     )
 
-
 #_(defn subscribed? [conn scan instrument]
 
     (d/q '[:find (pull ?e [{:switchboard/state [*]}
@@ -986,8 +985,7 @@
 
   )
 
-(comment
-
+(comment  ;; SAVE live data
 
   ;; LIVE
   (require '[com.interrupt.edgar.core.edgar :as edg]
@@ -997,9 +995,7 @@
   (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
   (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
   (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
-  (def publication
-    (pub publisher #(:topic %)))
-
+  (def publication (pub publisher #(:topic %)))
 
   (require '[datomic.api :as d])
   (def uri "datomic:mem://ibgateway")
@@ -1053,13 +1049,13 @@
      {:db/ident :live/tick-price-value
       :db/cardinality :db.cardinality/one
       :db/valueType :db.type/string}])
-
   (def schema-live-result (d/transact conn live-schema))
 
 
   ;; TODO
   ;; 1. Get more data with setting: 233 (RT Volume (Time & Sales))
-  ;; 2. dispatch on the different types of tickPrice + tickSize (reference: https://interactivebrokers.github.io/tws-api/tick_types.html)
+  ;; 2. dispatch on the different types of tickPrice + tickSize
+  ;;    (reference: https://interactivebrokers.github.io/tws-api/tick_types.html)
   ;;   Details we need to collect
   ;;
   ;;   :last-trade-price
@@ -1080,7 +1076,7 @@
         datomic-feed-handler (fn [options evt]
 
                                ;; (info "datomic-feed-handler: " options " / " evt)
-                               (spit "live.5.edn" evt :append true)
+                               (spit "live.6.edn" evt :append true)
 
                                ;; Example datomic inputs
                                #_(def live-input-size [{:live/tick-size-tickerId 0
@@ -1100,7 +1096,7 @@
 
     (market/subscribe-to-market publisher (partial datomic-feed-handler options-datomic))
 
-    (edg/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)]))m
+    (edg/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)]))
 
   (mkt/cancel-market-data client 0)
 
@@ -1258,8 +1254,8 @@
 
                        (case topic
                          :tick-string (do
-                                        #_(when (< @string-count 600)
-                                          (info "Sanity check" (swap! string-count inc)topic))
+                                        #_(when (< @string-count 4000)
+                                          (info "Sanity check" (swap! string-count inc) topic))
                                         (as-> ech e
                                           (dissoc e :topic)
                                           (vals e)
@@ -1295,6 +1291,3 @@
              :ticker-id 0})
 
   (live/handle-tick-string options evt1))
-
-;; :value       ;0;1522337866199;67085;253.23364232;true
-;; :value 255.59;1;1522337865948;67077;253.23335428;true
