@@ -50,7 +50,6 @@
                  [clj-time "0.14.3"]
                  ;; #_[com.datomic/datomic "0.8.3335"
                  ;;    :exclusions [org.slf4j/slf4j-nop org.slf4j/log4j-over-slf4j]]
-                 ;; #_[midje "1.5.1"]
                  [ring/ring-core "1.6.3"
                   :exclusions [javax.servlet/servlet-api]]
                  [spootnik/unilog "0.7.22"]

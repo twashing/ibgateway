@@ -50,7 +50,6 @@
        (market/subscribe-to-market (partial historical/snapshot-handler options))
        (historical/schedule-historical-data options))))
 
-
 (def ^:dynamic *ticker-id-index* 0)
 (defn play-live
   "1) takes a selection of stock symbols

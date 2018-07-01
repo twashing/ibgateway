@@ -82,6 +82,48 @@
               r
               (recur (<! oc)))))))
 
+#_(comment
+
+  (let [ema-list [{:uuid "1" :last-trade-price-exponential 10}
+                  {:uuid "2" :last-trade-price-exponential 11}
+                  {:uuid "3" :last-trade-price-exponential 12}]
+
+        sma-list [{:uuid "1" :last-trade-price-average 10.1}
+                  {:uuid "2" :last-trade-price-average 10.2}
+                  {:uuid "3" :last-trade-price-average 10.3}]
+
+        tick-list [{:uuid "1" :last-trade-price 11.1}
+                   {:uuid "2" :last-trade-price 11.2}
+                   {:uuid "3" :last-trade-price 11.3}]
+
+        ec (chan (sliding-buffer 100))
+        sc (chan (sliding-buffer 100))
+        tc (chan (sliding-buffer 100))
+
+        _ (onto-chan ec ema-list)
+        _ (onto-chan sc sma-list)
+        _ (onto-chan tc tick-list)
+
+        merged-ch (async/merge [tc sc ec])
+        #_output-ch #_(chan (sliding-buffer 100) (join-averages (fn [ac e]
+                                                                  (log/info "ac" ac)
+                                                                  (log/info "e" e)
+                                                                  (concat ac (list e)))))
+
+        output-ch (chan (sliding-buffer 100) (filter :joined))]
+
+    #_(async/pipe merged-ch output-ch)
+    #_(go-loop [r (<! output-ch)]
+        (when-not (nil? r)
+          (log/info "record" r)
+          (recur (<! output-ch))))
+
+    (pipeline 1 output-ch (map (partial join-averages (atom {}))) merged-ch)
+    (go-loop [r (<! output-ch)]
+        (when-not (nil? r)
+          (log/info "record" r)
+          (recur (<! output-ch))))))
+
 (defn pipeline-stochastic-oscillator [n stochastic-oscillator-ch tick-list->stochastic-osc-ch]
   (let [stochastic-tick-window 14
         trigger-window 3
@@ -128,48 +170,6 @@
        (do (swap! state merge {uuid entry})
            input)))))
 
-(comment
-
-  (let [ema-list [{:uuid "1" :last-trade-price-exponential 10}
-                  {:uuid "2" :last-trade-price-exponential 11}
-                  {:uuid "3" :last-trade-price-exponential 12}]
-
-        sma-list [{:uuid "1" :last-trade-price-average 10.1}
-                  {:uuid "2" :last-trade-price-average 10.2}
-                  {:uuid "3" :last-trade-price-average 10.3}]
-
-        tick-list [{:uuid "1" :last-trade-price 11.1}
-                   {:uuid "2" :last-trade-price 11.2}
-                   {:uuid "3" :last-trade-price 11.3}]
-
-        ec (chan (sliding-buffer 100))
-        sc (chan (sliding-buffer 100))
-        tc (chan (sliding-buffer 100))
-
-        _ (onto-chan ec ema-list)
-        _ (onto-chan sc sma-list)
-        _ (onto-chan tc tick-list)
-
-        merged-ch (async/merge [tc sc ec])
-        #_output-ch #_(chan (sliding-buffer 100) (join-averages (fn [ac e]
-                                                                  (log/info "ac" ac)
-                                                                  (log/info "e" e)
-                                                                  (concat ac (list e)))))
-
-        output-ch (chan (sliding-buffer 100) (filter :joined))]
-
-    #_(async/pipe merged-ch output-ch)
-    #_(go-loop [r (<! output-ch)]
-        (when-not (nil? r)
-          (log/info "record" r)
-          (recur (<! output-ch))))
-
-    (pipeline 1 output-ch (map (partial join-averages (atom {}))) merged-ch)
-    (go-loop [r (<! output-ch)]
-        (when-not (nil? r)
-          (log/info "record" r)
-          (recur (<! output-ch))))))
-
 (defn pipeline-analysis-lagging [concurrency options
                                  sma-list-ch tick-list->sma-ch
                                  ema-list-ch sma-list->ema-ch
@@ -192,7 +192,8 @@
   (pipeline concurrency on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
   (pipeline-relative-strength-index concurrency relative-strength-ch tick-list->relative-strength-ch))
 
-(defn pipeline-signals-lagging [concurrency moving-average-window strategy-merged-averages merged-averages strategy-moving-averages-ch
+(defn pipeline-signals-lagging [concurrency moving-average-window
+                                strategy-merged-averages merged-averages strategy-moving-averages-ch
                                 strategy-bollinger-band merged-bollinger-band strategy-bollinger-band-ch]
 
   (pipeline concurrency strategy-merged-averages (map (partial join-averages (atom {}))) merged-averages)
@@ -212,8 +213,6 @@
 
   (pipeline concurrency strategy-on-balance-volume-ch (map (partial sconf/on-balance-volume live/moving-average-window))
             on-balance-volume->on-balance-volume-ch))
-
-
 
 (defn channel-analytics []
   {:source-list-ch (chan (sliding-buffer 100))

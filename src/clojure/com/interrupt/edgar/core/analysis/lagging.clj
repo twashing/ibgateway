@@ -2,7 +2,8 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as g]
             [clojure.spec.test.alpha :as stest]
-            [clojure.test.check.generators :as gen]))
+            [clojure.test.check.generators :as gen]
+            [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
 
 
 ;; ==>
@@ -78,14 +79,6 @@
 #_(s/fdef sum
         :args (s/cat :tick-list (comp not empty?) :input-key keyword?)
         :ret number?)
-
-(defn time-increases-left-to-right? [tick-list]
-  (->> tick-list
-       (partition 2 1)
-       (every? (fn [[l r]]
-                 (let [{ltime :last-trade-time} l
-                       {rtime :last-trade-time} r]
-                   (< ltime rtime))))))
 
 (defn simple-moving-average
   "Takes the tick-list, and moves back as far as the tick window will take it.

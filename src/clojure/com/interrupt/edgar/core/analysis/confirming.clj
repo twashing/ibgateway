@@ -1,4 +1,6 @@
-(ns com.interrupt.edgar.core.analysis.confirming)
+(ns com.interrupt.edgar.core.analysis.confirming
+  (:require [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
+
 
 (defn on-balance-volume
   "On Balance Volume (OBV) measures buying and selling pressure as a cumulative indicator that i) adds volume on up days and ii) subtracts volume on down days. We'll look for divergences between OBV and price to predict price movements or use OBV to confirm price trends.
@@ -18,7 +20,7 @@
     ** This function assumes the latest tick is on the right**"
   #_[latest-tick tick-list]
   [tick-list]
-
+  {:pre [(time-increases-left-to-right? tick-list)]}
 
   ;; accumulate OBV on historical tick-list
   (let [obv-list (reduce (fn [acc ech]
@@ -58,6 +60,7 @@
 
    ** This function assumes the latest tick is on the right**"
   [tick-window tick-list]
+  {:pre [(time-increases-left-to-right? tick-list)]}
 
   (let [twindow (if tick-window tick-window 14)
         window-list (partition twindow 1 tick-list)]

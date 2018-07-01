@@ -1,5 +1,6 @@
 (ns com.interrupt.edgar.core.analysis.leading
-  (:require [com.interrupt.edgar.core.analysis.lagging :as lagging]))
+  (:require [com.interrupt.edgar.core.analysis.lagging :as lagging]
+            [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
 
 
 (defn macd
@@ -22,6 +23,7 @@
     ** This function assumes the latest tick is on the left**"
 
   [options tick-window sma-list]
+  {:pre [(time-increases-left-to-right? sma-list)]}
 
   ;; compute the MACD line
   (let [{macd-fast :macd-window-fast
@@ -103,7 +105,7 @@
    ** This function assumes the latest tick is on the left**"
 
   [tick-window trigger-window trigger-line tick-list]
-
+  {:pre [(time-increases-left-to-right? tick-list)]}
 
   (let [;; calculate %K
         stochastic-list (reduce (fn [acc ech]
