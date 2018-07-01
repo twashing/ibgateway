@@ -30,35 +30,30 @@
 ;; ==>
 
 
-(s/def ::input-key #{:last-trade-price :last-trade-price-average})
-(s/def ::last-trade-time (set (range 10000 90000)))
-(s/def ::tick-entry (s/keys :req [::input-key ::last-trade-time]))
-
-(def tick-price-tuple (g/bind (s/gen ::input-key)
-                              (fn [x]
-                                (g/tuple (g/return x)
-                                         (g/double* {:min 1.0 :infinite? false, :NaN? false})))))
-
-(def tick-time-tuple (g/tuple (g/return :last-trade-time)
-                              (g/large-integer)))
-
-(def tick-event (gen/let [price-tuple tick-price-tuple
-                          time-tuple tick-time-tuple]
-
-                  (->> [:input-key (first price-tuple)]
-                       (concat price-tuple time-tuple)
-                       (apply array-map))))
-
-(g/generate tick-event)
-
-(s/def ::my-map (s/merge (s/keys :req [::input-key ::last-trade-time])
-                         (s/map-of #{::input-key ::last-trade-time} #_::tick-price-tuple any?)))
-
-(g/generate (s/gen ::my-map))
-
-(s/def ::my-list (s/coll-of ::my-map))
-
-(g/generate (s/gen ::my-list))
+;; (s/def ::input-key #{:last-trade-price :last-trade-price-average})
+;; (s/def ::last-trade-time (set (range 10000 90000)))
+;; (s/def ::tick-entry (s/keys :req [::input-key ::last-trade-time]))
+;;
+;; (def tick-price-tuple (g/bind (s/gen ::input-key)
+;;                               (fn [x]
+;;                                 (g/tuple (g/return x)
+;;                                          (g/double* {:min 1.0 :infinite? false, :NaN? false})))))
+;; (def tick-time-tuple (g/tuple (g/return :last-trade-time)
+;;                               (g/large-integer)))
+;; (def tick-event (gen/let [price-tuple tick-price-tuple
+;;                           time-tuple tick-time-tuple]
+;;
+;;                   (->> [:input-key (first price-tuple)]
+;;                        (concat price-tuple time-tuple)
+;;                        (apply array-map))))
+;; (g/generate tick-event)
+;;
+;; (s/def ::my-map (s/merge (s/keys :req [::input-key ::last-trade-time])
+;;                          (s/map-of #{::input-key ::last-trade-time} #_::tick-price-tuple any?)))
+;; (g/generate (s/gen ::my-map))
+;;
+;; (s/def ::my-list (s/coll-of ::my-map))
+;; (g/generate (s/gen ::my-list))
 
 ;; ==>
 

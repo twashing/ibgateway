@@ -57,6 +57,13 @@
                      tooltip: {
                          valueDecimals: 2
                      }
+                 },
+                 {
+                     name: 'TSLA 2',
+                     data: initData, // data,
+                     tooltip: {
+                         valueDecimals: 2
+                     }
                  }]
              })})
      };
@@ -70,7 +77,7 @@
 
              console.log(e.data);
              Highcharts.charts[0].series[0].addPoint(eval(e.data), true, false);
-             // Highcharts.charts[0].series[1].addPoint(eval(e.data), true, true);
+             Highcharts.charts[0].series[1].addPoint(eval(e.data), true, false);
          }
          w.onclose = function(e) {  console.log("The connection to the server has closed."); }
          // w.send("Hello from the Client!");

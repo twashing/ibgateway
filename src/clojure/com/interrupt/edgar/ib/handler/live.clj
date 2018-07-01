@@ -184,6 +184,7 @@
       (assoc rm
              :last-trade-price (if (not (empty? (:last-trade-price rm)))
                                  (read-string (:last-trade-price rm)) 0)
+             :last-trade-time (Long/parseLong (:last-trade-time rm))
              :last-trade-size (read-string (:last-trade-size rm))
              :total-volume (read-string (:total-volume rm))
              :vwap (read-string (:vwap rm))))))

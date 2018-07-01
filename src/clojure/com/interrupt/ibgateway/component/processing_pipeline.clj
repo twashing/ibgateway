@@ -419,7 +419,7 @@
             (log/info result)
             (spit "foo.edn" (apply str result))))
 
-      (go-loop [c 0
+      #_(go-loop [c 0
                 r (<! source-list-ch->tracer)]
         (info "count: " c " / result: " r)
         (spit "")

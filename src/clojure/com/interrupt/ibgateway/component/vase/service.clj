@@ -21,6 +21,9 @@
   [:#app]
   (enl/set-attr :data-key "foo"))
 
+(comment
+  (apply str (t1)))
+
 (defn about-page
   [request]
   (ring-resp/response (format "Clojure %s - served from %s"
@@ -133,7 +136,7 @@
     (go-loop [acc []
               {:keys [last-trade-time last-trade-price] :as ech} (<! left-ch)]
       (if ech
-        (let [nac (concat acc [[(Long/parseLong last-trade-time) last-trade-price]])]
+        (let [nac (concat acc [[last-trade-time last-trade-price]])]
           (recur nac (<! left-ch)))
         (do
           (def left-data acc)
@@ -143,7 +146,7 @@
     (go-loop [c 0
               {:keys [last-trade-time last-trade-price] :as r} (<! right-ch)]
       ;; (log/info :msg (merge {:count c} r))
-      (send-message-to-all-2! (str "[" (Long/parseLong last-trade-time) ", " last-trade-price "]"))
+      (send-message-to-all-2! (str "[" last-trade-time ", " last-trade-price "]"))
       (when r
         (recur (inc c) (<! right-ch))))))
 
