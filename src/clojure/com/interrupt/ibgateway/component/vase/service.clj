@@ -12,7 +12,8 @@
             [net.cgrand.enlive-html :as enl]
             [cognitect.transit :as transit]
             [com.interrupt.ibgateway.component.switchboard :as sw]
-            [com.interrupt.ibgateway.component.processing-pipeline :as pp])
+            [com.interrupt.ibgateway.component.processing-pipeline :as pp]
+            #_[com.interrupt.ibgateway.component.figwheel])
   (:import [org.eclipse.jetty.websocket.api Session]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
@@ -111,16 +112,20 @@
 
 (comment
 
+  (mount/find-all-states)
+
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               #'com.interrupt.ibgateway.component.vase/server
+              ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
               #'com.interrupt.ibgateway.core/state)
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.vase/server
+               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
                #'com.interrupt.ibgateway.core/state)
 
   (sw/stop-stream-workbench)
@@ -128,7 +133,7 @@
   (sw/kickoff-stream-workbench)
 
   (let [left-ch (chan 100 (take 100))
-        right-ch (chan 100 (drop 100))
+        right-ch (chan) #_(chan 100 (drop 100))
         ch (:source-list-ch->tracer pp/processing-pipeline)]
 
     (pp/bind-channels->mult ch left-ch right-ch)

@@ -46,6 +46,7 @@ services:
     ports:
       - 5554:5554
       - 8080:8080
+      - 3449:3449
     volumes:
       - .:${PWD}
     entrypoint: lein run -m com.interrupt.ibgateway.core/-main

@@ -7,7 +7,9 @@
                  ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]
                  ["my.datomic.com" {:url "https://my.datomic.com/repo"
                                     :creds :gpg}]]
+
   :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
+                 [org.clojure/clojurescript "1.10.238"]
                  [org.apache.commons/commons-daemon "1.0.9"]
                  [mount "0.1.12"]
                  [org.clojure/core.async "0.4.474"]
@@ -20,10 +22,6 @@
                  [com.datomic/datomic-free "0.9.5697"]
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
-                 [cider/cider-nrepl "0.17.0-SNAPSHOT"]
-                 [refactor-nrepl "2.4.0-SNAPSHOT"]
-                 [clojure-future-spec "1.9.0-alpha17"]
-
 
                  ;; KLUDGE libraries
                  [javax.servlet/javax.servlet-api "4.0.0"]
@@ -50,13 +48,17 @@
                  [clj-time "0.14.3"]
                  ;; #_[com.datomic/datomic "0.8.3335"
                  ;;    :exclusions [org.slf4j/slf4j-nop org.slf4j/log4j-over-slf4j]]
-                 [ring/ring-core "1.6.3"
-                  :exclusions [javax.servlet/servlet-api]]
+                 [ring/ring-core "1.6.3" :exclusions [javax.servlet/servlet-api]]
                  [spootnik/unilog "0.7.22"]
 
                  [io.pedestal/pedestal.service "0.5.2"]
                  [io.pedestal/pedestal.jetty "0.5.2"]
-                 [com.cognitect/pedestal.vase "0.9.1"]
+                 ;; [com.cognitect/pedestal.vase "0.9.1"]
+                 [com.cognitect/pedestal.vase "0.9.3"]
+
+                 ;; [cider/cider-nrepl "0.17.0-SNAPSHOT"]
+                 ;; [refactor-nrepl "2.4.0-SNAPSHOT"]
+                 [clojure-future-spec "1.9.0-alpha17"]
 
                  ;; Java Libraries
                  [joda-time "2.2"]
@@ -66,20 +68,26 @@
                  [com.xnlogic/transducers "0.1.0"]
                  [com.rpl/specter "1.1.1"]
                  [enlive "1.1.6"]
-                 [com.cognitect/transit-clj "0.8.309"]]
+                 [com.cognitect/transit-clj "0.8.309"]
+                 ]
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
-  :profiles {:dev {:dependencies [#_[spyscope "0.1.5"]
-                                  [org.clojure/tools.trace "0.7.9"]
+  :profiles {:dev {:dependencies [[org.clojure/tools.trace "0.7.9"]
                                   [org.clojure/test.check "0.10.0-alpha2"]
                                   [com.gfredericks/test.chuck "0.2.9"]
                                   [im.chit/lucid.core.inject "1.3.13"]
+                                  [http-kit.fake "0.2.2"]
+                                  [cider/piggieback "0.3.6"]
                                   [org.clojure/tools.nrepl "0.2.13"]
-                                  [http-kit.fake "0.2.2"]]
+                                  ;; [figwheel-sidecar "0.5.16"]
+                                  ;; [com.bhauman/rebel-readline "0.1.2"]
+                                  ]
+
+                   ;; :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
+
                    :resource-paths ["dev-resources"]
-                   :injections [#_(require 'spyscope.core)
-                                (use 'lucid.core.inject)
+                   :injections [(use 'lucid.core.inject)
                                 (inject '[clojure.core
                                           [clojure.repl dir]
                                           [clojure.pprint pprint]
@@ -88,9 +96,19 @@
                                           [clojure.repl apropos dir doc find-doc pst source]])]
 
                    :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
-                             [refactor-nrepl "2.4.0-SNAPSHOT"]]
+                             [refactor-nrepl "2.4.0-SNAPSHOT"]
+                             [lein-figwheel "0.5.16"]]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}
              :test {:resource-paths ["test/resources"]}}
 
-  :main com.interrupt.ibgateway.core)
+  :cljsbuild {:builds [{:id "main"
+                        :source-paths ["src/clojurescript/"]
+                        :figwheel true
+                        :compiler {:main "com.interrupt.edgar.core"
+                                   :asset-path "js/out"
+                                   :output-to "resources/public/js/core.js"
+                                   :output-dir "resources/public/js/out" } }]}
+
+  :main com.interrupt.ibgateway.core
+  )
