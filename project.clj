@@ -19,7 +19,7 @@
                  [ymilky/franzy-admin "0.0.1" :exclusions [org.slf4j/slf4j-log4j12]]
                  [automat "0.2.4"]
                  [reduce-fsm "0.1.4"]
-                 [com.datomic/datomic-free "0.9.5697"]
+                 ;; [com.datomic/datomic-free "0.9.5697"]
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
 
@@ -80,11 +80,11 @@
                                   [http-kit.fake "0.2.2"]
                                   [cider/piggieback "0.3.6"]
                                   [org.clojure/tools.nrepl "0.2.13"]
-                                  ;; [figwheel-sidecar "0.5.16"]
-                                  ;; [com.bhauman/rebel-readline "0.1.2"]
+                                  [figwheel-sidecar "0.5.16"]
+                                  [com.bhauman/rebel-readline "0.1.2"]
                                   ]
 
-                   ;; :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
+                   :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
 
                    :resource-paths ["dev-resources"]
                    :injections [(use 'lucid.core.inject)
@@ -97,7 +97,8 @@
 
                    :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
                              [refactor-nrepl "2.4.0-SNAPSHOT"]
-                             [lein-figwheel "0.5.16"]]
+                             ;; [lein-figwheel "0.5.16"]
+                             ]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}
              :test {:resource-paths ["test/resources"]}}

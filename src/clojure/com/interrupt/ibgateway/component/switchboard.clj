@@ -16,7 +16,7 @@
             [franzy.admin.topics :as topics]
             [franzy.clients.producer.defaults :as pd]
             [franzy.clients.consumer.defaults :as cd]
-            [datomic.api :as d]
+            ;; [datomic.api :as d]
             [mount.core :refer [defstate] :as mount]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
@@ -211,7 +211,7 @@
     (pprint (seq records))
     (.close consumer))
 
-(comment  ;; DB workbench
+#_(comment  ;; DB workbench
 
   ;; Schema
 
@@ -985,7 +985,7 @@
 
   )
 
-(comment  ;; SAVE live data
+#_(comment  ;; SAVE live data
 
   ;; LIVE
   (require '[com.interrupt.edgar.core.edgar :as edg]
@@ -1277,7 +1277,6 @@
 
 (defn stop-stream-workbench []
   (stop scheduled-fn))
-
 
 (comment
 
