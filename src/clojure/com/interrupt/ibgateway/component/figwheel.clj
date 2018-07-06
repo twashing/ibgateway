@@ -3,6 +3,7 @@
             [figwheel-sidecar.repl-api :as ra]))
 
 (defstate figwheel
-  :start (ra/start-figwheel!)
+  :start (do
+           (ra/start-figwheel!)
+           (ra/cljs-repl))
   :stop (ra/stop-figwheel!))
-
