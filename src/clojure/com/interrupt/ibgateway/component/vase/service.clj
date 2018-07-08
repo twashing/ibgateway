@@ -118,14 +118,14 @@
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               #'com.interrupt.ibgateway.component.vase/server
-              #'com.interrupt.ibgateway.component.figwheel/figwheel
+              ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
               #'com.interrupt.ibgateway.core/state)
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.vase/server
-               #'com.interrupt.ibgateway.component.figwheel/figwheel
+               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
                #'com.interrupt.ibgateway.core/state)
 
   (sw/stop-stream-workbench)

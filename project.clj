@@ -97,15 +97,15 @@
 
                    :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
                              [refactor-nrepl "2.4.0-SNAPSHOT"]
-                             ;; [lein-figwheel "0.5.16"]
-                             ]
+                             [lein-figwheel "0.5.16"]
+                             [lein-cljsbuild "1.1.7"]]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}
              :test {:resource-paths ["test/resources"]}}
 
   :cljsbuild {:builds [{:id "main"
                         :source-paths ["src/clojurescript/"]
-                        :figwheel true
+                        ;; :figwheel true
                         :compiler {:main "com.interrupt.edgar.core"
                                    :asset-path "js/out"
                                    :output-to "resources/public/js/core.js"
