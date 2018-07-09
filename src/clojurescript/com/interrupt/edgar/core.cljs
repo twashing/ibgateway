@@ -10,32 +10,36 @@
 
   (.log js/console "loadData CALLED")
 
-  (let [series-array (clj->js [{:name "TSLA"
-                                :data []
-                                :tooltip {"valueDecimals" 2}}])
-        chart-options (clj->js {:rangeSelector {"selected" 1}
+  (let [chart-options (clj->js {:rangeSelector {"selected" 1}
                                 :title {:text "TSLA Stock Price"}
-                                :series series-array})]
+                                :series [{:name "TSLA"
+                                          :data []
+                                          :tooltip {"valueDecimals" 2}}
+                                         {:name "TSLA 2"
+                                          :data []
+                                          :tooltip {"valueDecimals" 2}}]})]
 
     (.log js/console "chart-options: " chart-options)
     (.stockChart js/Highcharts "container" chart-options)))
 
-
 (defn onmessage-handler [e]
 
-  (.log js/console (.-data e))
-  (.log js/console (js/eval (clj->js (read-transit (.-data e)))))
-
-  ;; Highcharts.charts[0].series[0].addPoint(eval(e.data), true, false)
+  ;; (.log js/console (.-data e))
+  ;; (.log js/console (js/eval (clj->js (read-transit (.-data e)))))
 
   (let [a (aget (.-charts js/Highcharts) 0)
-        b (aget (.-series a) 0)]
+        b (aget (.-series a) 0)
 
-    ;; (.addPoint b (js->clj (.-data e)) true false)
-    ;; (.addPoint b (.-data e) true false)
-    ;; (.addPoint b (js/eval (clj->js (.-data e))) true false)
+        {[last-trade-time-tick last-trade-price] :tick-list
+         [last-trade-time-sma last-trade-price-average] :sma-list
+         [last-trade-time-ema last-trade-price-exponential] :ema-list :as message}
 
-    (.addPoint b (js/eval (clj->js (read-transit (.-data e)))) true false)))
+        (read-transit (.-data e))
+
+        tick [last-trade-time-tick last-trade-price]]
+
+    (.log js/console message)
+    (.addPoint b (js/eval (clj->js tick)) true false)))
 
 (defn doc-ready-handler []
   (let[ready-state (. js/document -readyState)]

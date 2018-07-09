@@ -120,6 +120,32 @@
 
 (comment
 
+  [:source-list-ch->tracer
+   :tick-list-ch
+   :sma-list-ch
+   :ema-list-ch
+   :bollinger-band-ch
+   :macd-ch
+   :stochastic-oscillator-ch
+   :on-balance-volume-ch
+   :relative-strength-ch
+   :tick-list->sma-ch
+   :sma-list->ema-ch
+   :sma-list->bollinger-band-ch
+   :sma-list->macd-ch
+   :tick-list->stochastic-osc-ch
+   :tick-list->obv-ch
+   :tick-list->relative-strength-ch
+   :macd->macd-strategy
+   :macd->on-balance-volume-strategy
+   :stochastic-oscillator->stochastic-oscillator-strategy
+   :on-balance-volume->on-balance-volume-ch
+   :strategy-macd-ch
+   :strategy-stochastic-oscillator-ch
+   :strategy-on-balance-volume-ch
+   :strategy-merged-averages
+   :strategy-moving-averages-ch]
+
   (mount/find-all-states)
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
@@ -140,29 +166,22 @@
 
   (sw/kickoff-stream-workbench)
 
-  (let [left-ch (chan 100 (take 100))
-        right-ch (chan) #_(chan 100 (drop 100))
-        ch (:source-list-ch->tracer pp/processing-pipeline)]
+  (let [{ch :source-list-ch->tracer
+         sma-ch :sma-list-ch
+         ema-ch :ema-list-ch
+         bb-ch :bollinger-band-ch} pp/processing-pipeline]
 
-    (pp/bind-channels->mult ch left-ch right-ch)
+    (go-loop [{last-trade-time-tick :last-trade-time
+               last-trade-price :last-trade-price} (<! ch)
+              {last-trade-time-sma :last-trade-time
+               last-trade-price-average :last-trade-price-average} (<! sma-ch)
+              {last-trade-time-ema :last-trade-time
+               last-trade-price-exponential :last-trade-price-exponential} (<! ema-ch)]
 
-    (go-loop [acc []
-              {:keys [last-trade-time last-trade-price] :as ech} (<! left-ch)]
-      (if ech
-        (let [nac (concat acc [[last-trade-time last-trade-price]])]
-          (recur nac (<! left-ch)))
-        (do
-          (def left-data acc)
-          (log/info :msg "Left DONE"))))
-
-
-    (go-loop [c 0
-              {:keys [last-trade-time last-trade-price] :as r} (<! right-ch)]
-      ;; (log/info :msg (merge {:count c} r))
-      ;; (send-message-to-all-2! (str "[" last-trade-time ", " last-trade-price "]"))
-      (send-message-to-all! [last-trade-time last-trade-price])
-      (when r
-        (recur (inc c) (<! right-ch))))))
+      (send-message-to-all! {:tick-list [last-trade-time-tick last-trade-price]
+                             :sma-list [last-trade-time-sma last-trade-price-average]
+                             :ema-list [last-trade-time-ema last-trade-price-exponential]})
+      (recur (<! ch) (<! sma-ch) (<! ema-ch)))))
 
 ;; ==>
 
