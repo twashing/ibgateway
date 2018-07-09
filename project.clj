@@ -69,7 +69,7 @@
                  [com.rpl/specter "1.1.1"]
                  [enlive "1.1.6"]
                  [com.cognitect/transit-clj "0.8.309"]
-                 ]
+                 [com.cognitect/transit-cljs "0.8.256"]]
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]

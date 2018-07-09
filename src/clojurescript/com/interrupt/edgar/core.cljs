@@ -1,13 +1,18 @@
-(ns com.interrupt.edgar.core)
+(ns com.interrupt.edgar.core
+  (:require [cognitect.transit :as t]))
 
+
+(defn read-transit [x]
+  (let [r (t/reader :json)]
+    (t/read r x)))
 
 (defn loadData []
 
   (.log js/console "loadData CALLED")
 
-  (let [series-array (clj->js {:name "TSLA"
-                               :data []
-                               :tooltip {"valueDecimals" 2}})
+  (let [series-array (clj->js [{:name "TSLA"
+                                :data []
+                                :tooltip {"valueDecimals" 2}}])
         chart-options (clj->js {:rangeSelector {"selected" 1}
                                 :title {:text "TSLA Stock Price"}
                                 :series series-array})]
@@ -18,7 +23,8 @@
 
 (defn onmessage-handler [e]
 
-  (.log js/console (js/eval (clj->js (.-data e))))
+  (.log js/console (.-data e))
+  (.log js/console (js/eval (clj->js (read-transit (.-data e)))))
 
   ;; Highcharts.charts[0].series[0].addPoint(eval(e.data), true, false)
 
@@ -27,9 +33,9 @@
 
     ;; (.addPoint b (js->clj (.-data e)) true false)
     ;; (.addPoint b (.-data e) true false)
-    (.addPoint b (js/eval (clj->js (.-data e))) true false)
+    ;; (.addPoint b (js/eval (clj->js (.-data e))) true false)
 
-    ))
+    (.addPoint b (js/eval (clj->js (read-transit (.-data e)))) true false)))
 
 (defn doc-ready-handler []
   (let[ready-state (. js/document -readyState)]

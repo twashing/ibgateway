@@ -68,7 +68,7 @@
 (defn new-ws-client [ws-session send-ch]
 
   (log/info :msg (str "new-ws-client CALLED: " ws-session send-ch))
-  (async/put! send-ch "This will be a text message")
+  ;; (async/put! send-ch "This will be a text message")
   (swap! ws-clients assoc ws-session send-ch))
 
 ;; This is just for demo purposes
@@ -81,6 +81,14 @@
     (swap! ws-clients dissoc ws-session)))
 
 ;; Also for demo purposes...
+#_(defn send-message-to-all!
+  [message]
+  (let [out (ByteArrayOutputStream. 4096)
+        writer (transit/writer out :json)]
+
+    (transit/write writer message)
+    (.toString out)))
+
 (defn send-message-to-all!
   [message]
   (doseq [[^Session session channel] @ws-clients]
@@ -151,7 +159,8 @@
     (go-loop [c 0
               {:keys [last-trade-time last-trade-price] :as r} (<! right-ch)]
       ;; (log/info :msg (merge {:count c} r))
-      (send-message-to-all-2! (str "[" last-trade-time ", " last-trade-price "]"))
+      ;; (send-message-to-all-2! (str "[" last-trade-time ", " last-trade-price "]"))
+      (send-message-to-all! [last-trade-time last-trade-price])
       (when r
         (recur (inc c) (<! right-ch))))))
 
