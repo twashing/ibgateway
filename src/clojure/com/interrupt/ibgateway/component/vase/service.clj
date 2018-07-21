@@ -120,32 +120,6 @@
 
 (comment
 
-  [:source-list-ch->tracer
-   :tick-list-ch
-   :sma-list-ch
-   :ema-list-ch
-   :bollinger-band-ch
-   :macd-ch
-   :stochastic-oscillator-ch
-   :on-balance-volume-ch
-   :relative-strength-ch
-   :tick-list->sma-ch
-   :sma-list->ema-ch
-   :sma-list->bollinger-band-ch
-   :sma-list->macd-ch
-   :tick-list->stochastic-osc-ch
-   :tick-list->obv-ch
-   :tick-list->relative-strength-ch
-   :macd->macd-strategy
-   :macd->on-balance-volume-strategy
-   :stochastic-oscillator->stochastic-oscillator-strategy
-   :on-balance-volume->on-balance-volume-ch
-   :strategy-macd-ch
-   :strategy-stochastic-oscillator-ch
-   :strategy-on-balance-volume-ch
-   :strategy-merged-averages
-   :strategy-moving-averages-ch]
-
   (mount/find-all-states)
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
@@ -162,16 +136,29 @@
                ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
                #'com.interrupt.ibgateway.core/state)
 
-  (sw/stop-stream-workbench)
-
   (sw/kickoff-stream-workbench)
 
-  (let [{ch :source-list-ch->tracer
-         sma-ch :sma-list-ch
-         ema-ch :ema-list-ch
-         bb-ch :bollinger-band-ch} pp/processing-pipeline]
+  (sw/stop-stream-workbench)
 
-    (go-loop [{last-trade-time-tick :last-trade-time
+  #_(let [{ch :source-list-ch->tracer
+         tick-list-ch->tracer :tick-list-ch->tracer
+         sma-list-ch->tracer :sma-list-ch->tracer
+
+         ;; sma-ch :sma-list-ch
+         ;; ema-ch :ema-list-ch
+         ;; bb-ch :bollinger-band-ch
+         merged-averages->tracer :merged-averages->tracer
+         strategy-merged-averages->tracer :strategy-merged-averages->tracer
+         strategy-moving-averages-ch->tracer :strategy-moving-averages-ch->tracer}
+        pp/processing-pipeline]
+
+    #_(go-loop [events (<! merged-averages->tracer)]
+      (log/info "merged-averages->tracer: " events)
+      (if-let [next (<! merged-averages->tracer)]
+        (recur next)))
+
+
+    #_(go-loop [{last-trade-time-tick :last-trade-time
                last-trade-price :last-trade-price} (<! ch)
               {last-trade-time-sma :last-trade-time
                last-trade-price-average :last-trade-price-average} (<! sma-ch)
@@ -183,7 +170,6 @@
                              :ema-list [last-trade-time-ema last-trade-price-exponential]})
       (recur (<! ch) (<! sma-ch) (<! ema-ch)))))
 
-;; ==>
 
 (def service
   {:env :prod

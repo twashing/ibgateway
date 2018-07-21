@@ -8,24 +8,24 @@
 
 ;; ==>
 
-(s/def ::input-key #{:foo :bar})
-
-(def a-tuple (g/bind (s/gen ::input-key)
-                     (fn [x]
-                       (g/tuple (g/return x)
-                                (g/double* {:min 1.0 :infinite? false, :NaN? false})))))
-
-(def b-tuple (g/tuple (g/return :b)
-                      (g/large-integer)))
-
-(def my-map (gen/let [at a-tuple
-                      tt b-tuple]
-
-              (->> [:input-key (first at)]
-                   (concat at tt)
-                   (apply array-map))))
-
-(g/generate my-map)
+;; (s/def ::input-key #{:foo :bar})
+;;
+;; (def a-tuple (g/bind (s/gen ::input-key)
+;;                      (fn [x]
+;;                        (g/tuple (g/return x)
+;;                                 (g/double* {:min 1.0 :infinite? false, :NaN? false})))))
+;;
+;; (def b-tuple (g/tuple (g/return :b)
+;;                       (g/large-integer)))
+;;
+;; (def my-map (gen/let [at a-tuple
+;;                       tt b-tuple]
+;;
+;;               (->> [:input-key (first at)]
+;;                    (concat at tt)
+;;                    (apply array-map))))
+;;
+;; (g/generate my-map)
 
 ;; ==>
 
@@ -74,6 +74,25 @@
 #_(s/fdef sum
         :args (s/cat :tick-list (comp not empty?) :input-key keyword?)
         :ret number?)
+
+(s/def ::a string?)
+(s/def ::b number?)
+#_(s/fdef sum
+        :args (s/cat :tick-list (s/keys :req-un [::a ::b]) :input-key keyword?)
+        :ret number?)
+
+#_(s/fdef sum
+        :args (s/and (s/cat :tick-list map? :input-key keyword?)
+                     #(contains? (:tick-list %) (:input-key %)))
+        :ret number?)
+
+#_(s/fdef sum
+        :args (s/and (s/cat :tick-list (comp not empty?) :input-key keyword?)
+                     (g/such-that (fn [[tick-list input-key]]
+                               (map #(assoc % :input-key input-key) tick-list))
+                             (g/tuple :tick-list :input-key)))
+        :ret number?)
+
 
 (defn simple-moving-average
   "Takes the tick-list, and moves back as far as the tick window will take it.
