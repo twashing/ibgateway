@@ -389,21 +389,29 @@
 
         [tick-list->CROSS sma-list->CROSS
          ema-list->CROSS bollinger-band->CROSS
-         ;; macd->CROSS stochastic-oscillator->CROSS
+         macd->CROSS
+         ;; stochastic-oscillator->CROSS
          ;; on-balance-volume->CROSS relative-strength->CROSS
          ]
 
         (channel->stream tick-list->JOIN sma-list->JOIN ema-list->JOIN bollinger-band->JOIN
-                         ;; macd->JOIN stochastic-oscillator->JOIN
+                         macd->JOIN
+                         ;; stochastic-oscillator->JOIN
                          ;; on-balance-volume->JOIN relative-strength->JOIN
                          )
+
+        ;; macd->CROSS (->> macd->JOIN
+        ;;                  stream/->source
+        ;;                  (stream.cross/event-source->sorted-stream (fn [macd]
+        ;;                                                              (println macd)
+        ;;                                                              (:last-trade-time macd))))
 
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
                                                 :skey-streams {:tick-list tick-list->CROSS
                                                                :sma-list sma-list->CROSS
                                                                :ema-list ema-list->CROSS
                                                                :bollinger-band bollinger-band->CROSS
-                                                               ;; :macd macd->CROSS
+                                                               :macd macd->CROSS
                                                                ;; :stochastic-oscillator stochastic-oscillator->CROSS
                                                                ;; :on-balance-volume on-balance-volume->CROSS
                                                                ;; :relative-strength relative-strength->CROSS
@@ -413,10 +421,12 @@
 
 
         [tick-list-ch->tracer macd-ch->tracer stochastic-osc-ch->tracer
-         obv-ch->tracer relative-strength-ch->tracer]
+         obv-ch->tracer relative-strength-ch->tracer #_macd->join->tracer]
 
         (channel->tracer tick-list-ch macd-ch stochastic-oscillator-ch
-                         on-balance-volume-ch relative-strength-ch)]
+                         on-balance-volume-ch relative-strength-ch #_macd->JOIN)]
+
+    ;; (bind-channels->mult macd-ch macd->JOIN)
 
     (doseq [source+mults [[source-list-ch tick-list-ch]
                           [tick-list-ch tick-list->sma-ch tick-list->macd-ch
@@ -426,7 +436,8 @@
                            sma-list->macd-ch sma-list->JOIN]
                           [ema-list-ch ema-list->moving-averages-strategy
                            ema-list->JOIN]
-                          [bollinger-band-ch bollinger-band->JOIN]]]
+                          [bollinger-band-ch bollinger-band->JOIN]
+                          [macd-ch macd->JOIN]]]
 
       (apply bind-channels->mult source+mults))
 
@@ -435,7 +446,7 @@
 
 
     (go-loop [r (<! connector-ch)]
-        (info "connector-ch: " r)
+      (info "connector-ch: " (update-in r [:sma-list] dissoc :population))
         (if-not r
           r
           (recur (<! connector-ch))))
@@ -446,6 +457,13 @@
     ;;     r
     ;;     (recur (<! tick-list-ch->tracer))))
     ;;
+    ;; (go-loop [r (<! macd->join->tracer)]
+    ;;   (info "macd->join->tracer : " r)
+    ;;   (if-not r
+    ;;     r
+    ;;     (recur (<! macd->join->tracer))))
+
+
     ;; ;; 18th
     ;; (go-loop [r (<! macd-ch->tracer)]
     ;;   (info "macd-ch->tracer : " r)
