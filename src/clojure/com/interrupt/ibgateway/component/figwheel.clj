@@ -2,7 +2,7 @@
   (:require [mount.core :refer [defstate] :as mount]
             [figwheel-sidecar.repl-api :as ra]))
 
-#_(defstate figwheel
+(defstate figwheel
   :start (do
            (ra/start-figwheel!)
            (ra/cljs-repl))

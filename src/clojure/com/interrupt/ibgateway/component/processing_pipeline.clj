@@ -243,9 +243,9 @@
    :ema-list->JOIN (chan (sliding-buffer 100) (map last))
    :bollinger-band->JOIN (chan (sliding-buffer 100) (map last))
    :macd->JOIN (chan (sliding-buffer 100) (map last))
-   :stochastic-oscillator->JOIN (chan (sliding-buffer 100))
-   :on-balance-volume->JOIN (chan (sliding-buffer 100))
-   :relative-strength->JOIN (chan (sliding-buffer 100))})
+   :stochastic-oscillator->JOIN (chan (sliding-buffer 100) (map last))
+   :on-balance-volume->JOIN (chan (sliding-buffer 100) (map last))
+   :relative-strength->JOIN (chan (sliding-buffer 100) (map last))})
 
 (defn channel-strategy-moving-averages []
 
@@ -390,21 +390,15 @@
         [tick-list->CROSS sma-list->CROSS
          ema-list->CROSS bollinger-band->CROSS
          macd->CROSS
-         ;; stochastic-oscillator->CROSS
-         ;; on-balance-volume->CROSS relative-strength->CROSS
-         ]
+         stochastic-oscillator->CROSS
+         on-balance-volume->CROSS
+         relative-strength->CROSS]
 
         (channel->stream tick-list->JOIN sma-list->JOIN ema-list->JOIN bollinger-band->JOIN
                          macd->JOIN
-                         ;; stochastic-oscillator->JOIN
-                         ;; on-balance-volume->JOIN relative-strength->JOIN
-                         )
-
-        ;; macd->CROSS (->> macd->JOIN
-        ;;                  stream/->source
-        ;;                  (stream.cross/event-source->sorted-stream (fn [macd]
-        ;;                                                              (println macd)
-        ;;                                                              (:last-trade-time macd))))
+                         stochastic-oscillator->JOIN
+                         on-balance-volume->JOIN
+                         relative-strength->JOIN)
 
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
                                                 :skey-streams {:tick-list tick-list->CROSS
@@ -412,9 +406,9 @@
                                                                :ema-list ema-list->CROSS
                                                                :bollinger-band bollinger-band->CROSS
                                                                :macd macd->CROSS
-                                                               ;; :stochastic-oscillator stochastic-oscillator->CROSS
-                                                               ;; :on-balance-volume on-balance-volume->CROSS
-                                                               ;; :relative-strength relative-strength->CROSS
+                                                               :stochastic-oscillator stochastic-oscillator->CROSS
+                                                               :on-balance-volume on-balance-volume->CROSS
+                                                               :relative-strength relative-strength->CROSS
                                                                }})
 
         connector-ch (chan (sliding-buffer 100))
@@ -437,7 +431,10 @@
                           [ema-list-ch ema-list->moving-averages-strategy
                            ema-list->JOIN]
                           [bollinger-band-ch bollinger-band->JOIN]
-                          [macd-ch macd->JOIN]]]
+                          [macd-ch macd->JOIN]
+                          [stochastic-oscillator-ch stochastic-oscillator->JOIN]
+                          [on-balance-volume-ch on-balance-volume->JOIN]
+                          [relative-strength-ch relative-strength->JOIN]]]
 
       (apply bind-channels->mult source+mults))
 
@@ -445,11 +442,11 @@
     (stream/connect @result connector-ch)
 
 
-    (go-loop [r (<! connector-ch)]
-      (info "connector-ch: " (update-in r [:sma-list] dissoc :population))
-        (if-not r
-          r
-          (recur (<! connector-ch))))
+    ;; (go-loop [r (<! connector-ch)]
+    ;;   (info "connector-ch: " (update-in r [:sma-list] dissoc :population))
+    ;;     (if-not r
+    ;;       r
+    ;;       (recur (<! connector-ch))))
 
     ;; (go-loop [r (<! tick-list-ch->tracer)]
     ;;   (info "tick-list-ch->tracer : " r)
@@ -510,7 +507,7 @@
     (pipeline-analysis-confirming concurrency on-balance-volume-ch tick-list->obv-ch
                                   relative-strength-ch tick-list->relative-strength-ch)
 
-    {:result result}))
+    {:joined-channel connector-ch}))
 
 #_(defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
 

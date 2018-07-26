@@ -25,7 +25,7 @@
 (defn onmessage-handler [e]
 
   ;; (.log js/console (.-data e))
-  ;; (.log js/console (js/eval (clj->js (read-transit (.-data e)))))
+  (.log js/console (js/eval (clj->js (read-transit (.-data e)))))
 
   (let [a (aget (.-charts js/Highcharts) 0)
         b (aget (.-series a) 0)

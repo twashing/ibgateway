@@ -140,35 +140,20 @@
 
   (sw/stop-stream-workbench)
 
-  #_(let [{ch :source-list-ch->tracer
-         tick-list-ch->tracer :tick-list-ch->tracer
-         sma-list-ch->tracer :sma-list-ch->tracer
-
-         ;; sma-ch :sma-list-ch
-         ;; ema-ch :ema-list-ch
-         ;; bb-ch :bollinger-band-ch
-         merged-averages->tracer :merged-averages->tracer
-         strategy-merged-averages->tracer :strategy-merged-averages->tracer
-         strategy-moving-averages-ch->tracer :strategy-moving-averages-ch->tracer}
-        pp/processing-pipeline]
+  (let [{joined-channel :joined-channel} pp/processing-pipeline]
 
     #_(go-loop [events (<! merged-averages->tracer)]
       (log/info "merged-averages->tracer: " events)
       (if-let [next (<! merged-averages->tracer)]
         (recur next)))
 
+    (go-loop [r (<! joined-channel)]
 
-    #_(go-loop [{last-trade-time-tick :last-trade-time
-               last-trade-price :last-trade-price} (<! ch)
-              {last-trade-time-sma :last-trade-time
-               last-trade-price-average :last-trade-price-average} (<! sma-ch)
-              {last-trade-time-ema :last-trade-time
-               last-trade-price-exponential :last-trade-price-exponential} (<! ema-ch)]
-
-      (send-message-to-all! {:tick-list [last-trade-time-tick last-trade-price]
-                             :sma-list [last-trade-time-sma last-trade-price-average]
-                             :ema-list [last-trade-time-ema last-trade-price-exponential]})
-      (recur (<! ch) (<! sma-ch) (<! ema-ch)))))
+      (log/info "joined-channel : " r)
+      (send-message-to-all! r)
+      (if-not r
+        r
+        (recur (<! joined-channel))))))
 
 
 (def service
