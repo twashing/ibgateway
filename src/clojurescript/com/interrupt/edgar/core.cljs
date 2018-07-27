@@ -24,22 +24,24 @@
 
 (defn onmessage-handler [e]
 
-  ;; (.log js/console (.-data e))
-  (.log js/console (js/eval (clj->js (read-transit (.-data e)))))
+  #_(.log js/console (.-data e))
+  #_(.log js/console (js/eval (clj->js (read-transit (.-data e)))))
 
   (let [a (aget (.-charts js/Highcharts) 0)
         b (aget (.-series a) 0)
 
-        {[last-trade-time-tick last-trade-price] :tick-list
-         [last-trade-time-sma last-trade-price-average] :sma-list
-         [last-trade-time-ema last-trade-price-exponential] :ema-list :as message}
+        {{:keys [last-trade-time last-trade-price]} :tick-list
+         {:keys [last-trade-price-average]} :sma-list
+         {:keys [last-trade-price-exponential]} :ema-list :as message}
 
         (read-transit (.-data e))
 
-        tick [last-trade-time-tick last-trade-price]]
+        tick [last-trade-time last-trade-price]]
 
     (.log js/console message)
-    (.addPoint b (js/eval (clj->js tick)) true false)))
+    (.addPoint b (js/eval (clj->js tick)) true false)
+
+    ))
 
 (defn doc-ready-handler []
   (let[ready-state (. js/document -readyState)]
