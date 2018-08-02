@@ -10,7 +10,8 @@
 
   (.log js/console "loadData CALLED")
 
-  (let [chart-options (clj->js {:rangeSelector {"selected" 1}
+  (let [chart-color (aget (.-colors (.getOptions js/Highcharts)) 0)
+        chart-options (clj->js {:rangeSelector {"selected" 1}
                                 :title {:text "TSLA Stock Price"}
                                 :series [{:name "Tick List"
                                           :data []
@@ -28,7 +29,7 @@
                                           :zIndex 0
                                           :data []
                                           :tooltip {"valueDecimals" 2}
-                                          :color (aget (.-colors (.getOptions js/Highcharts)) 0)}]})]
+                                          :color chart-color}]})]
 
     (.log js/console "chart-options: " chart-options)
     (.stockChart js/Highcharts "container" chart-options)))
