@@ -13,8 +13,7 @@
 (defn connect-to-market
   "Connect to the IB marketplace. This should return a 'client' object"
   []
-  #_(socket/connect-to-tws)
-  )
+  #_(socket/connect-to-tws))
 
 (defn disconnect-from-market
   "Disconnect from the IB marketplace."
@@ -151,7 +150,7 @@
   (lamina/force-close @event-channel))
 
 
-(def kludge (atom []))
+#_(def kludge (atom []))
 
 
 (defn consume [handle-fn channel]
@@ -160,10 +159,6 @@
     (recur)))
 
 (defn subscribe-to-market [publisher handle-fn]
-
-  #_(lamina/receive-all @event-channel handle-fn)
-  #_(lamina/receive-all @event-channel #(swap! kludge conj %))
-
 
   (let [publication (pub publisher #(:topic %))
         subscriber (chan)]
@@ -174,18 +169,18 @@
 
     (consume handle-fn subscriber)))
 
-(defn publish-event [^clojure.lang.PersistentHashMap event]
+#_(defn publish-event [^clojure.lang.PersistentHashMap event]
   (lamina/enqueue @event-channel event)
   (swap! kludge conj event))
 
 
 ;; transform java.util.HashMap to a Clojure map
-(defn publish-event-from-java [^java.util.HashMap event]
+#_(defn publish-event-from-java [^java.util.HashMap event]
   (publish-event (merge {} event)))
 
 
 ;; ==========
-(defn test-publisher []
+#_(defn test-publisher []
 
   (subscribe-to-market #(println "handling: " %))
 

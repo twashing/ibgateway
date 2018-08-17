@@ -15,6 +15,4 @@
   (mount/stop #'com.interrupt.ibgateway.component.vase/server)
 
   (def one (srv/run-dev))
-  (phttp/stop one)
-
-  )
+  (phttp/stop one))

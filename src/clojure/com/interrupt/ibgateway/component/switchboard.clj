@@ -23,6 +23,8 @@
             [com.interrupt.ibgateway.component.switchboard.store :as store]
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
             [com.interrupt.edgar.core.tee.live :as tlive]
+
+            [com.interrupt.edgar.core.edgar :as edgar]
             [com.interrupt.edgar.ib.market :as market]
             [com.interrupt.edgar.ib.handler.live :as live]
 
@@ -63,7 +65,6 @@
 #_(defn new-switchboard [zookeeper-url kafka-url]
     (map->Switchboard {:zookeeper-url zookeeper-url
                        :kafka-url kafka-url }) )
-
 
 #_(def running (atom true))
 
@@ -704,7 +705,7 @@
 
     )
 
-(comment
+#_(comment
 
   ;; TODO
 
@@ -981,9 +982,7 @@
 
   (clojure.pprint/pprint intersection-subsets)
   (clojure.pprint/pprint sorted-intersections)
-  (clojure.pprint/pprint or-volatility-volume-price-change)
-
-  )
+  (clojure.pprint/pprint or-volatility-volume-price-change))
 
 #_(comment  ;; SAVE live data
 
@@ -1189,7 +1188,7 @@
                    (vals e)
                    (apply #(.tickSize ewrapper-impl %1 %2 %3) e)))))
 
-(comment   ;; PLAY the data
+#_(comment   ;; PLAY the data
 
   (mount/stop #'ew/ewrapper #'pp/processing-pipeline)
   (mount/start #'ew/ewrapper #'pp/processing-pipeline)
@@ -1242,6 +1241,35 @@
         (info r)
         (when r
           (recur (<! ch))))))
+
+
+(defn record-live-data []
+
+  (info "record-live-data / com.interrupt.ibgateway.component.ewrapper/ewrapper: "
+        com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (let [client (:client com.interrupt.ibgateway.component.ewrapper/ewrapper)
+        publisher (:publisher com.interrupt.ibgateway.component.ewrapper/ewrapper)
+        ewrapper-impl (:ewrapper-impl com.interrupt.ibgateway.component.ewrapper/ewrapper)
+        publication (pub publisher #(:topic %))
+
+        stock-name "TSLA"
+        stream-live (fn stream-live [event-name result]
+                      (info :stream-live (str "... stream-live > event-name[" event-name
+                                              "] response[" result "]")))
+        options-live {:tick-list (ref [])
+                      :stock-match {:symbol stock-name :ticker-id-filter 0}}
+
+        live-feed-handler (fn [options evt]
+                            (info "live-feed-handler: " options " / " evt)
+                            (spit "live.6.edn" evt :append true))]
+
+    (info "record-live-data / subscribing to: " stock-name)
+    (market/subscribe-to-market publisher (partial live-feed-handler options-live))
+    (edgar/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)])))
+
+#_(defn record-stop-live-data []
+  (market/cancel-market-data client 0))
 
 (defn kickoff-stream-workbench []
 

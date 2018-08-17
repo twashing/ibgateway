@@ -59,6 +59,7 @@
                  ;; [cider/cider-nrepl "0.17.0-SNAPSHOT"]
                  ;; [refactor-nrepl "2.4.0-SNAPSHOT"]
                  [clojure-future-spec "1.9.0-alpha17"]
+                 [org.clojure/tools.cli "0.3.7"]
 
                  ;; Java Libraries
                  [joda-time "2.2"]
@@ -81,8 +82,7 @@
                                   [cider/piggieback "0.3.6"]
                                   [org.clojure/tools.nrepl "0.2.13"]
                                   [figwheel-sidecar "0.5.16"]
-                                  [com.bhauman/rebel-readline "0.1.2"]
-                                  ]
+                                  [com.bhauman/rebel-readline "0.1.2"]]
 
                    :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
 
@@ -111,5 +111,4 @@
                                    :output-to "resources/public/js/core.js"
                                    :output-dir "resources/public/js/out" } }]}
 
-  :main com.interrupt.ibgateway.core
-  )
+  :main com.interrupt.ibgateway.core)

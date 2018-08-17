@@ -26,7 +26,17 @@ sudo launchctl start local.edgarlydata
 sudo launchctl stop local.edgarlydata
 launchctl list | grep local.edgarlydata
 
+sudo launchctl stop local.edgarlydata && \
+sudo launchctl unload /Users/timothyw/Library/LaunchAgents/edgarlyData.plist && \
+sudo launchctl load /Users/timothyw/Library/LaunchAgents/edgarlyData.plist && \
+sudo launchctl start local.edgarlydata && \
+launchctl list | grep local.edgarlydata
+
+
 ## Troubleshooting
 > launchctl "Path had bad ownership/permissions"
 https://stackoverflow.com/questions/28063598/error-while-executing-plist-file-path-had-bad-ownership-permissions
 
+
+## Notes
+NYSE Market Opening: Monday through Friday, 9:30 a.m. to 4:00 p.m. EST

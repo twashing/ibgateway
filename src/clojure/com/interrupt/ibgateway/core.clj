@@ -1,9 +1,11 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
              [unilog.config  :refer [start-logging!]]
+             [clojure.tools.logging :refer [debug info warn error]]
+             [clojure.tools.cli :refer [parse-opts]]
              [com.interrupt.ibgateway.component.repl-server]
-             [com.interrupt.ibgateway.component.switchboard]
-             [com.interrupt.ibgateway.component.vase])
+             [com.interrupt.ibgateway.component.switchboard :as switchboard]
+             [com.interrupt.ibgateway.component.vase :as vase])
   (:import [org.apache.commons.daemon Daemon DaemonContext])
   (:gen-class
    :implements [org.apache.commons.daemon.Daemon]))
@@ -49,13 +51,27 @@
 
 (defn -destroy [this])
 
+(def cli-options
+  [["-R" "--record" :default true]])
+
 (defn -main [& args]
 
   ;; TODO - do we still need this?
   (Thread/sleep 5000) ;; a hack, to ensure that the tws machine is available, before we try to connect to it.
 
   (init args)
-  (start))
+
+  (let [parsed-options (parse-opts args cli-options)]
+
+    (info "parsed-options: " parsed-options)
+    (cond
+
+      (-> parsed-options :options :record)
+      (switchboard/record-live-data)
+
+      :else (info "No args provided"))
+
+    (start)))
 
 
 (comment
@@ -78,6 +94,12 @@
 
 ;; TODO
 
+;; > Record market data
+;;
+;; ** from a docker-compose environment
+;; stand-up all components
+;; [ok] parse command-line arguments (https://github.com/clojure/tools.cli)
+;; see ";; SAVE live data" in com.interrupt.ibgateway.component.switchboard
 
 ;; **
 ;; kafka-listener -> Kafka

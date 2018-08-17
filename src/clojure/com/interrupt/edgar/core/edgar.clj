@@ -61,25 +61,25 @@
 
   ([client publisher stock-selection tee-fn-list]
 
-     {:pre [(not (nil? client))
-            (not (nil? stock-selection))]}
+   {:pre [(not (nil? client))
+          (not (nil? stock-selection))]}
 
-     (let [result-id (reduce (fn [req-id ech]
+   (let [result-id (reduce (fn [req-id ech]
 
-                                (let [tick-list (ref [])
-                                      tee-list (if tee-fn-list tee-fn-list [(partial tplay/tee-market @tick-list)])
-                                      options {:tick-list tick-list :tee-list tee-list
-                                               :stock-match {:symbol ech :ticker-id-filter req-id}}]
+                             (let [tick-list (ref [])
+                                   tee-list (if tee-fn-list tee-fn-list [(partial tplay/tee-market @tick-list)])
+                                   options {:tick-list tick-list :tee-list tee-list
+                                            :stock-match {:symbol ech :ticker-id-filter req-id}}]
 
-                                  (market/subscribe-to-market publisher (partial live/feed-handler options))
-                                  (market/request-market-data client req-id ech "233" false)
-                                  #_(market/request-market-data client req-id ech "" false)
+                               (market/subscribe-to-market publisher (partial live/feed-handler options))
+                               (market/request-market-data client req-id ech "233" false)
+                               #_(market/request-market-data client req-id ech "" false)
 
-                                  ;; increment the request ID for the next stock symbol
-                                  (inc req-id)))
-                              *ticker-id-index*
-                              stock-selection)]
-       result-id)))
+                               ;; increment the request ID for the next stock symbol
+                               (inc req-id)))
+                           *ticker-id-index*
+                           stock-selection)]
+     result-id)))
 
 (defn initialize-workbench []
   (def ^:dynamic *interactive-brokers-workbench* {:interactive-brokers-client (:esocket (market/connect-to-market))})
