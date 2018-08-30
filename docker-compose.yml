@@ -48,7 +48,7 @@ services:
       - 8080:8080
       - 3449:3449
     volumes:
-      - .:/usr/app
+      - /Users/timothyw/Projects/edgarly/ibgateway:/usr/app
     entrypoint: lein run --record  # -m com.interrupt.ibgateway.core/-main
 
   kafka-tools:

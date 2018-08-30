@@ -36,7 +36,8 @@
 (defn start []
   (while (:running state)
     ;; (println "tick")
-    (Thread/sleep 2000)))
+    ;; (Thread/sleep 2000)
+    ))
 
 
 ;; Daemon implementation

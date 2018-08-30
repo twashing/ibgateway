@@ -27,7 +27,7 @@ TODO: Brief description
 [Maven]: http://maven.apache.org/
 
 
-## Notes
+## TWS Desktop
 
 A) You can connect to TWS, with a VNC viewer (ex: TightVNC).
 
@@ -35,6 +35,8 @@ A) You can connect to TWS, with a VNC viewer (ex: TightVNC).
 cd ~/Downloads/tvnjviewer-2.8.3-bin-gnugpl/
 java -jar tightvnc-jviewer.jar
 ```
+
+## Build 
 
 B) You have to do an initial build of base docker images.
 ```
@@ -68,12 +70,24 @@ lein run -m com.interrupt.ibgateway.core/-main
 
 ## TODO
 
-com.interrupt.edgar.ib.handler.live/feed-handler
-com.interrupt.edgar.core.tee.live/tee-fn
-com.interrupt.edgar.core.analysis.lagging/simple-moving-average
+- Signals (SMA, EMA, BB)
+  ? When there's been a price change of more than $1, what crossovers happened, in the last 5 ticks
 
-Handle live price and size updates
-Handle tick-by-tick data
+- Remaining Analytics
+- Remaining Signals
+- Strategies
+
+- Code Cleanup
+- Trading Engine
+- Position Book
+
+? Will Bid / Ask give us more price signals 
+! Have to Plan + Reason about + Solve Problems, while developing the platform
+
+
+## NOTES
+
+EMA looks slower than the SMA
 
 
 ## Change Log

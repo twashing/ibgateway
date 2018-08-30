@@ -1262,7 +1262,7 @@
 
         live-feed-handler (fn [options evt]
                             (info "live-feed-handler: " options " / " evt)
-                            (spit "live.6.edn" evt :append true))]
+                            (spit "live.7.edn" evt :append true))]
 
     (info "record-live-data / subscribing to: " stock-name)
     (market/subscribe-to-market publisher (partial live-feed-handler options-live))
@@ -1275,15 +1275,14 @@
 
   (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
         my-pool (mk-pool)
-        input-source (atom (read-string (slurp "live.4.edn")))
+        input-source (atom (read-string (slurp "live.6.edn")))
         string-count (atom 0)
         consume-fn (fn []
                      (let [{:keys [topic] :as ech} (first @input-source)]
-
                        (case topic
                          :tick-string (do
                                         #_(when (< @string-count 4000)
-                                          (info "Sanity check" (swap! string-count inc) topic))
+                                            (info "Sanity check" (swap! string-count inc) topic))
                                         (as-> ech e
                                           (dissoc e :topic)
                                           (vals e)

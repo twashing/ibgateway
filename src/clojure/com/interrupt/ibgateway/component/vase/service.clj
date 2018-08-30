@@ -122,6 +122,7 @@
 
   (mount/find-all-states)
 
+  ;; STOP
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
@@ -129,6 +130,10 @@
               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
               #'com.interrupt.ibgateway.core/state)
 
+  (sw/stop-stream-workbench)
+
+
+  ;; START
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
@@ -138,14 +143,12 @@
 
   (sw/kickoff-stream-workbench)
 
-  (sw/stop-stream-workbench)
-
   (let [{joined-channel :joined-channel} pp/processing-pipeline]
 
     #_(go-loop [events (<! merged-averages->tracer)]
-      (log/info "merged-averages->tracer: " events)
-      (if-let [next (<! merged-averages->tracer)]
-        (recur next)))
+        (log/info "merged-averages->tracer: " events)
+        (if-let [next (<! merged-averages->tracer)]
+          (recur next)))
 
     (go-loop [r (<! joined-channel)]
 
