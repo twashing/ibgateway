@@ -377,6 +377,8 @@
                 merged-bollinger-band strategy-bollinger-band strategy-bollinger-band-ch]}
         (channel-strategy-bollinger-band)
 
+
+
         #_(bind-channels->mult macd-ch
                                macd->macd-strategy
                                macd->on-balance-volume-strategy)
@@ -408,8 +410,7 @@
                                                                :macd macd->CROSS
                                                                :stochastic-oscillator stochastic-oscillator->CROSS
                                                                :on-balance-volume on-balance-volume->CROSS
-                                                               :relative-strength relative-strength->CROSS
-                                                               }})
+                                                               :relative-strength relative-strength->CROSS}})
 
         connector-ch (chan (sliding-buffer 100))
 
@@ -442,54 +443,6 @@
     (stream/connect @result connector-ch)
 
 
-    ;; (go-loop [r (<! connector-ch)]
-    ;;   (info "connector-ch: " (update-in r [:sma-list] dissoc :population))
-    ;;     (if-not r
-    ;;       r
-    ;;       (recur (<! connector-ch))))
-
-    ;; (go-loop [r (<! tick-list-ch->tracer)]
-    ;;   (info "tick-list-ch->tracer : " r)
-    ;;   (if-not r
-    ;;     r
-    ;;     (recur (<! tick-list-ch->tracer))))
-    ;;
-    ;; (go-loop [r (<! macd->join->tracer)]
-    ;;   (info "macd->join->tracer : " r)
-    ;;   (if-not r
-    ;;     r
-    ;;     (recur (<! macd->join->tracer))))
-
-
-    ;; ;; 18th
-    ;; (go-loop [r (<! macd-ch->tracer)]
-    ;;   (info "macd-ch->tracer : " r)
-    ;;   (if-not r
-    ;;     r
-    ;;     (recur (<! macd-ch->tracer))))
-    ;;
-    ;; ;; first
-    ;; (go-loop [r (<! stochastic-osc-ch->tracer)]
-    ;;   (info "stochastic-osc-ch->tracer: " r)
-    ;;   (if-not r
-    ;;     r
-    ;;     (recur (<! stochastic-osc-ch->tracer))))
-    ;;
-    ;; ;; 15th
-    ;; (go-loop [r (<! obv-ch->tracer)]
-    ;;   (info "obv-ch->tracer: " r)
-    ;;   (if-not r
-    ;;     r
-    ;;     (recur (<! obv-ch->tracer))))
-    ;;
-    ;; ;; 3rd
-    ;; (go-loop [r (<! relative-strength-ch->tracer)]
-    ;;   (info "relative-strength-ch->tracer: " r)
-    ;;   (if-not r
-    ;;     r
-    ;;     (recur (<! relative-strength-ch->tracer))))
-
-
     ;; TICK LIST
     (pipeline concurrency source-list-ch live/handler-xform (ew/ewrapper :publisher))
     (pipeline concurrency tick-list-ch live/handler-xform source-list-ch)
@@ -506,6 +459,13 @@
 
     (pipeline-analysis-confirming concurrency on-balance-volume-ch tick-list->obv-ch
                                   relative-strength-ch tick-list->relative-strength-ch)
+
+
+    ;; SIGNALS
+    (pipeline-signals-lagging concurrency live/moving-average-window
+                              strategy-merged-averages merged-averages strategy-moving-averages-ch
+                              strategy-bollinger-band merged-bollinger-band strategy-bollinger-band-ch)
+
 
     {:joined-channel connector-ch}))
 

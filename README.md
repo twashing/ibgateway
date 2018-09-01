@@ -70,12 +70,17 @@ lein run -m com.interrupt.ibgateway.core/-main
 
 ## TODO
 
+- Troubleshoot EMA; why is it slower than SMA
+  - Test with SINE Wave
 - Signals (SMA, EMA, BB)
   ? When there's been a price change of more than $1, what crossovers happened, in the last 5 ticks
+
 
 - Remaining Analytics
 - Remaining Signals
 - Strategies
+- Scan market for most volatile stocks
+
 
 - Code Cleanup
 - Trading Engine
