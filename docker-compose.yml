@@ -35,18 +35,21 @@ services:
     tty: true
     restart: always
     entrypoint: /usr/local/bin/install-base.sh
+    # entrypoint: /bin/bash
 
   app:
     image: twashing/ibgateway-app:latest
     depends_on:
       - tws
-    working_dir: ${PWD}
+    working_dir: /usr/app
     shm_size: 1G
     ports:
       - 5554:5554
+      - 8080:8080
+      - 3449:3449
     volumes:
-      - .:${PWD}
-    entrypoint: lein run -m com.interrupt.ibgateway.core/-main
+      - /Users/timothyw/Projects/edgarly/ibgateway:/usr/app
+    entrypoint: lein run  # lein run --record  # -m com.interrupt.ibgateway.core/-main
 
   kafka-tools:
     image: confluentinc/cp-kafka:3.3.1

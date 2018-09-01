@@ -1,42 +1,93 @@
-
 (defproject ibgateway "0.1.0-SNAPSHOT"
   :description "TODO"
   :url "TODO"
   :license {:name "TODO: Choose a license"
             :url "http://choosealicense.com/"}
   :repositories [["myMavenRepo.read" "https://mymavenrepo.com/repo/HaEY4usKuLXXnqmXBr0z"]
-                 ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]]
-  :dependencies [[org.clojure/clojure "1.8.0"]
+                 ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]
+                 ["my.datomic.com" {:url "https://my.datomic.com/repo"
+                                    :creds :gpg}]]
+
+  :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
+                 [org.clojure/clojurescript "1.10.238"]
                  [org.apache.commons/commons-daemon "1.0.9"]
                  [mount "0.1.12"]
-
-                 [org.danielsz/system "0.4.1"
-                  :exclusions [org.clojure/tools.namespace org.clojure/core.async]]
-                 [org.clojure/core.async "0.3.441"]
+                 [org.clojure/core.async "0.4.474"]
                  [com.interactivebrokers.tws/tws-api "9.72.17-SNAPSHOT"]
                  [ymilky/franzy "0.0.1"]
                  [ymilky/franzy-transit "0.0.1" :exclusions [commons-codec]]
                  [ymilky/franzy-admin "0.0.1" :exclusions [org.slf4j/slf4j-log4j12]]
                  [automat "0.2.4"]
                  [reduce-fsm "0.1.4"]
-                 [com.datomic/datomic-free "0.9.5656"]
+                 ;; [com.datomic/datomic-free "0.9.5697"]
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
-                 [clojure-future-spec "1.9.0-alpha17"]]
+
+                 ;; KLUDGE libraries
+                 [javax.servlet/javax.servlet-api "4.0.0"]
+
+                 ;; Pedestal libraries
+                 [io.pedestal/pedestal.service "0.5.3"]
+                 [io.pedestal/pedestal.jetty "0.5.3"]
+                 ;;
+                 ;; ;; Logging
+                 [ch.qos.logback/logback-classic "1.2.3"]
+                 [org.slf4j/jul-to-slf4j "1.7.25"]
+                 [org.slf4j/jcl-over-slf4j "1.7.25"]
+                 [org.slf4j/log4j-over-slf4j "1.7.25"]
+                 ;;
+                 ;; ;; Edgar proper
+                 [org.clojure/core.incubator "0.1.4"]
+                 ;; [jtsclient/jtsclient "9.8.3"]
+                 [org.clojure/data.csv "0.1.4"]
+                 [overtone/at-at "1.2.0"]
+                 [cljs-uuid "0.0.4"]
+                 [org.clojure/tools.namespace "0.2.10"]
+                 [lamina "0.5.6"]
+                 [aleph "0.4.4"]
+                 [clj-time "0.14.3"]
+                 ;; #_[com.datomic/datomic "0.8.3335"
+                 ;;    :exclusions [org.slf4j/slf4j-nop org.slf4j/log4j-over-slf4j]]
+                 [ring/ring-core "1.6.3" :exclusions [javax.servlet/servlet-api]]
+                 [spootnik/unilog "0.7.22"]
+
+                 [io.pedestal/pedestal.service "0.5.2"]
+                 [io.pedestal/pedestal.jetty "0.5.2"]
+                 ;; [com.cognitect/pedestal.vase "0.9.1"]
+                 [com.cognitect/pedestal.vase "0.9.3"]
+
+                 ;; [cider/cider-nrepl "0.17.0-SNAPSHOT"]
+                 ;; [refactor-nrepl "2.4.0-SNAPSHOT"]
+                 [clojure-future-spec "1.9.0-alpha17"]
+                 [org.clojure/tools.cli "0.3.7"]
+
+                 ;; Java Libraries
+                 [joda-time "2.2"]
+                 [manifold "0.1.7-alpha6"]
+                 [net.cgrand/xforms "0.17.0"]
+                 [employeerepublic/promisespromises "0.5"]
+                 [com.xnlogic/transducers "0.1.0"]
+                 [com.rpl/specter "1.1.1"]
+                 [enlive "1.1.6"]
+                 [com.cognitect/transit-clj "0.8.309"]
+                 [com.cognitect/transit-cljs "0.8.256"]]
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
-  :profiles {:dev {:dependencies [[drift "1.5.3"]
-                                  [spyscope "0.1.5"]
+  :profiles {:dev {:dependencies [[org.clojure/tools.trace "0.7.9"]
+                                  [org.clojure/test.check "0.10.0-alpha2"]
+                                  [com.gfredericks/test.chuck "0.2.9"]
                                   [im.chit/lucid.core.inject "1.3.13"]
-                                  [com.gfredericks/test.chuck "0.2.8"]
-                                  [http-kit.fake "0.2.1"]
-                                  [org.clojure/test.check "0.9.0"]
-                                  [prismatic/schema "1.1.6"]
-                                  [prismatic/schema-generators "0.1.0"]
-                                  [org.clojure/tools.nrepl "0.2.12"]]
-                   :injections [(require 'spyscope.core)
-                                (use 'lucid.core.inject)
+                                  [http-kit.fake "0.2.2"]
+                                  [cider/piggieback "0.3.6"]
+                                  [org.clojure/tools.nrepl "0.2.13"]
+                                  [figwheel-sidecar "0.5.16"]
+                                  [com.bhauman/rebel-readline "0.1.2"]]
+
+                   :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
+
+                   :resource-paths ["dev-resources"]
+                   :injections [(use 'lucid.core.inject)
                                 (inject '[clojure.core
                                           [clojure.repl dir]
                                           [clojure.pprint pprint]
@@ -45,11 +96,19 @@
                                           [clojure.repl apropos dir doc find-doc pst source]])]
 
                    :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
+                             [refactor-nrepl "2.4.0-SNAPSHOT"]
+                             [lein-figwheel "0.5.16"]
+                             [lein-cljsbuild "1.1.7"]]
 
-                             ;; Latest refactor-nrepl ("2.4.0-SNAPSHOT") isn't sync'd
-                             ;; with this version of cider-nrepl ("0.17.0-SNAPSHOT"). So
-                             ;; we have to wait for an update.
+                   :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}
+             :test {:resource-paths ["test/resources"]}}
 
-                             ;; [refactor-nrepl "2.4.0-SNAPSHOT"]
-                             ]}}
+  :cljsbuild {:builds [{:id "main"
+                        :source-paths ["src/clojurescript/"]
+                        ;; :figwheel true
+                        :compiler {:main "com.interrupt.edgar.core"
+                                   :asset-path "js/out"
+                                   :output-to "resources/public/js/core.js"
+                                   :output-dir "resources/public/js/out" } }]}
+
   :main com.interrupt.ibgateway.core)

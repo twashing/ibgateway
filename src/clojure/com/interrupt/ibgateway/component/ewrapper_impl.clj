@@ -10,6 +10,9 @@
            [com.ib.client Types$BarSize Types$DurationUnit Types$WhatToShow]))
 
 
+(def TICKPRICE :tick-price)
+(def TICKSIZE :tick-size)
+(def TICKSTRING :tick-string)
 (def SCANNERDATA :scanner-data)
 (def HISTORICALDATA :historical-data)
 
@@ -32,7 +35,6 @@
 
   (def cal (Calendar/getInstance))
   (.add cal Calendar/DAY_OF_MONTH -16)
-  #_(.add cal Calendar/MONTH -6)
 
   (def form (SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
   (def formatted (.format form (.getTime cal)))
@@ -49,9 +51,55 @@
 
   req-id)
 
+(defn- create-contract [instrm]
+  (doto (Contract.)
+    (.symbol instrm)
+    (.secType "STK")
+    (.exchange "SMART")
+    (.currency "USD")))
+
+(defn live-subscribe
+
+  ([req-id client instrm]
+   (live-subscribe client req-id instrm "" false))
+
+  ([req-id client instrm genericTicklist snapshot]
+   (let [contract (create-contract instrm)]
+     (.reqMktData client (.intValue req-id) contract genericTicklist snapshot nil))))
+
 (defn ewrapper-impl [publisher]
 
   (proxy [EWrapperImpl] []
+
+    (tickPrice [^Integer tickerId ^Integer field ^Double price ^Integer canAutoExecute]
+
+      ;; (println "New - Tick Price. Ticker Id:" tickerId " Field: " field " Price: " price " CanAutoExecute: " canAutoExecute)
+      (let [ch-value {:topic TICKPRICE
+                      :ticker-id tickerId
+                      :field field
+                      :price price
+                      :can-auto-execute canAutoExecute}]
+        (go (>! publisher ch-value))))
+
+    (tickSize [^Integer tickerId ^Integer field ^Integer size]
+
+      ;; (println "New - Tick Size. Ticker Id:"  tickerId  " Field: "  field  " Size: "  size)
+      (let [ch-value {:topic TICKSIZE
+                      :ticker-id tickerId
+                      :field field
+                      :size size}]
+        (go (>! publisher ch-value))))
+
+    (tickString [^Integer tickerId ^Integer tickType ^String value]
+      ;; (println "New - Tick String. Ticker Id:"  tickerId  " Type: "  tickType  " Value: "  value)
+      (let [ch-value {:topic TICKSTRING
+                      :ticker-id tickerId
+                      :tick-type tickType
+                      :value value}]
+        (go (>! publisher ch-value))))
+
+    (tickGeneric [^Integer tickerId ^Integer tickType ^Double value]
+      (println "New - Tick Generic. Ticker Id:"  tickerId  ", Field: " tickType  ", Value: "  value))
 
     (scannerParameters [^String xml]
 
@@ -125,10 +173,11 @@
 
 (defn ewrapper
 
-  ([] (ewrapper 1))
+  ([]
+   (ewrapper 1))
+
   ([no-of-topics]
 
-   ;; ====
    ;; Setup client, wrapper, process messages
    (let [buffer-size (* no-of-topics (+ 1 50))
          publisher (chan (sliding-buffer 100))
@@ -154,7 +203,8 @@
              (println (str "Exception: " (.getMessage e)))))))
 
      {:client client
-      :publisher publisher})))
+      :publisher publisher
+      :ewrapper-impl ewrapperImpl})))
 
 (comment
 

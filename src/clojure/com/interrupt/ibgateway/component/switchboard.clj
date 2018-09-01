@@ -1,7 +1,9 @@
 (ns com.interrupt.ibgateway.component.switchboard
-  (:require [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
+  (:require [clojure.core.async :refer [chan >! <! close! merge go go-loop pub sub unsub-all sliding-buffer
+                                        mult tap pipeline]]
             [clojure.set :as cs]
             [clojure.math.combinatorics :as cmb]
+            [clojure.tools.logging :refer [debug info warn error]]
             [franzy.clients.producer.client :as producer]
             [franzy.clients.consumer.client :as consumer]
             [franzy.clients.consumer.callbacks :refer [consumer-rebalance-listener]]
@@ -14,11 +16,22 @@
             [franzy.admin.topics :as topics]
             [franzy.clients.producer.defaults :as pd]
             [franzy.clients.consumer.defaults :as cd]
-            [datomic.api :as d]
+            ;; [datomic.api :as d]
             [mount.core :refer [defstate] :as mount]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
+            [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
             [com.interrupt.ibgateway.component.switchboard.store :as store]
-            [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]))
+            [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
+            [com.interrupt.edgar.core.tee.live :as tlive]
+
+            [com.interrupt.edgar.core.edgar :as edgar]
+            [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.edgar.ib.handler.live :as live]
+
+            [mount.core :refer [defstate] :as mount]
+            [overtone.at-at :refer :all]
+            [com.interrupt.ibgateway.component.ewrapper :as ew]
+            [com.interrupt.ibgateway.component.processing-pipeline :as pp]))
 
 
 #_(def topic-scanner-command "scanner-command")
@@ -53,8 +66,6 @@
     (map->Switchboard {:zookeeper-url zookeeper-url
                        :kafka-url kafka-url }) )
 
-
-;; ==
 #_(def running (atom true))
 
 #_(defn consume-topic-example []
@@ -79,9 +90,9 @@
           ;;One could argue though that most data is not as valuable as we are told. I heard this in a dream once or in
           ;;intro to Philosophy.
           rebalance-listener (consumer-rebalance-listener (fn [topic-partitions]
-                                                            (println "topic partitions assigned:" topic-partitions))
+                                                            (info "topic partitions assigned:" topic-partitions))
                                                           (fn [topic-partitions]
-                                                            (println "topic partitions revoked:" topic-partitions)))
+                                                            (info "topic partitions revoked:" topic-partitions)))
           ;;We create custom producer options and set out listener callback like so.
           ;;Now we can avoid passing this callback every call that requires it, if we so desire
           ;;Avoiding the extra cost of creating and garbage collecting a listener is a best practice
@@ -94,7 +105,7 @@
         ;;Alternatively, you can setup another threat that will produce to your topic while you consume, and all should be well
         (subscribe-to-partitions! c [topic])
         ;;Let's see what we subscribed to, we don't need Cumberbatch to investigate here...
-        (println "Partitions subscribed to:" (partition-subscriptions c))
+        (info "Partitions subscribed to:" (partition-subscriptions c))
 
         (loop [records nil]
 
@@ -111,17 +122,17 @@
                   inconceivable-transduction (comp filter-xf value-xf)]
 
 
-              (println "Record count:" (record-count cr))
-              (println "Records by topic:" (records-by-topic cr topic))
+              (info "Record count:" (record-count cr))
+              (info "Records by topic:" (records-by-topic cr topic))
               ;;The source data is a seq, be careful!
-              (println "Records from a topic that doesn't exist:" (records-by-topic cr "no-one-of-consequence"))
-              (println "Records by topic partition:" (records-by-topic-partition cr topic 0))
+              (info "Records from a topic that doesn't exist:" (records-by-topic cr "no-one-of-consequence"))
+              (info "Records by topic partition:" (records-by-topic-partition cr topic 0))
               ;;The source data is a list, so no worries here....
-              (println "Records by a topic partition that doesn't exist:" (records-by-topic-partition cr "no-one-of-consequence" 99))
-              (println "Topic Partitions in the result set:" (record-partitions cr))
+              (info "Records by a topic partition that doesn't exist:" (records-by-topic-partition cr "no-one-of-consequence" 99))
+              (info "Topic Partitions in the result set:" (record-partitions cr))
               (clojure.pprint/pprint (into [] inconceivable-transduction cr))
-                                        ;(println "Now just the values of all distinct records:")
-              (println "Put all the records into a vector (calls IReduceInit):" (into [] cr))
+                                        ;(info "Now just the values of all distinct records:")
+              (info "Put all the records into a vector (calls IReduceInit):" (into [] cr))
 
               ;; TODO
 
@@ -172,7 +183,7 @@
 
             (clear-subscriptions! c))))))
 
-(comment  ;; Workbench to consume from Kafka
+#_(comment  ;; Workbench to consume from Kafka
 
     (consume-topic-example)
 
@@ -203,191 +214,318 @@
 
 #_(comment  ;; DB workbench
 
+  ;; Schema
 
-    ;; Schema
+  ;; Examples
 
+  ;; HISTORICAL entry
+  {:open 313.97
+   :date "20180104  20:17:00"
+   :req-id 4002
+   :topic :historical-data
+   :close 313.95
+   :has-gaps false
+   :volume 21
+   :high 314.04
+   :wap 314.01
+   :count 19
+   :low 313.95}
 
-    ;; Examples
-    {:switchboard/scanner :stock-scanner
-     :switchboard/state :on}
+  {:switchboard/scanner :stock-scanner
+   :switchboard/state :on}
 
-    {:switchboard/scanner :stock-price
-     :switchboard/state :on
-     :switchboard/instrument "TSLA"}
+  {:switchboard/scanner :stock-price
+   :switchboard/state :on
+   :switchboard/instrument "TSLA"}
 
-    {:switchboard/scanner :stock-historical
-     :switchboard/state :on
-     :switchboard/instrument "TSLA"}
-
-
-    (require '[datomic.api :as d])
-    (def uri "datomic:mem://ibgateway")
-
-    (def rdelete (d/delete-database uri))
-    (def rcreate (d/create-database uri))
-    (def conn (d/connect uri))
-    (def db (d/db conn))
-
-
-    ;; SCHEMA
-    (def scanner-schema
-      [;; used for > MARKET SCANNER | STOCK | STOCK HISTORICAL
-       {:db/ident :switchboard/scanner
-        :db/valueType :db.type/ref
-        :db/cardinality :db.cardinality/one
-        :db/doc "The type of connection: market scanner | stock | stock historical"}
-
-       {:db/ident :switchboard/state
-        :db/valueType :db.type/ref
-        :db/cardinality :db.cardinality/one
-        :db/doc "A simple switch on whether or not, to scan"}
-
-       {:db/ident :switchboard/request-id
-        :db/valueType :db.type/long
-        :db/cardinality :db.cardinality/one
-        :db/unique :db.unique/identity
-        :db/doc "Records the request id made to TWS"}
-
-       {:db/ident :switchboard/instrument
-        :db/valueType :db.type/string
-        :db/cardinality :db.cardinality/one
-        :db/doc "The stock symbol being tracked"}
+  {:switchboard/scanner :stock-historical
+   :switchboard/state :on
+   :switchboard/instrument "TSLA"}
 
 
-       {:db/ident :switchboard/on}
-       {:db/ident :switchboard/off}
-       {:db/ident :switchboard/stock-scanner}
-       {:db/ident :switchboard/stock-price}
-       {:db/ident :switchboard/stock-historical}])
+  (require '[datomic.api :as d])
+  (def uri "datomic:mem://ibgateway")
 
-    (def schema-transact-result (d/transact conn scanner-schema))
-
-
-    ;; TURN ON
-    (def scanner-on [{:switchboard/scanner :switchboard/stock-scanner
-                      :switchboard/state :switchboard/on}])
-
-    (def scanner-off [{:switchboard/scanner :switchboard/stock-scanner
-                       :switchboard/state :switchboard/off}])
-
-    (def stock-scanner-on [{:switchboard/scanner :switchboard/stock-price
-                            :switchboard/state :switchboard/on
-                            :switchboard/instrument "TSLA"}])
-
-    (def stock-historical-on [{:switchboard/scanner :switchboard/stock-historical
-                               :switchboard/state :switchboard/on
-                               :switchboard/instrument "TSLA"}])
-
-    (def all-on [{:switchboard/scanner :switchboard/stock-scanner
-                  :switchboard/state :switchboard/on}
-
-                 {:switchboard/scanner :switchboard/stock-price
-                  :switchboard/state :switchboard/on
-                  :switchboard/instrument "TSLA"}
-
-                 {:switchboard/scanner :switchboard/stock-historical
-                  :switchboard/state :switchboard/on
-                  :switchboard/instrument "TSLA"}])
-
-    #_(d/transact conn scanner-on)
-    #_(d/transact conn scanner-off)
-    #_(d/transact conn stock-scanner-on)
-    #_(d/transact conn stock-historical-on)
-
-    (def result (d/transact conn all-on))
-
-    (pprint (->> (for [color [:red :blue]
-                       size [1 2]
-                       type ["a" "b"]]
-                   {:inv/color color
-                    :inv/size size
-                    :inv/type type})
-                 (map-indexed
-                  (fn [idx map]
-                    (assoc map :inv/sku (str "SKU-" idx))))
-                 vec))
+  (def rdelete (d/delete-database uri))
+  (def rcreate (d/create-database uri))
+  (def conn (d/connect uri))
+  (def db (d/db conn))
 
 
-    ;; QUERY
-    (pprint (d/q '[:find (pull ?e [:switchboard/instrument
-                                   {:switchboard/scanner [*]}
-                                   {:switchboard/state [*]}])
-                   :where
-                   [?e :switchboard/state]]
-                 (d/db conn)))
+  ;; SCHEMA
+  (def scanner-schema
+    [;; used for > MARKET SCANNER | STOCK | STOCK HISTORICAL
+     {:db/ident :switchboard/scanner
+      :db/valueType :db.type/ref
+      :db/cardinality :db.cardinality/one
+      :db/doc "The type of connection: market scanner | stock | stock historical"}
 
-    (pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+     {:db/ident :switchboard/state
+      :db/valueType :db.type/ref
+      :db/cardinality :db.cardinality/one
+      :db/doc "A simple switch on whether or not, to scan"}
+
+     {:db/ident :switchboard/request-id
+      :db/valueType :db.type/long
+      :db/cardinality :db.cardinality/one
+      :db/unique :db.unique/identity
+      :db/doc "Records the request id made to TWS"}
+
+     {:db/ident :switchboard/instrument
+      :db/valueType :db.type/string
+      :db/cardinality :db.cardinality/one
+      :db/doc "The stock symbol being tracked"}
+
+
+     {:db/ident :switchboard/on}
+     {:db/ident :switchboard/off}
+     {:db/ident :switchboard/stock-scanner}
+     {:db/ident :switchboard/stock-price}
+     {:db/ident :switchboard/stock-historical}])
+
+  ;; Live data keys
+  :total-volume
+  :last-trade-size
+  :vwap
+  :last-trade-price
+
+  (def historical-schema
+    [{:db/ident :historical/open
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/float}
+
+     {:db/ident :historical/date
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/instant}
+
+     {:db/ident :historical/req-id
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :historical/topic
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/keyword}
+
+     {:db/ident :historical/close
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
+
+     {:db/ident :historical/has-gaps
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/boolean}
+
+     {:db/ident :historical/volume
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :historical/high
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
+
+     {:db/ident :historical/low
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
+
+     {:db/ident :historical/wap
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
+
+     {:db/ident :historical/count
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}])
+
+  (def live-schema
+    [{:db/ident :live/tick-price-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-field
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-price
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
+
+     {:db/ident :live/tick-price-canAutoExecute
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+
+     {:db/ident :live/tick-size-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-size-field
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-size-size
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+
+     {:db/ident :live/tick-string-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-tickType
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-value
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/string}])
+
+
+
+  (def schema-transact-result (d/transact conn scanner-schema))
+  (def schema-historical-result (d/transact conn historical-schema))
+  (def schema-live-result (d/transact conn live-schema))
+
+  ;; #inst "20180104  20:17:00"
+  (def historical-input [{:historical/open 313.97
+                          :historical/date #inst "2018-01-04T20:17:00Z"
+                          :historical/req-id 4002
+                          :historical/topic :historical-data
+                          :historical/close 313.95
+                          :historical/has-gaps false
+                          :historical/volume 21
+                          :historical/high 314.04
+                          :historical/wap 314.01
+                          :historical/count 19
+                          :historical/low 313.95}])
+
+  (def result (d/transact conn historical-input))
+
+  (pprint (d/q '[:find (pull ?e [*])
+                 :where
+                 [?e :historical/topic :historical-data]]
+               (d/db conn)))
+
+  ;; TURN ON
+  (def scanner-on [{:switchboard/scanner :switchboard/stock-scanner
+                    :switchboard/state :switchboard/on}])
+
+  (def scanner-off [{:switchboard/scanner :switchboard/stock-scanner
+                     :switchboard/state :switchboard/off}])
+
+  (def stock-scanner-on [{:switchboard/scanner :switchboard/stock-price
+                          :switchboard/state :switchboard/on
+                          :switchboard/instrument "TSLA"}])
+
+  (def stock-historical-on [{:switchboard/scanner :switchboard/stock-historical
+                             :switchboard/state :switchboard/on
+                             :switchboard/instrument "TSLA"}])
+
+  (def all-on [{:switchboard/scanner :switchboard/stock-scanner
+                :switchboard/state :switchboard/on}
+
+               {:switchboard/scanner :switchboard/stock-price
+                :switchboard/state :switchboard/on
+                :switchboard/instrument "TSLA"}
+
+               {:switchboard/scanner :switchboard/stock-historical
+                :switchboard/state :switchboard/on
+                :switchboard/instrument "TSLA"}])
+
+  #_(d/transact conn scanner-on)
+  #_(d/transact conn scanner-off)
+  #_(d/transact conn stock-scanner-on)
+  #_(d/transact conn stock-historical-on)
+
+  (def result (d/transact conn all-on))
+
+  (pprint (->> (for [color [:red :blue]
+                     size [1 2]
+                     type ["a" "b"]]
+                 {:inv/color color
+                  :inv/size size
+                  :inv/type type})
+               (map-indexed
+                (fn [idx map]
+                  (assoc map :inv/sku (str "SKU-" idx))))
+               vec))
+
+
+  ;; QUERY
+  (pprint (d/q '[:find (pull ?e [:switchboard/instrument
+                                 {:switchboard/scanner [*]}
+                                 {:switchboard/state [*]}])
+                 :where
+                 [?e :switchboard/state]]
+               (d/db conn)))
+
+  (pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                                 :switchboard/instrument])
+                 :where
+                 [?e :switchboard/scanner ?s]
+                 [?s :db/ident :switchboard/stock-scanner]]
+               (d/db conn)))
+
+
+  ;; TURN ON - IBM
+  (def ibm-on [{:switchboard/scanner :switchboard/stock-price
+                :switchboard/state :switchboard/on
+                :switchboard/instrument "IBM"}])
+
+  (d/transact conn ibm-on)
+
+
+  ;; QUERY
+  (pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                                 :switchboard/instrument])
+                 :where
+                 [?e :switchboard/state]
+                 [?e :switchboard/instrument "IBM"]
+                 (d/db conn)]))
+
+
+  ;;ADD an entity
+  (def intl-on [{:switchboard/scanner {:db/id [:db/ident :switchboard/stock-price]}
+                 :switchboard/state {:db/id [:db/ident :switchboard/on]}
+                 :switchboard/instrument "INTL"}])
+
+  (d/transact conn intl-on)
+
+  ;; UPDATE an entity
+  (def ibm-off [[:db/add
+                 [:switchboard/instrument "IBM"]
+                 :switchboard/state :stock-price-state/off]])
+
+  #_(d/transact conn ibm-off)
+
+  ;; QUERY - does a stock price scan exist?
+  #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
                                    :switchboard/instrument])
                    :where
-                   [?e :switchboard/scanner ?s]
-                   [?s :db/ident :switchboard/stock-scanner]]
+                   [?e :switchboard/state ?s]
+                   [?s :db/ident :stock-price-state/on]]
+                 (d/db conn)))
+
+  #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                                   :switchboard/instrument])
+                   :where
+                   [?e :switchboard/state ?s]
+                   [?s :db/ident :stock-price-state/off]]
                  (d/db conn)))
 
 
-    ;; TURN ON - IBM
-    (def ibm-on [{:switchboard/scanner :switchboard/stock-price
-                  :switchboard/state :switchboard/on
-                  :switchboard/instrument "IBM"}])
 
-    (d/transact conn ibm-on)
-
-
-    ;; QUERY
-    (pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+  ;; QUERY - does a historical fetch exist?
+  #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
                                    :switchboard/instrument])
                    :where
-                   [?e :switchboard/state]
-                   [?e :switchboard/instrument "IBM"]
-                   (d/db conn)]))
+                   [?e :switchboard/state ?s]
+                   [?s :db/ident :stock-historical-state/on]]
+                 (d/db conn)))
 
-
-    ;;ADD an entity
-    (def intl-on [{:switchboard/scanner {:db/id [:db/ident :switchboard/stock-price]}
-                   :switchboard/state {:db/id [:db/ident :switchboard/on]}
-                   :switchboard/instrument "INTL"}])
-
-    (d/transact conn intl-on)
-
-    ;; UPDATE an entity
-    (def ibm-off [[:db/add
-                   [:switchboard/instrument "IBM"]
-                   :switchboard/state :stock-price-state/off]])
-
-    #_(d/transact conn ibm-off)
-
-    ;; QUERY - does a stock price scan exist?
-    #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
-                                     :switchboard/instrument])
-                     :where
-                     [?e :switchboard/state ?s]
-                     [?s :db/ident :stock-price-state/on]]
-                   (d/db conn)))
-
-    #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
-                                     :switchboard/instrument])
-                     :where
-                     [?e :switchboard/state ?s]
-                     [?s :db/ident :stock-price-state/off]]
-                   (d/db conn)))
-
-
-
-    ;; QUERY - does a historical fetch exist?
-    #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
-                                     :switchboard/instrument])
-                     :where
-                     [?e :switchboard/state ?s]
-                     [?s :db/ident :stock-historical-state/on]]
-                   (d/db conn)))
-
-    #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
-                                     :switchboard/instrument])
-                     :where
-                     [?e :switchboard/state ?s]
-                     [?s :db/ident :stock-historical-state/off]]
-                   (d/db conn))))
-
-
+  #_(pprint (d/q '[:find (pull ?e [{:switchboard/state [*]}
+                                   :switchboard/instrument])
+                   :where
+                   [?e :switchboard/state ?s]
+                   [?s :db/ident :stock-historical-state/off]]
+                 (d/db conn))))
 
 #_(comment  ;; State Machine
 
@@ -399,7 +537,7 @@
     (require '[reduce-fsm :as fsm])
 
     (defn print-message [[msg & etal]]
-      (println "Message: " msg " / etal: " etal)
+      (info "Message: " msg " / etal: " etal)
       \a)
 
     #_(fsm/defsm process-message
@@ -419,7 +557,7 @@
        [:on \a -> :done]
        [:done {:is-terminal true}]])
 
-    (process-message {:writer println} [{:stock-scanner/state :on}])
+    (process-message {:writer info} [{:stock-scanner/state :on}])
 
 
 
@@ -437,16 +575,16 @@
     (def switchboard-fsm (a/compile switchboard-fsm-template
                                     {:signal :state
                                      :reducers {:received (fn [one two]
-                                                            (println "recieved CALLED: one: " one " / two: " two)
+                                                            (info "recieved CALLED: one: " one " / two: " two)
                                                             (assoc one :received :received))
                                                 :on (fn [one two]
-                                                      (println "on CALLED: one: " one " / two: " two)
+                                                      (info "on CALLED: one: " one " / two: " two)
                                                       (assoc one :on :on))
                                                 :subscribed (fn [one two]
-                                                              (println "subscribed CALLED: one: " one " / two: " two)
+                                                              (info "subscribed CALLED: one: " one " / two: " two)
                                                               (assoc one :subscribed :subscribed))
                                                 :done (fn [one two]
-                                                        (println "done CALLED: one: " one " / two: " two)
+                                                        (info "done CALLED: one: " one " / two: " two)
                                                         (assoc one :done :done))}}))
     (def value {:switchboard/scanner :stock-scanner
                 :switchboard/state :on})
@@ -503,7 +641,6 @@
     (view f)
 
     )
-
 
 #_(defn subscribed? [conn scan instrument]
 
@@ -568,8 +705,7 @@
 
     )
 
-
-(comment
+#_(comment
 
   ;; TODO
 
@@ -592,6 +728,7 @@
   ;; com.interrupt.ibgateway.component.ewrapper/ewrapper
 
 
+  ;; SCANNER
   ;; TODO -   ;; Brokerage
   ;; subscribe / unsubscribe - with reqid state
   ;; process-message under differing system states
@@ -604,30 +741,133 @@
   (pprint scanner-subscriptions)
 
 
-  ;; HISTORICAL
 
-  ;; (def historical-atom (atom {}))
-  ;; (def historical-subscriptions (historical-start 4002 client publication historical-atom))
-  ;;
-  ;; ;; ====
-  ;; ;; Requesting historical data
-  ;;
-  ;; ;; (def cal (Calendar/getInstance))
-  ;; ;; #_(.add cal Calendar/MONTH -6)
-  ;; ;;
-  ;; ;; (def form (SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
-  ;; ;; (def formatted (.format form (.getTime cal)))
-  ;; ;;
-  ;; ;; (let [contract (doto (Contract.)
-  ;; ;;                  (.symbol "TSLA")
-  ;; ;;                  (.secType "STK")
-  ;; ;;                  (.currency "USD")
-  ;; ;;                  (.exchange "SMART")
-  ;; ;;                  #_(.primaryExch "ISLAND"))]
-  ;; ;;
-  ;; ;;   (.reqHistoricalData client 4002 contract formatted "4 W" "1 min" "MIDPOINT" 1 1 nil))
-  ;;
-  ;;
+  ;; LIVE
+  (require '[com.interrupt.edgar.core.edgar :as edg]
+           '[com.interrupt.edgar.ib.market :as mkt])
+
+  (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
+  (def publication
+    (pub publisher #(:req-id %)))
+
+  (let [stock-name "IBM"
+        stream-live (fn [event-name result]
+                      (info :stream-live (str "... stream-live > event-name[" event-name
+                                              "] response[" result "]")))]
+
+    ;; TODO - replace this with analogy to brok/scanner-start
+    (edg/play-live client [stock-name] [(partial tlive/tee-fn stream-live stock-name)])
+    #_(brok/live-subscribe req-id client stock-name))
+
+  (pprint mkt/kludge)
+  (mkt/cancel-market-data client 0)
+
+
+  ;; STATE
+  (mount/find-all-states)
+  #_("#'com.interrupt.ibgateway.component.repl-server/server" "#'com.interrupt.ibgateway.component.ewrapper/ewrapper" "#'com.interrupt.ibgateway.component.switchboard.store/conn" "#'com.interrupt.ibgateway.core/state")
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+
+  ;; LOCAL data loading
+  (def input (read-string (slurp "live.1.clj")))
+  (doseq [{:keys [dispatch] :as ech} input]
+
+    (case dispatch
+      :tick-string (as-> ech e
+                     (dissoc e :dispatch)
+                     (vals e)
+                     (apply #(.tickString ewrapper-impl %1 %2 %3) e))
+      :tick-price (as-> ech e
+                    (dissoc e :dispatch)
+                    (vals e)
+                    (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+      :tick-size (as-> ech e
+                   (dissoc e :dispatch)
+                   (vals e)
+                   (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+  #_(.tickPrice ewrapper-impl 0 0 1.2 0)
+  #_(.tickSize ewrapper-impl 0 1 2)
+  #_(.tickString ewrapper-impl 0 1 "Foo")
+
+
+  ;; LIVE output
+  ;; ...
+
+  ;; HISTORICAL
+  (defn consume-subscriber-historical [historical-atom subscriber-chan]
+    (go-loop [r1 nil]
+
+      (let [{:keys [req-id date open high low close volume count wap has-gaps] :as val} r1]
+        (swap! historical-atom assoc date val))
+      (recur (<! subscriber-chan))))
+
+  (defn historical-start [req-id client publication historical-atom]
+
+    (let [subscriber (chan)]
+      (ei/historical-subscribe req-id client)
+      (sub publication req-id subscriber)
+      (consume-subscriber-historical historical-atom subscriber)))
+
+  (defn historical-stop [])
+
+
+  (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def publication
+    (pub publisher #(:req-id %)))
+
+  (def historical-atom (atom {}))
+  (def historical-subscriptions (historical-start 4002 client publication historical-atom))
+
+
+  ;; HISTORICAL output
+  #_([nil nil]
+     ["20171121  20:14:00"
+      {:open 316.91,
+       :date "20171121  20:14:00",
+       :req-id 4002,
+       :topic :historical-data,
+       :close 316.77,
+       :has-gaps false,
+       :volume 47,
+       :high 316.91,
+       :wap 316.771,
+       :count 26,
+       :low 316.7}]
+     ["20171116  16:23:00"
+      {:open 314.74,
+       :date "20171116  16:23:00",
+       :req-id 4002,
+       :topic :historical-data,
+       :close 314.88,
+       :has-gaps false,
+       :volume 80,
+       :high 314.99,
+       :wap 314.85,
+       :count 49,
+       :low 314.6}]
+     ["20180104  20:17:00"
+      {:open 313.97,
+       :date "20180104  20:17:00",
+       :req-id 4002,
+       :topic :historical-data,
+       :close 313.95,
+       :has-gaps false,
+       :volume 21,
+       :high 314.04,
+       :wap 314.01,
+       :count 19,
+       :low 313.95}])
+
+
+
+
   ;; (require '[clojure.string :as str])
   ;;
   ;; (pprint (take 6 (->> @historical-atom
@@ -680,7 +920,7 @@
   ;; (ei/scanner-unsubscribe 11 client)
 
   ;; (def ss (let [scan-names (->> config :scanners (map :scan-name))
-  ;;               scan-subsets #spy/d (map (fn [sname]
+  ;;               scan-subsets (map (fn [sname]
   ;;                                          (->> @scanner-subscriptions
   ;;                                               (filter (fn [e] (= (::scan-name e) sname)))
   ;;                                               first ::scan-value vals (map :symbol)
@@ -742,7 +982,338 @@
 
   (clojure.pprint/pprint intersection-subsets)
   (clojure.pprint/pprint sorted-intersections)
-  (clojure.pprint/pprint or-volatility-volume-price-change)
+  (clojure.pprint/pprint or-volatility-volume-price-change))
+
+#_(comment  ;; SAVE live data
+
+  ;; LIVE
+  (require '[com.interrupt.edgar.core.edgar :as edg]
+           '[com.interrupt.edgar.ib.market :as mkt]
+           '[com.interrupt.edgar.ib.handler.live :as live])
+
+  (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
+  (def publication (pub publisher #(:topic %)))
+
+  (require '[datomic.api :as d])
+  (def uri "datomic:mem://ibgateway")
+
+  (def rdelete (d/delete-database uri))
+  (def rcreate (d/create-database uri))
+  (def conn (d/connect uri))
+  (def db (d/db conn))
+
+  (def live-schema
+    [{:db/ident :live/tick-price-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-field
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-price
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/double}
+
+     {:db/ident :live/tick-price-canAutoExecute
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
 
 
-  )
+
+     {:db/ident :live/tick-size-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-size-field
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-size-size
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+
+
+     {:db/ident :live/tick-string-tickerId
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-tickType
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/long}
+
+     {:db/ident :live/tick-price-value
+      :db/cardinality :db.cardinality/one
+      :db/valueType :db.type/string}])
+  (def schema-live-result (d/transact conn live-schema))
+
+
+  ;; TODO
+  ;; 1. Get more data with setting: 233 (RT Volume (Time & Sales))
+  ;; 2. dispatch on the different types of tickPrice + tickSize
+  ;;    (reference: https://interactivebrokers.github.io/tws-api/tick_types.html)
+  ;;   Details we need to collect
+  ;;
+  ;;   :last-trade-price
+  ;;   :last-trade-size
+  ;;   :total-volume
+  ;;   ~ :last-trade-time
+  ;;   ~ :vwap
+
+
+  ;; GET the data
+  (let [stock-name "TSLA"
+        stream-live (fn stream-live [event-name result]
+                      (info :stream-live (str "... stream-live > event-name[" event-name
+                                              "] response[" result "]")))
+        options-datomic {:tick-list (ref [])
+                         :stock-match {:symbol stock-name :ticker-id-filter 0}}
+
+        datomic-feed-handler (fn [options evt]
+
+                               ;; (info "datomic-feed-handler: " options " / " evt)
+                               (spit "live.6.edn" evt :append true)
+
+                               ;; Example datomic inputs
+                               #_(def live-input-size [{:live/tick-size-tickerId 0
+                                                        :live/tick-size-field 433
+                                                        :live/tick-size-size 50}])
+
+                               #_(def live-input-string [{:live/tick-string-tickerId 0
+                                                          :live/tick-price-tickType 43
+                                                          :live/tick-price-value ";1;2;3;4"}])
+
+                               #_(def live-input-price [{:live/tick-price-tickerId 0
+                                                         :live/tick-price-field 433
+                                                         :live/tick-price-price 62.45
+                                                         :live/tick-price-canAutoExecute 1}])
+
+                               #_(def result (d/transact conn live-input-string)))]
+
+    (market/subscribe-to-market publisher (partial datomic-feed-handler options-datomic))
+
+    (edg/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)]))
+
+  (mkt/cancel-market-data client 0)
+
+
+
+  ;; PLAY the data
+  (require '[overtone.at-at :refer :all]
+           '[com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live])
+
+  (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
+  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
+  (def publication
+    (pub publisher #(:topic %)))
+
+
+  (let [stock-name "TSLA"
+
+        output-fn (fn [event-name result]
+                    (info :stream-live (str "... stream-live > event-name[" event-name "] response[" result "]")))
+
+        options {:tick-list (ref [])
+                 :tee-list [(partial tlive/tee-fn output-fn stock-name)]
+                 :stock-match {:symbol "TSLA" :ticker-id-filter 0}}]
+
+    (market/subscribe-to-market publisher (partial feed-handler options)))
+
+  (def my-pool (mk-pool))
+  (def input-source (atom (read-string (slurp "live.3.edn"))))
+  (def scheduled-fn (every 1000
+                           (fn []
+                             (let [{:keys [topic] :as ech} (first @input-source)]
+
+                               ;; (info "Sanity Check: " ech)
+                               (case topic
+                                 :tick-string (as-> ech e
+                                                (dissoc e :topic)
+                                                (vals e)
+                                                (apply #(.tickString ewrapper-impl %1 %2 %3) e))
+                                 :tick-price (as-> ech e
+                                               (dissoc e :topic)
+                                               (vals e)
+                                               (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+                                 :tick-size (as-> ech e
+                                              (dissoc e :topic)
+                                              (vals e)
+                                              (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+                             (swap! input-source #(rest %)))
+                           my-pool))
+  (stop scheduled-fn)
+
+
+
+  ;; STATE
+  (mount/find-all-states)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+
+  (defn take-and-print [channel]
+    (go-loop []
+      (info (<! channel))
+      (recur)))
+
+
+  (def subscriber (chan))
+  (sub publication :tick-price subscriber)
+  (sub publication :tick-size subscriber)
+  (sub publication :tick-string subscriber)
+  (take-and-print subscriber)
+
+  ;; LOCAL data loading
+  (def input (read-string (slurp "live.1.clj")))
+  (doseq [{:keys [dispatch] :as ech} input]
+
+    #_(info)
+    #_(info "Sanity Check: " ech)
+    (case dispatch
+      :tick-string (as-> ech e
+                     (dissoc e :dispatch)
+                     (vals e)
+                     (apply #(.tickString ewrapper-impl %1 %2 %3) e))
+      :tick-price (as-> ech e
+                    (dissoc e :dispatch)
+                    (vals e)
+                    (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+      :tick-size (as-> ech e
+                   (dissoc e :dispatch)
+                   (vals e)
+                   (apply #(.tickSize ewrapper-impl %1 %2 %3) e)))))
+
+#_(comment   ;; PLAY the data
+
+  (mount/stop #'ew/ewrapper #'pp/processing-pipeline)
+  (mount/start #'ew/ewrapper #'pp/processing-pipeline)
+  (mount/find-all-states)
+
+
+  (do
+
+    (mount/stop #'ew/ewrapper #'pp/processing-pipeline)
+    (mount/start #'ew/ewrapper #'pp/processing-pipeline)
+
+    (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
+          my-pool (mk-pool)
+          input-source (atom (read-string (slurp "live.4.edn")))
+          string-count (atom 0)
+          consume-fn (fn []
+                       (let [{:keys [topic] :as ech} (first @input-source)]
+
+                         (case topic
+                           :tick-string (do
+                                          (when (< @string-count 600)
+                                            (info "Sanity check" (swap! string-count inc)topic))
+                                          (as-> ech e
+                                            (dissoc e :topic)
+                                            (vals e)
+                                            (apply #(.tickString ewrapper-impl %1 %2 %3) e)))
+                           :tick-price (as-> ech e
+                                         (dissoc e :topic)
+                                         (vals e)
+                                         (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+                           :tick-size (as-> ech e
+                                        (dissoc e :topic)
+                                        (vals e)
+                                        (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+                       (swap! input-source #(rest %)))]
+
+      (def scheduled-fn (every 10
+                               consume-fn
+                               my-pool))))
+
+  (stop scheduled-fn)
+
+
+  #_(let [;; ch (:strategy-stochastic-oscillator-ch pp/processing-pipeline)
+          ;; ch (:strategy-on-balance-volume-ch pp/processing-pipeline)
+        ch (:moving-averages-strategy-OUT pp/processing-pipeline)]
+
+      (go-loop [r (<! ch)]
+        (info r)
+        (when r
+          (recur (<! ch))))))
+
+
+(defn record-live-data []
+
+  (info "record-live-data / com.interrupt.ibgateway.component.ewrapper/ewrapper: "
+        com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (let [client (:client com.interrupt.ibgateway.component.ewrapper/ewrapper)
+        publisher (:publisher com.interrupt.ibgateway.component.ewrapper/ewrapper)
+        ewrapper-impl (:ewrapper-impl com.interrupt.ibgateway.component.ewrapper/ewrapper)
+        publication (pub publisher #(:topic %))
+
+        stock-name "TSLA"
+        stream-live (fn stream-live [event-name result]
+                      (info :stream-live (str "... stream-live > event-name[" event-name
+                                              "] response[" result "]")))
+        options-live {:tick-list (ref [])
+                      :stock-match {:symbol stock-name :ticker-id-filter 0}}
+
+        live-feed-handler (fn [options evt]
+                            (info "live-feed-handler: " options " / " evt)
+                            (spit "live.7.edn" evt :append true))]
+
+    (info "record-live-data / subscribing to: " stock-name)
+    (market/subscribe-to-market publisher (partial live-feed-handler options-live))
+    (edgar/play-live client publisher [stock-name] [(partial tlive/tee-fn stream-live stock-name)])))
+
+#_(defn record-stop-live-data []
+  (market/cancel-market-data client 0))
+
+(defn kickoff-stream-workbench []
+
+  (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
+        my-pool (mk-pool)
+        input-source (atom (read-string (slurp "live.6.edn")))
+        string-count (atom 0)
+        consume-fn (fn []
+                     (let [{:keys [topic] :as ech} (first @input-source)]
+                       (case topic
+                         :tick-string (do
+                                        #_(when (< @string-count 4000)
+                                            (info "Sanity check" (swap! string-count inc) topic))
+                                        (as-> ech e
+                                          (dissoc e :topic)
+                                          (vals e)
+                                          (apply #(.tickString ewrapper-impl %1 %2 %3) e)))
+                         :tick-price (as-> ech e
+                                       (dissoc e :topic)
+                                       (vals e)
+                                       (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+                         :tick-size (as-> ech e
+                                      (dissoc e :topic)
+                                      (vals e)
+                                      (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+
+                     (swap! input-source #(rest %)))]
+
+    (def scheduled-fn (every 10
+                             consume-fn
+                             my-pool))))
+
+(defn stop-stream-workbench []
+  (stop scheduled-fn))
+
+(comment
+
+  (def tick-list (atom []))
+  (def options {:tick-list tick-list})
+  (def evt1 {:value ";0;1522337866199;67085;253.23364232;true"
+             :topic "tickString"
+             :ticker-id 0})
+  (def evt2 {:value "255.59;1;1522337865948;67077;253.23335428;true"
+             :topic "tickString"
+             :ticker-id 0})
+
+  (live/handle-tick-string options evt1))

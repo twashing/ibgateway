@@ -27,7 +27,7 @@ TODO: Brief description
 [Maven]: http://maven.apache.org/
 
 
-## Notes
+## TWS Desktop
 
 A) You can connect to TWS, with a VNC viewer (ex: TightVNC).
 
@@ -35,6 +35,8 @@ A) You can connect to TWS, with a VNC viewer (ex: TightVNC).
 cd ~/Downloads/tvnjviewer-2.8.3-bin-gnugpl/
 java -jar tightvnc-jviewer.jar
 ```
+
+## Build 
 
 B) You have to do an initial build of base docker images.
 ```
@@ -56,10 +58,41 @@ docker-compose up
 docker-compose up --force-recreate --build
 ```
 
-D) Running the app solo
+D) Connecting to a container
+```
+$ docker exec -it ibgateway_tws_1 /bin/bashs
+```
+
+Running the app solo
 ```
 lein run -m com.interrupt.ibgateway.core/-main
 ```
+
+## TODO
+
+- Troubleshoot EMA; why is it slower than SMA
+  - Test with SINE Wave
+- Signals (SMA, EMA, BB)
+  ? When there's been a price change of more than $1, what crossovers happened, in the last 5 ticks
+
+
+- Remaining Analytics
+- Remaining Signals
+- Strategies
+- Scan market for most volatile stocks
+
+
+- Code Cleanup
+- Trading Engine
+- Position Book
+
+? Will Bid / Ask give us more price signals 
+! Have to Plan + Reason about + Solve Problems, while developing the platform
+
+
+## NOTES
+
+EMA looks slower than the SMA
 
 
 ## Change Log

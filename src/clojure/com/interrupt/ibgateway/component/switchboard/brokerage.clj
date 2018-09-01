@@ -3,7 +3,7 @@
             [clojure.string :as str]
             [clojure.set :as cs]
             [clojure.spec.alpha :as s]
-            [clojure.future :refer :all]
+            
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]))
 
@@ -46,9 +46,9 @@
                :scan-value {}
                :tag :price}]})
 
-(s/def ::reqid pos-int?)
-(s/def ::subscription-element (s/keys :req [::reqid]))
-(s/def ::subscriptions (s/coll-of ::subscription-element))
+#_(s/def ::reqid pos-int?)
+#_(s/def ::subscription-element (s/keys :req [::reqid]))
+#_(s/def ::subscriptions (s/coll-of ::subscription-element))
 
 (defn scannerid-availableid-pairs [scanner-subscriptions]
   (let [scannerids (sort (map ::reqid scanner-subscriptions))
@@ -91,7 +91,7 @@
   (next-reqid [])
   (scannerid-availableid-pairs []))
 
-(s/fdef next-reqid
+#_(s/fdef next-reqid
         :args (s/cat :subscriptions ::subscriptions)
         :ret number?
         :fn (s/and
@@ -133,7 +133,8 @@
             scanner-subscriptions
             scan-types)))
 
-#_(defn consume-subscriber [scan-atom subscriber-chan]
+;; TODO - put ranks from scan-atoms, into DB
+(defn consume-subscriber [scan-atom subscriber-chan]
   (go-loop [r1 nil]
     (let [{:keys [req-id symbol rank] :as val} (select-keys r1 [:req-id :symbol :rank])]
       (if (and r1 rank)
@@ -146,7 +147,7 @@
   (let [default-instrument (-> config :stocks :default-instrument)
         default-location (-> config :stocks :default-location)
         scanner-subscriptions-init []
-        scanner-subscriptions #spy/d (scanner-subscriptions-with-ids config scanner-subscriptions-init)]
+        scanner-subscriptions (scanner-subscriptions-with-ids config scanner-subscriptions-init)]
 
     (doseq [{:keys [::reqid ::scan-name ::tag] :as val} scanner-subscriptions
             :let [subscriber (chan)]]
@@ -159,7 +160,24 @@
         (sub publication reqid subscriber)
 
         ;; TODO - Simply forward the data to "market-scanner"
-        #_(consume-subscriber scan-atom subscriber)))
+        ;; New entry point is here:
+
+
+        ;; com.interrupt.edgar.service/get-streaming-stock-data		< com.interrupt.edgar.core.tee.live/tee-fn
+        ;;
+        ;; com.interrupt.edgar.core.edgar/play-live
+        ;; com.interrupt.edgar.ib.market/subscribe-to-market
+        ;; com.interrupt.edgar.ib.market/request-market-data
+        ;;
+        ;; < com.interrupt.edgar.core.tee.live/tee-fn
+        ;; com.interrupt.edgar.core.analysis.lagging/simple-moving-average
+        ;; com.interrupt.edgar.core.analysis.lagging/exponential-moving-average
+        ;; ...
+        ;; < manage-orders
+        ;; < (output-fn) com.interrupt.edgar.service/stream-live
+
+
+        (consume-subscriber scan-atom subscriber)))
 
     scanner-subscriptions))
 
