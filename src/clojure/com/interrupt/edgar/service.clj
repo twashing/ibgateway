@@ -17,17 +17,16 @@
 
             [clojure.java.io :as io]
             [clojure.walk :as walk]
-            [io.pedestal.service.log :as log]
-            [io.pedestal.service.http :as bootstrap]
-            [io.pedestal.service.http.route :as route]
-            [io.pedestal.service.http.sse :as sse]
-            [io.pedestal.service.http.body-params :as body-params]
-            [io.pedestal.service.http.route.definition :refer [defroutes]]
-            [io.pedestal.service.http.ring-middlewares :as middlewares]
-            [io.pedestal.service.http.impl.servlet-interceptor :as servlet-interceptor]
-            [io.pedestal.service.impl.interceptor :as iimpl]
-            [io.pedestal.service.interceptor :as interceptor :refer [defon-response defbefore defafter]]
-            [io.pedestal.service.interceptor :refer [defhandler definterceptor]]
+            [io.pedestal.log :as log]
+            [io.pedestal.http :as bootstrap]
+            [io.pedestal.http.route :as route]
+            [io.pedestal.http.sse :as sse]
+            [io.pedestal.http.body-params :as body-params]
+            [io.pedestal.http.route.definition :refer [defroutes]]
+            [io.pedestal.http.ring-middlewares :as middlewares]
+            [io.pedestal.http.impl.servlet-interceptor :as servlet-interceptor]
+            [io.pedestal.interceptor :as interceptor]
+            [io.pedestal.interceptor.helpers :refer [defhandler definterceptor defon-response defbefore defafter]]
             [ring.middleware.session.memory :as rmemory]
             [ring.middleware.session.cookie :as rcookie]
             [ring.util.response :as ring-resp]))
@@ -55,16 +54,16 @@
 
 
 ;; HISTORICAL Data
-(defn resume-historical [context result-map]
+#_(defn resume-historical [context result-map]
 
-  (let [response-result (ring-resp/response result-map)]
+    (let [response-result (ring-resp/response result-map)]
 
-    (log/info :resume-historical (str "... resume-historical > paused-context class["
-                                      (class context) "] > response ["
-                                      (class response-result) "] [" response-result "]"))
-    (iimpl/resume
-     (-> context
-         (assoc :response response-result)))))
+      (log/info :resume-historical (str "... resume-historical > paused-context class["
+                                        (class context) "] > response ["
+                                        (class response-result) "] [" response-result "]"))
+      (iimpl/resume
+       (-> context
+           (assoc :response response-result)))))
 
 (defn async-historical [paused-context]
 
@@ -84,103 +83,103 @@
 
     ;; Output here will be a map with a key / value of { :stock-name tick-list }
     (edgar/play-historical
-      client
-      stock-selection
-      time-duration
-      time-interval
-      [(fn [tick-list]
+     client
+     stock-selection
+     time-duration
+     time-interval
+     [(fn [tick-list]
 
-         (market/close-market-channel)
+        (market/close-market-channel)
 
-         ;; tick-list format will be:
-         ;; [{:id 0, :symbol DDD, :company 3D Systems Corporation, :price-difference 0.09000000000000341, :event-list []}]
-         (reduce (fn [rslt ech-list]
+        ;; tick-list format will be:
+        ;; [{:id 0, :symbol DDD, :company 3D Systems Corporation, :price-difference 0.09000000000000341, :event-list []}]
+        (reduce (fn [rslt ech-list]
 
-                   (let [
+                  (let [
 
-                         ;; from Historical feed, dates will be strings that look like: "20130606  15:33:00"
-                         date-format (SimpleDateFormat. "yyyyMMdd HH:mm:ss")
+                        ;; from Historical feed, dates will be strings that look like: "20130606  15:33:00"
+                        date-format (SimpleDateFormat. "yyyyMMdd HH:mm:ss")
 
-                         tick-list-formatted (map (fn [inp]
-                                                    {:last-trade-price (:close inp)
-                                                     :last-trade-time (->> (:date inp)
-                                                                           (.parse date-format)
-                                                                           .getTime)
-                                                     :total-volume (:volume inp)})
-                                                  (reverse (walk/keywordize-keys
-                                                             (-> ech-list :event-list))))
-
-
-                         final-list (reduce (fn [rslt ech]
-                                              (conj rslt [(:last-trade-time ech) (:last-trade-price ech)]))
-                                            []
-                                            tick-list-formatted)
+                        tick-list-formatted (map (fn [inp]
+                                                   {:last-trade-price (:close inp)
+                                                    :last-trade-time (->> (:date inp)
+                                                                          (.parse date-format)
+                                                                          .getTime)
+                                                    :total-volume (:volume inp)})
+                                                 (reverse (walk/keywordize-keys
+                                                           (-> ech-list :event-list))))
 
 
-                         sma-list (alagging/simple-moving-average {:input :last-trade-price
-                                                                   :output :last-trade-price-average
-                                                                   :etal [:last-trade-price :last-trade-time]}
-                                                                  20
-                                                                  tick-list-formatted)
-                         smaF (reduce (fn [rslt ech]
-                                        (conj rslt [(:last-trade-time ech) (:last-trade-price-average ech)]))
-                                      []
-                                      sma-list)
-
-                         ema-list (alagging/exponential-moving-average nil 20 tick-list-formatted sma-list)
-                         emaF (reduce (fn [rslt ech]
-                                        (conj rslt [(:last-trade-time ech) (:last-trade-price-exponential ech)]))
-                                      []
-                                      ema-list)
-
-                         signals-ma (slagging/moving-averages 20 tick-list-formatted sma-list ema-list)
-                         signals-bollinger (slagging/bollinger-band 20 tick-list-formatted sma-list)
-                         signals-macd (sleading/macd nil 20 tick-list-formatted sma-list)
-                         signals-stochastic (sleading/stochastic-oscillator 14 3 3 tick-list-formatted)
-                         signals-obv (sconfirming/on-balance-volume 10 tick-list-formatted)
-
-                         sA (strategy/strategy-fill-A tick-list-formatted
-                                                      signals-ma
-                                                      signals-bollinger
-                                                      signals-macd
-                                                      signals-stochastic
-                                                      signals-obv)
-
-                         #_sA #_[(assoc (nth tick-list-formatted 10) :strategies [{:signal :up
-                                                                                   :why "test"}])]
-
-                         sB (strategy/strategy-fill-B tick-list-formatted
-                                                      signals-ma
-                                                      signals-bollinger
-                                                      signals-macd
-                                                      signals-stochastic
-                                                      signals-obv)]
+                        final-list (reduce (fn [rslt ech]
+                                             (conj rslt [(:last-trade-time ech) (:last-trade-price ech)]))
+                                           []
+                                           tick-list-formatted)
 
 
-                     ((:resume-fn paused-context) {:stock-name (:company ech-list)
-                                                   :stock-symbol (:symbol ech-list)
-                                                   :stock-list final-list
-                                                   :source-list ech-list
-                                                   :sma-list smaF
-                                                   :ema-list emaF
-                                                   :signals {:moving-average signals-ma
-                                                             :bollinger-band signals-bollinger
-                                                             :macd signals-macd
-                                                             :stochastic-oscillator signals-stochastic
-                                                             :obv signals-obv}
-                                                   :strategies {:strategy-A sA
-                                                                :strategy-B sB}})))
-                 []
-                 tick-list))])))
+                        sma-list (alagging/simple-moving-average {:input :last-trade-price
+                                                                  :output :last-trade-price-average
+                                                                  :etal [:last-trade-price :last-trade-time]}
+                                                                 20
+                                                                 tick-list-formatted)
+                        smaF (reduce (fn [rslt ech]
+                                       (conj rslt [(:last-trade-time ech) (:last-trade-price-average ech)]))
+                                     []
+                                     sma-list)
+
+                        ema-list (alagging/exponential-moving-average nil 20 tick-list-formatted sma-list)
+                        emaF (reduce (fn [rslt ech]
+                                       (conj rslt [(:last-trade-time ech) (:last-trade-price-exponential ech)]))
+                                     []
+                                     ema-list)
+
+                        signals-ma (slagging/moving-averages 20 tick-list-formatted sma-list ema-list)
+                        signals-bollinger (slagging/bollinger-band 20 tick-list-formatted sma-list)
+                        signals-macd (sleading/macd nil 20 tick-list-formatted sma-list)
+                        signals-stochastic (sleading/stochastic-oscillator 14 3 3 tick-list-formatted)
+                        signals-obv (sconfirming/on-balance-volume 10 tick-list-formatted)
+
+                        sA (strategy/strategy-fill-A tick-list-formatted
+                                                     signals-ma
+                                                     signals-bollinger
+                                                     signals-macd
+                                                     signals-stochastic
+                                                     signals-obv)
+
+                        #_sA #_[(assoc (nth tick-list-formatted 10) :strategies [{:signal :up
+                                                                                  :why "test"}])]
+
+                        sB (strategy/strategy-fill-B tick-list-formatted
+                                                     signals-ma
+                                                     signals-bollinger
+                                                     signals-macd
+                                                     signals-stochastic
+                                                     signals-obv)]
 
 
-(defbefore get-historical-data
-  "Get historical data for a particular stock"
-  [{request :request :as context}]
+                    ((:resume-fn paused-context) {:stock-name (:company ech-list)
+                                                  :stock-symbol (:symbol ech-list)
+                                                  :stock-list final-list
+                                                  :source-list ech-list
+                                                  :sma-list smaF
+                                                  :ema-list emaF
+                                                  :signals {:moving-average signals-ma
+                                                            :bollinger-band signals-bollinger
+                                                            :macd signals-macd
+                                                            :stochastic-oscillator signals-stochastic
+                                                            :obv signals-obv}
+                                                  :strategies {:strategy-A sA
+                                                               :strategy-B sB}})))
+                []
+                tick-list))])))
 
-  (iimpl/with-pause [paused-context context]
-    (async-historical
-        (assoc paused-context :resume-fn (partial resume-historical paused-context)))))
+
+#_(defbefore get-historical-data
+    "Get historical data for a particular stock"
+    [{request :request :as context}]
+
+    (iimpl/with-pause [paused-context context]
+      (async-historical
+       (assoc paused-context :resume-fn (partial resume-historical paused-context)))))
 
 
 
@@ -227,12 +226,12 @@
 
      ^:interceptors [body-params/body-params, session-interceptor]
      ["/list-filtered-input" {:get list-filtered-input}]
-     ["/get-historical-data" {:get get-historical-data}]
+     #_["/get-historical-data" {:get get-historical-data}]
      ["/get-streaming-stock-data" { :get [::init-streaming-stock-data (sse/start-event-stream init-streaming-stock-data)]
-                                    :post get-streaming-stock-data}]
+                                   :post get-streaming-stock-data}]
      ]]])
 
-;; You can use this fn or a per-request fn via io.pedestal.service.http.route/url-for
+;; You can use this fn or a per-request fn via io.pedestal.http.route/url-for
 (def url-for (route/url-for-routes routes))
 
 ;; Consumed by sseve.server/create-server
