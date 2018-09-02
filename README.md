@@ -89,6 +89,13 @@ lein run -m com.interrupt.ibgateway.core/-main
 ? Will Bid / Ask give us more price signals 
 ! Have to Plan + Reason about + Solve Problems, while developing the platform
 
+- Artifactory for i) custom jars and ii) as a docker registry
+- S3 Bucket sync'ing
+  - https://rclone.org
+  - http://duplicity.nongnu.org/features.html
+  - https://s3tools.org/s3cmd-sync
+  - https://www.tarsnap.com/index.html
+
 
 ## NOTES
 
