@@ -8,7 +8,7 @@
             [overtone.at-at :as at])
   (:gen-class
    :name com.interrupt.edgar.splitter
-   :methods [#^{:static true} [pushEvent [java.lang.Object]]])
+   :methods [#^{:static true} [pushEvent [] java.lang.Object]])
   )
 
 
