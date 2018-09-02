@@ -53,6 +53,7 @@
 
                  [io.pedestal/pedestal.service "0.5.2"]
                  [io.pedestal/pedestal.jetty "0.5.2"]
+                 [io.pedestal/pedestal.log "0.5.2"]
                  ;; [com.cognitect/pedestal.vase "0.9.1"]
                  [com.cognitect/pedestal.vase "0.9.3"]
 

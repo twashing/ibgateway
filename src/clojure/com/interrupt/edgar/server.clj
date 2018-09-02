@@ -1,7 +1,7 @@
 (ns com.interrupt.edgar.server
   (:gen-class) ; for -main method in uberjar
   (:require [com.interrupt.edgar.service :as service]
-            [io.pedestal.service.http :as bootstrap]))
+            [io.pedestal.http :as bootstrap]))
 
 (def service-instance
   "Global var to hold service instance."
