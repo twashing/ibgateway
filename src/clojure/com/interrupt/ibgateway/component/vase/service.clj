@@ -127,6 +127,7 @@
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               #'com.interrupt.ibgateway.component.vase/server
+              ;; #'com.interrupt.ibgateway.cloud.storage/s3
               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
               #'com.interrupt.ibgateway.core/state)
 
@@ -138,6 +139,7 @@
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.vase/server
+               ;; #'com.interrupt.ibgateway.cloud.storage/s3
                ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
                #'com.interrupt.ibgateway.core/state)
 
