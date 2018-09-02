@@ -15,13 +15,8 @@
             [com.interrupt.edgar.core.signal.lagging :as slag]
             [com.interrupt.edgar.core.signal.leading :as slead]
             [com.interrupt.edgar.core.signal.confirming :as sconf]
-
-            [manifold.stream :as stream]
             [prpr.stream.cross :as stream.cross]
-            prpr.stream
-            [prpr.promise :refer [ddo]]
-            [xn.transducers :as xn]
-            [com.rpl.specter :refer :all]))
+            [manifold.stream :as stream]))
 
 
 (defn bind-channels->mult [source-list-ch & channels]

@@ -6,9 +6,9 @@
   :repositories [["myMavenRepo.read" "https://mymavenrepo.com/repo/HaEY4usKuLXXnqmXBr0z"]
                  ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]
                  ["my.datomic.com" {:url "https://my.datomic.com/repo"
-                                    :creds :gpg}]]
-
-  :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
+                                    :creds :gpg}]
+                 ]
+  :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/clojurescript "1.10.238"]
                  [org.apache.commons/commons-daemon "1.0.9"]
                  [mount "0.1.12"]
@@ -17,9 +17,6 @@
                  [ymilky/franzy "0.0.1"]
                  [ymilky/franzy-transit "0.0.1" :exclusions [commons-codec]]
                  [ymilky/franzy-admin "0.0.1" :exclusions [org.slf4j/slf4j-log4j12]]
-                 [automat "0.2.4"]
-                 [reduce-fsm "0.1.4"]
-                 ;; [com.datomic/datomic-free "0.9.5697"]
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
 
@@ -37,38 +34,28 @@
                  [org.slf4j/log4j-over-slf4j "1.7.25"]
                  ;;
                  ;; ;; Edgar proper
-                 [org.clojure/core.incubator "0.1.4"]
                  ;; [jtsclient/jtsclient "9.8.3"]
                  [org.clojure/data.csv "0.1.4"]
                  [overtone/at-at "1.2.0"]
                  [cljs-uuid "0.0.4"]
                  [org.clojure/tools.namespace "0.2.10"]
                  [lamina "0.5.6"]
-                 [aleph "0.4.4"]
                  [clj-time "0.14.3"]
-                 ;; #_[com.datomic/datomic "0.8.3335"
-                 ;;    :exclusions [org.slf4j/slf4j-nop org.slf4j/log4j-over-slf4j]]
+
                  [ring/ring-core "1.6.3" :exclusions [javax.servlet/servlet-api]]
                  [spootnik/unilog "0.7.22"]
 
                  [io.pedestal/pedestal.service "0.5.2"]
                  [io.pedestal/pedestal.jetty "0.5.2"]
                  [io.pedestal/pedestal.log "0.5.2"]
-                 ;; [com.cognitect/pedestal.vase "0.9.1"]
                  [com.cognitect/pedestal.vase "0.9.3"]
 
-                 ;; [cider/cider-nrepl "0.17.0-SNAPSHOT"]
-                 ;; [refactor-nrepl "2.4.0-SNAPSHOT"]
-                 [clojure-future-spec "1.9.0-alpha17"]
                  [org.clojure/tools.cli "0.3.7"]
 
                  ;; Java Libraries
-                 [joda-time "2.2"]
                  [manifold "0.1.7-alpha6"]
                  [net.cgrand/xforms "0.17.0"]
                  [employeerepublic/promisespromises "0.5"]
-                 [com.xnlogic/transducers "0.1.0"]
-                 [com.rpl/specter "1.1.1"]
                  [enlive "1.1.6"]
                  [com.cognitect/transit-clj "0.8.309"]
                  [com.cognitect/transit-cljs "0.8.256"]
