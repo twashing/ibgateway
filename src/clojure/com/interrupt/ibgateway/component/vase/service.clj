@@ -61,8 +61,6 @@
                                                  (:uri req))))})]})
 
 
-;; ==>
-
 (def ws-clients (atom {}))
 
 (defn new-ws-client [ws-session send-ch]

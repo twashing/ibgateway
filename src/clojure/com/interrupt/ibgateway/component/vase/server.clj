@@ -1,9 +1,10 @@
 (ns com.interrupt.ibgateway.component.vase.server
-  (:gen-class) ; for -main method in uberjar
+  (:gen-class)
   (:require [io.pedestal.http :as server]
             [io.pedestal.http.route :as route]
             [com.cognitect.vase :as vase]
-            [com.interrupt.ibgateway.component.vase.service :as service]))
+            [com.interrupt.ibgateway.component.vase.service :as service]
+            [clojure.tools.trace :refer [trace]]))
 
 (defn activate-vase
   ([base-routes api-root spec-paths]

@@ -1,6 +1,6 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
-             [unilog.config  :refer [start-logging!]]
+             [unilog.config :refer [start-logging!]]
              [clojure.tools.logging :refer [debug info warn error]]
              [clojure.tools.cli :refer [parse-opts]]
              [com.interrupt.ibgateway.component.repl-server]
@@ -14,7 +14,6 @@
 (def logging-config
   {:level   :info
    :console true
-   ;; :file "logs/ibgateway.log"
    :appenders [{:appender :rolling-file
                 :rolling-policy {:type :fixed-window
                                  :max-index 5}

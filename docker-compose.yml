@@ -27,7 +27,7 @@ services:
       TWSUSERID: fdemo
       TWSPASSWORD: demouser
       VNC_PASSWORD: some_pass123
-    image: twashing/ibgateway-tws:latest
+    image: edgarly/ibgateway-tws:latest
     ports:
       - 4002:4002  # API
       - 7497:7497
@@ -38,7 +38,7 @@ services:
     # entrypoint: /bin/bash
 
   app:
-    image: twashing/ibgateway-app:latest
+    image: edgarly/ibgateway-app:latest
     depends_on:
       - tws
     working_dir: /usr/app
