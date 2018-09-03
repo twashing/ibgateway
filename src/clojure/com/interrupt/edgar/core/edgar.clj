@@ -81,17 +81,6 @@
                            stock-selection)]
      result-id)))
 
-(defn initialize-workbench []
-  (def ^:dynamic *interactive-brokers-workbench* {:interactive-brokers-client (:esocket (market/connect-to-market))})
-  *interactive-brokers-workbench*)
-
-(defn refresh-workbench []
-
-  (market/close-market-channel)
-  (market/disconnect-from-market)
-  (refresh)
-  (market/create-event-channel)
-  (initialize-workbench))
 
 (defn test-run []
 
@@ -106,19 +95,19 @@
     ;;(market/request-market-data client 0 (-> hdata last second) "233" false)
     (market/request-market-data client 0 "IBM" "233" false)))
 
-(defn test-play-live []
+#_(defn test-play-live []
   (let [workbench (initialize-workbench)
         client (:interactive-brokers-client workbench)]
     (play-live client [#_"DDD" "IBM" "AAPL"])))
 
-(defn test-play-historical []
+#_(defn test-play-historical []
   (let [workbench (initialize-workbench)
         client (:interactive-brokers-client workbench)
         stock-list [["DDD" "3D Systems Corporation" "35.12" "2155763549.68" "n/a" "n/a" "Technology" "Computer Software: Prepackaged Software" "http://www.nasdaq.com/symbol/ddd" ""]
                     ["MMM" "3M Company" "102.31" "70592902989.05" "n/a" "n/a" "Health Care" "Medical/Dental Instruments" "http://www.nasdaq.com/symbol/mmm" ""]]]
     (play-historical client stock-list "1800 S" "1 secs" nil)))
 
-(defn fubar []
+#_(defn fubar []
   (test-run)
   (test-play-live)
   (test-play-historical)

@@ -2,7 +2,6 @@
   (:import [com.ib.client EWrapper EClientSocket Contract Order OrderState ContractDetails Execution])
   (:use [clojure.core.strint])
   (:require [com.interrupt.edgar.eclientsocket :as socket]
-            [lamina.core :as lamina]
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [overtone.at-at :as at]
             [clj-time.core :as cime]
@@ -21,15 +20,6 @@
   #_(socket/disconnect-from-tws))
 
 (defn- create-contract [instrm]
-
-  #_(let [contract (Contract.)]
-      (set! (.m_symbol contract) instrm)
-      (set! (.m_secType contract) "STK")
-      (set! (.m_exchange contract) "SMART")
-      (set! (.m_currency contract) "USD")
-
-      contract)
-
   (doto (Contract.)
     (.symbol instrm)
     (.secType "STK")
@@ -117,13 +107,6 @@
   (.cancelMktData client idx))
 
 
-(defonce event-channel (ref nil))
-(defn create-event-channel []
-  (dosync (alter event-channel (fn [inp] (lamina/channel)))))
-(create-event-channel)
-
-
-
 ;; ====
 ;; BUY / SELL stock
 (defn buy-stock [client idx instrm qty price]
@@ -143,16 +126,6 @@
     (.placeOrder client idx contract order)))
 
 
-
-;; ====
-;; SUBSCRIPTION code
-(defn close-market-channel []
-  (lamina/force-close @event-channel))
-
-
-#_(def kludge (atom []))
-
-
 (defn consume [handle-fn channel]
   (go-loop []
     (handle-fn (<! channel))
@@ -168,22 +141,3 @@
     (sub publication :tick-string subscriber)
 
     (consume handle-fn subscriber)))
-
-#_(defn publish-event [^clojure.lang.PersistentHashMap event]
-  (lamina/enqueue @event-channel event)
-  (swap! kludge conj event))
-
-
-;; transform java.util.HashMap to a Clojure map
-#_(defn publish-event-from-java [^java.util.HashMap event]
-  (publish-event (merge {} event)))
-
-
-;; ==========
-#_(defn test-publisher []
-
-  (subscribe-to-market #(println "handling: " %))
-
-  (def my-pool (at/mk-pool))
-  (at/every 1000 (fn [] (publish-event { :tickerId 0 :field 1 :price 5.75 :canAutoExecute 1})) my-pool) )
-;; ==========

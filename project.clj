@@ -6,8 +6,7 @@
   :repositories [["myMavenRepo.read" "https://mymavenrepo.com/repo/HaEY4usKuLXXnqmXBr0z"]
                  ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]
                  ["my.datomic.com" {:url "https://my.datomic.com/repo"
-                                    :creds :gpg}]
-                 ]
+                                    :creds :gpg}]]
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/clojurescript "1.10.238"]
                  [org.apache.commons/commons-daemon "1.0.9"]
@@ -19,8 +18,6 @@
                  [ymilky/franzy-admin "0.0.1" :exclusions [org.slf4j/slf4j-log4j12]]
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
-
-                 ;; KLUDGE libraries
                  [javax.servlet/javax.servlet-api "4.0.0"]
 
                  ;; Pedestal libraries
@@ -34,22 +31,18 @@
                  [org.slf4j/log4j-over-slf4j "1.7.25"]
                  ;;
                  ;; ;; Edgar proper
-                 ;; [jtsclient/jtsclient "9.8.3"]
                  [org.clojure/data.csv "0.1.4"]
                  [overtone/at-at "1.2.0"]
                  [cljs-uuid "0.0.4"]
                  [org.clojure/tools.namespace "0.2.10"]
-                 [lamina "0.5.6"]
                  [clj-time "0.14.3"]
 
                  [ring/ring-core "1.6.3" :exclusions [javax.servlet/servlet-api]]
                  [spootnik/unilog "0.7.22"]
-
                  [io.pedestal/pedestal.service "0.5.2"]
                  [io.pedestal/pedestal.jetty "0.5.2"]
                  [io.pedestal/pedestal.log "0.5.2"]
                  [com.cognitect/pedestal.vase "0.9.3"]
-
                  [org.clojure/tools.cli "0.3.7"]
 
                  ;; Java Libraries

@@ -65,7 +65,7 @@
        (-> context
            (assoc :response response-result)))))
 
-(defn async-historical [paused-context]
+#_(defn async-historical [paused-context]
 
   (let [client (:interactive-brokers-client (edgar/initialize-workbench))
         stock-selection [ (-> paused-context :request :query-params :stock-selection) ]
@@ -88,8 +88,6 @@
      time-duration
      time-interval
      [(fn [tick-list]
-
-        (market/close-market-channel)
 
         ;; tick-list format will be:
         ;; [{:id 0, :symbol DDD, :company 3D Systems Corporation, :price-difference 0.09000000000000341, :event-list []}]

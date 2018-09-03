@@ -150,7 +150,7 @@
                                     inp))))))
 
 
-(defn manage-orders [strategy-list result-map tick-list-N]
+#_(defn manage-orders [strategy-list result-map tick-list-N]
 
   ;; track any STRATEGIES
   (let [strategy-list-trimmed (remove nil? (map first strategy-list))]
@@ -165,7 +165,8 @@
     (watch-strategies tick-list-N))
 
 
-  ;; ORDER based on tracking data
+    ;; ORDER based on tracking data
+    ;; TODO - update access to ewrapper client
   (let [client (:interactive-brokers-client edgar/*interactive-brokers-workbench*)
         tick (first @*tracking-data*)]
 
@@ -310,6 +311,6 @@
                                                                                                  #_(not (empty? sB))
                                                                                                  (not (empty? sC)))"]"))
 
-    (manage-orders [sA sC] result-map tick-list-N)
+    #_(manage-orders [sA sC] result-map tick-list-N)
 
     (output-fn "stream-live" result-data)))
