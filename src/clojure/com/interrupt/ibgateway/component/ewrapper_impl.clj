@@ -9,13 +9,6 @@
 
            [com.ib.client Types$BarSize Types$DurationUnit Types$WhatToShow]))
 
-
-(def TICKPRICE :tick-price)
-(def TICKSIZE :tick-size)
-(def TICKSTRING :tick-string)
-(def SCANNERDATA :scanner-data)
-(def HISTORICALDATA :historical-data)
-
 (defn scanner-subscripion [instrument location-code scan-code]
   (doto (ScannerSubscription.)
     (.instrument instrument)
@@ -74,7 +67,7 @@
     (tickPrice [^Integer tickerId ^Integer field ^Double price ^Integer canAutoExecute]
 
       ;; (println "New - Tick Price. Ticker Id:" tickerId " Field: " field " Price: " price " CanAutoExecute: " canAutoExecute)
-      (let [ch-value {:topic TICKPRICE
+      (let [ch-value {:topic :tick-price
                       :ticker-id tickerId
                       :field field
                       :price price
@@ -84,7 +77,7 @@
     (tickSize [^Integer tickerId ^Integer field ^Integer size]
 
       ;; (println "New - Tick Size. Ticker Id:"  tickerId  " Field: "  field  " Size: "  size)
-      (let [ch-value {:topic TICKSIZE
+      (let [ch-value {:topic :tick-size
                       :ticker-id tickerId
                       :field field
                       :size size}]
@@ -92,7 +85,7 @@
 
     (tickString [^Integer tickerId ^Integer tickType ^String value]
       ;; (println "New - Tick String. Ticker Id:"  tickerId  " Type: "  tickType  " Value: "  value)
-      (let [ch-value {:topic TICKSTRING
+      (let [ch-value {:topic :tick-string
                       :ticker-id tickerId
                       :tick-type tickType
                       :value value}]
@@ -113,7 +106,7 @@
             sec-type (.. contractDetails contract secType)
             curr (.. contractDetails contract currency)
 
-            ch-value {:topic SCANNERDATA
+            ch-value {:topic :scanner-data
                       :req-id reqId
                       :message-end false
                       :symbol sym
@@ -121,14 +114,14 @@
                       :rank rank}]
 
         #_(println (str "ScannerData CALLED / reqId: " reqId " - Rank: " rank ", Symbol: " sym
-                      ", SecType: " sec-type ", Currency: " curr ", Distance: " distance
-                      ", Benchmark: " benchmark ", Projection: " projection ", Legs String: " legsStr))
+                        ", SecType: " sec-type ", Currency: " curr ", Distance: " distance
+                        ", Benchmark: " benchmark ", Projection: " projection ", Legs String: " legsStr))
 
         (go (>! publisher ch-value))))
 
     (scannerDataEnd [reqId]
 
-      (let [ch-value {:topic SCANNERDATA
+      (let [ch-value {:topic :scanner-data
                       :req-id reqId
                       :message-end true}]
 
@@ -146,7 +139,7 @@
     (historicalData [reqId ^String date open high low close
                      volume count WAP  hasGaps]
 
-      (let [ch-value {:topic HISTORICALDATA
+      (let [ch-value {:topic :historical-data
                       :req-id reqId
                       :date date
                       :open open
@@ -252,8 +245,8 @@
   ;; (def subscriber-one (chan))
   ;; (def subscriber-two (chan))
   ;;
-  ;; (sub broadcast-channel SCANNERDATA subscriber-one)
-  ;; (sub broadcast-channel SCANNERDATA subscriber-two)
+  ;; (sub broadcast-channel :scanner-data subscriber-one)
+  ;; (sub broadcast-channel :scanner-data subscriber-two)
   ;;
   ;; (def high-volatility-one (atom {}))
   ;; (def high-volatility-two (atom {}))
@@ -270,24 +263,24 @@
   ;;         (swap! high-volatility-two assoc (:symbol msg) msg))
   ;;       (recur))))
   ;;
-  ;; (take-and-save subscriber-one SCANNERDATA 1)
-  ;; (take-and-save subscriber-two SCANNERDATA 2)
+  ;; (take-and-save subscriber-one :scanner-data 1)
+  ;; (take-and-save subscriber-two :scanner-data 2)
 
 
-  ;; (go (>! publisher {:topic SCANNERDATA
+  ;; (go (>! publisher {:topic :scanner-data
   ;;                    :req-id 1
   ;;                    :message-end false
   ;;                    :symbol :foo
   ;;                    :sec-type "stock"}))
   ;;
-  ;; (go (>! publisher {:topic SCANNERDATA
+  ;; (go (>! publisher {:topic :scanner-data
   ;;                    :req-id 2
   ;;                    :message-end false
   ;;                    :symbol :bar
   ;;                    :sec-type "stock"}))
   ;;
   ;;
-  ;; (unsub-all broadcast-channel SCANNERDATA)
+  ;; (unsub-all broadcast-channel :scanner-data)
   ;;
   ;; (def scanSub1 (ScannerSubscription.))
   ;; (.instrument scanSub1 "STK")
@@ -337,22 +330,22 @@
 
 
   #_(let [req-id 12
-        ^Contract contract  ;; ...
-        ^String endDateTime  ;; ...
-        duration 2
-        ^Types$BarSize barSize  ;; ...
-        ^Types$WhatToShow whatToShow  ;; ...
-        rthOnly true]
+          ^Contract contract  ;; ...
+          ^String endDateTime  ;; ...
+          duration 2
+          ^Types$BarSize barSize  ;; ...
+          ^Types$WhatToShow whatToShow  ;; ...
+          rthOnly true]
 
-    (historical-subscribe [req-id
-                           client
-                           contract
-                           endDateTime
-                           duration
-                           ;; ^Types$DurationUnit durationUnit
-                           barSize
-                           whatToShow
-                           rthOnly]))
+      (historical-subscribe [req-id
+                             client
+                             contract
+                             endDateTime
+                             duration
+                             ;; ^Types$DurationUnit durationUnit
+                             barSize
+                             whatToShow
+                             rthOnly]))
 
   ;; Subscribe
   (def publication
