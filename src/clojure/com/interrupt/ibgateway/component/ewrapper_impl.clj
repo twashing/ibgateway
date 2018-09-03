@@ -1,5 +1,6 @@
 (ns com.interrupt.ibgateway.component.ewrapper-impl
-  (:require [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]])
+  (:require [clojure.core.async :as async
+             :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]])
   (:import [java.util Calendar]
            [java.text SimpleDateFormat]
            [com.interrupt.ibgateway EWrapperImpl]
@@ -72,7 +73,7 @@
                       :field field
                       :price price
                       :can-auto-execute canAutoExecute}]
-        (go (>! publisher ch-value))))
+        (async/put! publisher ch-value)))
 
     (tickSize [^Integer tickerId ^Integer field ^Integer size]
 
@@ -81,7 +82,7 @@
                       :ticker-id tickerId
                       :field field
                       :size size}]
-        (go (>! publisher ch-value))))
+        (async/put! publisher ch-value)))
 
     (tickString [^Integer tickerId ^Integer tickType ^String value]
       ;; (println "New - Tick String. Ticker Id:"  tickerId  " Type: "  tickType  " Value: "  value)
@@ -89,7 +90,7 @@
                       :ticker-id tickerId
                       :tick-type tickType
                       :value value}]
-        (go (>! publisher ch-value))))
+        (async/put! publisher ch-value)))
 
     (tickGeneric [^Integer tickerId ^Integer tickType ^Double value]
       (println "New - Tick Generic. Ticker Id:"  tickerId  ", Field: " tickType  ", Value: "  value))
@@ -117,7 +118,7 @@
                         ", SecType: " sec-type ", Currency: " curr ", Distance: " distance
                         ", Benchmark: " benchmark ", Projection: " projection ", Legs String: " legsStr))
 
-        (go (>! publisher ch-value))))
+        (async/put! publisher ch-value)))
 
     (scannerDataEnd [reqId]
 
@@ -127,7 +128,7 @@
 
         #_(println (str "ScannerDataEnd CALLED / reqId: " reqId))
 
-        (go (>! publisher ch-value))))
+        (async/put! publisher ch-value)))
 
 
     ;; public void historicalData(int reqId, String date, double open,
@@ -162,7 +163,7 @@
                  ", WAP: " WAP
                  ", HasGaps: " hasGaps)
 
-        (go (>! publisher ch-value))))))
+        (async/put! publisher ch-value)))))
 
 (defn ewrapper
 
