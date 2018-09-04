@@ -28,14 +28,3 @@
         ^S3ObjectInputStream s3is (.getObjectContent o)
         file-contents             (slurp s3is)]
     (spit file-name file-contents)))
-
-
-(comment
-
-  (mount/stop #'com.interrupt.ibgateway.cloud.storage/s3)
-  (mount/start #'com.interrupt.ibgateway.cloud.storage/s3)
-
-  (def bucket-name "edgarly")
-  (def file-name "live-recordings/2018-08-27-TSLA.edn")
-
-  (put-file s3 bucket-name file-name))

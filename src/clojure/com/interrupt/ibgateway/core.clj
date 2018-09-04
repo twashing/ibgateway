@@ -74,23 +74,6 @@
     (start)))
 
 
-(comment
-
-  state
-
-  (-main nil)
-
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-
-  (mount/start #'com.interrupt.ibgateway.component.vase/server)
-
-  (mount/start)
-  (mount/stop)
-  (mount/find-all-states)
-  (require 'com.interrupt.ibgateway.component.ewrapper))
-
-
 
 ;; TODO
 

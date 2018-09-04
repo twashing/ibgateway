@@ -3,7 +3,6 @@
             [clojure.string :as str]
             [clojure.set :as cs]
             [clojure.spec.alpha :as s]
-            
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]))
 
@@ -86,10 +85,6 @@
                    (first availableids)
                    (+ 1 (last scannerids))))))
 
-(comment
-
-  (next-reqid [])
-  (scannerid-availableid-pairs []))
 
 #_(s/fdef next-reqid
         :args (s/cat :subscriptions ::subscriptions)
