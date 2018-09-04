@@ -22,9 +22,6 @@
   [:#app]
   (enl/set-attr :data-key "foo"))
 
-(comment
-  (apply str (t1)))
-
 (defn about-page
   [request]
   (ring-resp/response (format "Clojure %s - served from %s"
@@ -114,50 +111,6 @@
           :on-error (fn [t] (log/error :msg "WS Error happened" :exception t))
           :on-close (fn [num-code reason-text]
                       (log/info :msg "WS Closed:" :reason reason-text))}})
-
-
-(comment
-
-  (mount/find-all-states)
-
-  ;; STOP
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.switchboard.store/conn
-              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-              #'com.interrupt.ibgateway.component.vase/server
-              ;; #'com.interrupt.ibgateway.cloud.storage/s3
-              ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
-              #'com.interrupt.ibgateway.core/state)
-
-  (sw/stop-stream-workbench)
-
-
-  ;; START
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.switchboard.store/conn
-               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-               #'com.interrupt.ibgateway.component.vase/server
-               ;; #'com.interrupt.ibgateway.cloud.storage/s3
-               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
-               #'com.interrupt.ibgateway.core/state)
-
-  (sw/kickoff-stream-workbench)
-
-  (let [{joined-channel :joined-channel} pp/processing-pipeline]
-
-    #_(go-loop [events (<! merged-averages->tracer)]
-        (log/info "merged-averages->tracer: " events)
-        (if-let [next (<! merged-averages->tracer)]
-          (recur next)))
-
-    (go-loop [r (<! joined-channel)]
-
-      (log/info "joined-channel : " r)
-      (send-message-to-all! r)
-      (if-not r
-        r
-        (recur (<! joined-channel))))))
-
 
 (def service
   {:env :prod
