@@ -167,8 +167,13 @@
                                (input-key ech))
 
                     ;; ** EMA now = price(today) * k + EMA(yesterday) * (1 - k)
-                    ema-now (+ (* k ltprice)
-                               (* ema-last (- 1 k)))]
+                    ;; ema-now (+ (* k ltprice)
+                    ;;            (* ema-last (- 1 k)))
+
+                    ;; EMA(now) = {Close - EMA(previous day)} x multiplier + EMA(previous day)
+                    ema-now (->> (- ltprice ema-last)
+                                 (* k)
+                                 (+ ema-last))]
 
                 (concat rslt
 
