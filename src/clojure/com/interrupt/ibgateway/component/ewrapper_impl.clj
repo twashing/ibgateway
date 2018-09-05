@@ -7,7 +7,6 @@
            [com.ib.client
             EWrapper EClient EClientSocket EReader EReaderSignal
             Contract ContractDetails ScannerSubscription]
-
            [com.ib.client Types$BarSize Types$DurationUnit Types$WhatToShow]))
 
 (defn scanner-subscripion [instrument location-code scan-code]
@@ -199,3 +198,24 @@
      {:client client
       :publisher publisher
       :ewrapper-impl ewrapperImpl})))
+
+
+(comment
+
+  (defn scanner-subscribe [req-id client instrument location-code scan-code]
+
+    (let [subscription (scanner-subscripion instrument location-code scan-code)]
+      (.reqScannerSubscription client req-id subscription nil)
+      req-id))
+
+  (def ew (ewrapper))
+  (let [cl (:client ew)]
+    (.reqContractDetails cl 1 (create-contract "AAPL")))
+
+  #_(let [ewrapper (EWrapperImpl.)
+        client (.getClient ewrapper)]
+    (.eConnect client "localhost" 4002 1)
+    (.reqContractDetails client 1 (create-contract "AAPL"))
+    (.eDisconnect client))
+
+  )

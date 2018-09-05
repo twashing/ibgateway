@@ -1,4 +1,4 @@
-FROM twashing/ibgateway-app-base:latest
+FROM edgarly/ibgateway-app-base:latest
 MAINTAINER Timothy Washington
 
 
