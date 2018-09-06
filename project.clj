@@ -78,9 +78,10 @@
                                           [clojure.repl apropos dir doc find-doc pst source]])]
 
                    :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
-                             [refactor-nrepl "2.4.0-SNAPSHOT"]
+                             [lein-cljsbuild "1.1.7"]
                              [lein-figwheel "0.5.16"]
-                             [lein-cljsbuild "1.1.7"]]
+                             [lein-virgil "0.1.8"]
+                             [refactor-nrepl "2.4.0-SNAPSHOT"]]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}
              :test {:resource-paths ["test/resources"]}}
