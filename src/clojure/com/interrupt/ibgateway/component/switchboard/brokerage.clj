@@ -151,7 +151,7 @@
       (let [scan-var (top-level-scan-item scan-name)
             scan-atom (var-get scan-var)]
 
-        (ei/scanner-subscribe reqid client default-instrument default-location scan-name)
+        (ei/scanner-subscribe client reqid default-instrument default-location scan-name)
         (sub publication reqid subscriber)
 
         ;; TODO - Simply forward the data to "market-scanner"

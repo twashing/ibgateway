@@ -1,221 +1,149 @@
 (ns com.interrupt.ibgateway.component.ewrapper-impl
-  (:require [clojure.core.async :as async
-             :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]])
-  (:import [java.util Calendar]
-           [java.text SimpleDateFormat]
-           [com.interrupt.ibgateway EWrapperImpl]
-           [com.ib.client
-            EWrapper EClient EClientSocket EReader EReaderSignal
-            Contract ContractDetails ScannerSubscription]
-           [com.ib.client Types$BarSize Types$DurationUnit Types$WhatToShow]))
+  (:require [clj-time.core :as t]
+            [clj-time.format :as tf]
+            [clojure.core.async :as async])
+  (:import [com.ib.client Contract ContractDetails EReader ScannerSubscription]
+           com.interrupt.ibgateway.EWrapperImpl))
 
-(defn scanner-subscripion [instrument location-code scan-code]
+(defn- create-contract
+  [symbol]
+  (doto (Contract.)
+    (.symbol symbol)
+    (.secType "STK")
+    (.exchange "SMART")
+    (.currency "USD")))
+
+(defn scanner-subscription
+  [instrument location-code scan-code]
   (doto (ScannerSubscription.)
     (.instrument instrument)
     (.locationCode location-code)
     (.scanCode scan-code)))
 
-(defn scanner-subscribe [req-id client instrument location-code scan-code]
-
-  (let [subscription (scanner-subscripion instrument location-code scan-code)]
+(defn scanner-subscribe
+  [client req-id instrument location-code scan-code]
+  (let [subscription (scanner-subscription instrument location-code scan-code)]
     (.reqScannerSubscription client req-id subscription nil)
     req-id))
 
-(defn scanner-unsubscribe [req-id client]
+(defn scanner-unsubscribe [client req-id]
   (.cancelScannerSubscription client req-id))
 
-(defn historical-subscribe [req-id client]
+(def datetime-formatter (tf/formatter "yyyyMMdd HH:mm:ss"))
 
-  (def cal (Calendar/getInstance))
-  (.add cal Calendar/DAY_OF_MONTH -16)
+(defn historical-subscribe
+  ([client ticker-id]
+   (historical-subscribe client ticker-id (create-contract "TSLA")))
+  ([client ticker-id contract]
+   (->> (t/minus (t/now) (t/days 16))
+        (tf/unparse datetime-formatter)
+        (historical-subscribe client ticker-id contract)))
+  ([client ticker-id contract end-datetime]
+   (.reqHistoricalData client ticker-id contract end-datetime
+                       "4 M" "1 min" "TRADES" 1 1 nil)
+   ticker-id))
 
-  (def form (SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
-  (def formatted (.format form (.getTime cal)))
-
-  (let [contract (doto (Contract.)
-                   (.symbol "TSLA")
-                   (.secType "STK")
-                   (.currency "USD")
-                   (.exchange "SMART")
-                   #_(.primaryExch "ISLAND"))]
-
-    #_(.reqHistoricalData client req-id contract formatted "2 W" "1 min" "TRADES" 1 1 nil)
-    (.reqHistoricalData client req-id contract formatted "4 M" "1 min" "TRADES" 1 1 nil))
-
-  req-id)
-
-(defn- create-contract [instrm]
-  (doto (Contract.)
-    (.symbol instrm)
-    (.secType "STK")
-    (.exchange "SMART")
-    (.currency "USD")))
+(defn historical-unsubscribe
+  [client req-id]
+  (.cancelHistoricalData client req-id))
 
 (defn live-subscribe
+  ([client req-id symbol]
+   (live-subscribe client req-id symbol "" false))
+  ([client req-id symbol genericTicklist snapshot]
+   (let [contract (create-contract symbol)]
+     (.reqMktData client (.intValue req-id) contract genericTicklist snapshot nil)
+     req-id)))
 
-  ([req-id client instrm]
-   (live-subscribe client req-id instrm "" false))
+(defn live-unsubscribe
+  [client req-id]
+  (.cancelMktData client req-id))
 
-  ([req-id client instrm genericTicklist snapshot]
-   (let [contract (create-contract instrm)]
-     (.reqMktData client (.intValue req-id) contract genericTicklist snapshot nil))))
-
-(defn ewrapper-impl [publisher]
-
+(defn ewrapper-impl
+  [ch]
   (proxy [EWrapperImpl] []
+    (tickPrice [^Integer ticker-id ^Integer field ^Double price ^Integer can-auto-execute?]
+      (let [val {:topic :tick-price
+                 :ticker-id ticker-id
+                 :field field
+                 :price price
+                 :can-auto-execute can-auto-execute?}]
+        (async/put! ch val)))
 
-    (tickPrice [^Integer tickerId ^Integer field ^Double price ^Integer canAutoExecute]
+    (tickSize [^Integer ticker-id ^Integer field ^Integer size]
+      (let [val {:topic :tick-size
+                 :ticker-id ticker-id
+                 :field field
+                 :size size}]
+        (async/put! ch val)))
 
-      ;; (println "New - Tick Price. Ticker Id:" tickerId " Field: " field " Price: " price " CanAutoExecute: " canAutoExecute)
-      (let [ch-value {:topic :tick-price
-                      :ticker-id tickerId
-                      :field field
-                      :price price
-                      :can-auto-execute canAutoExecute}]
-        (async/put! publisher ch-value)))
+    (tickString [^Integer ticker-id ^Integer tickType ^String value]
+      (let [val {:topic :tick-string
+                 :ticker-id ticker-id
+                 :tick-type tickType
+                 :value value}]
+        (async/put! ch val)))
 
-    (tickSize [^Integer tickerId ^Integer field ^Integer size]
+    (tickGeneric [^Integer ticker-id ^Integer tickType ^Double value]
+      (println "New - Tick Generic. Ticker Id:"  ticker-id  ", Field: " tickType  ", Value: "  value))
 
-      ;; (println "New - Tick Size. Ticker Id:"  tickerId  " Field: "  field  " Size: "  size)
-      (let [ch-value {:topic :tick-size
-                      :ticker-id tickerId
-                      :field field
-                      :size size}]
-        (async/put! publisher ch-value)))
+    (scannerData [req-id rank contract-details distance benchmark projection _]
+      (let [contract (.contract contract-details)
+            val {:topic :scanner-data
+                 :req-id req-id
+                 :message-end false
+                 :symbol (. contract symbol)
+                 :sec-type (. contract secType)
+                 :rank rank}]
+        (async/put! ch val)))
 
-    (tickString [^Integer tickerId ^Integer tickType ^String value]
-      ;; (println "New - Tick String. Ticker Id:"  tickerId  " Type: "  tickType  " Value: "  value)
-      (let [ch-value {:topic :tick-string
-                      :ticker-id tickerId
-                      :tick-type tickType
-                      :value value}]
-        (async/put! publisher ch-value)))
+    (scannerDataEnd [req-id]
+      (let [val {:topic :scanner-data`
+                 :req-id req-id
+                 :message-end true}]
+        (async/put! ch val)))
 
-    (tickGeneric [^Integer tickerId ^Integer tickType ^Double value]
-      (println "New - Tick Generic. Ticker Id:"  tickerId  ", Field: " tickType  ", Value: "  value))
+    (historicalData [req-id date open high low close volume count wap gaps?]
+      (let [val {:topic :historical-data
+                 :req-id req-id
+                 :date date
+                 :open open
+                 :high high
+                 :low low
+                 :close close
+                 :volume volume
+                 :count count
+                 :wap wap
+                 :has-gaps gaps?}]
+        (async/put! ch val)))))
 
-    (scannerParameters [^String xml]
-
-      (println "scannerParameters CALLED")
-      (def scannerParameters xml))
-
-    (scannerData [reqId rank ^ContractDetails contractDetails ^String distance ^String benchmark
-                  ^String projection ^String legsStr]
-
-      (let [sym (.. contractDetails contract symbol)
-            sec-type (.. contractDetails contract secType)
-            curr (.. contractDetails contract currency)
-
-            ch-value {:topic :scanner-data
-                      :req-id reqId
-                      :message-end false
-                      :symbol sym
-                      :sec-type sec-type
-                      :rank rank}]
-
-        #_(println (str "ScannerData CALLED / reqId: " reqId " - Rank: " rank ", Symbol: " sym
-                        ", SecType: " sec-type ", Currency: " curr ", Distance: " distance
-                        ", Benchmark: " benchmark ", Projection: " projection ", Legs String: " legsStr))
-
-        (async/put! publisher ch-value)))
-
-    (scannerDataEnd [reqId]
-
-      (let [ch-value {:topic :scanner-data
-                      :req-id reqId
-                      :message-end true}]
-
-        #_(println (str "ScannerDataEnd CALLED / reqId: " reqId))
-
-        (async/put! publisher ch-value)))
-
-
-    ;; public void historicalData(int reqId, String date, double open,
-    ;;                             double high, double low, double close, int volume, int count,
-    ;;                             double WAP, boolean hasGaps) {
-    ;;                                                           System.out.println("HistoricalData. "+reqId+" - Date: "+date+", Open: "+open+", High: "+high+", Low: "+low+", Close: "+close+", Volume: "+volume+", Count: "+count+", WAP: "+WAP+", HasGaps: "+hasGaps);
-    ;;                                                           }
-
-    (historicalData [reqId ^String date open high low close
-                     volume count WAP  hasGaps]
-
-      (let [ch-value {:topic :historical-data
-                      :req-id reqId
-                      :date date
-                      :open open
-                      :high high
-                      :low low
-                      :close close
-                      :volume volume
-                      :count count
-                      :wap WAP
-                      :has-gaps hasGaps}]
-
-        (println "2. HistoricalData." reqId
-                 " - Date: " date
-                 ", Open: " open
-                 ", High: " high
-                 ", Low: " low
-                 ", Close: " close
-                 ", Volume: " volume
-                 ", Count: " count
-                 ", WAP: " WAP
-                 ", HasGaps: " hasGaps)
-
-        (async/put! publisher ch-value)))))
+(defn default-exception-handler
+  [^Exception e]
+  (println "Exception:" (.getMessage e)))
 
 (defn ewrapper
-
   ([]
-   (ewrapper 1))
-
-  ([no-of-topics]
-
-   ;; Setup client, wrapper, process messages
-   (let [buffer-size (* no-of-topics (+ 1 50))
-         publisher (chan (sliding-buffer 100))
-         ;; broadcast-channel (pub publisher #(:topic %))
-         ewrapperImpl (ewrapper-impl publisher)
-         client (.getClient ewrapperImpl)
-         signal (.getSignal ewrapperImpl)
-
-         result (.eConnect client "tws" 4002 1)
-
+   (ewrapper "tws"))
+  ([host]
+   (ewrapper host 4002))
+  ([host port]
+   (ewrapper host port 1))
+  ([host port client-id]
+   (ewrapper host port client-id (-> 1000 async/sliding-buffer async/chan)))
+  ([host port client-id ch]
+   (ewrapper host port client-id ch default-exception-handler))
+  ([host port client-id ch ex-handler]
+   (let [wrapper (ewrapper-impl ch)
+         client (.getClient wrapper)
+         signal (.getSignal wrapper)
          ereader (EReader. client signal)]
-
-     ;; (if (.isConnected esocket)
-     ;;   (.eDisconnect esocket))
-
+     (.eConnect client host port client-id)
      (.start ereader)
      (future
        (while (.isConnected client)
          (.waitForSignal signal)
-         (try
-           (.processMsgs ereader)
-           (catch Exception e
-             (println (str "Exception: " (.getMessage e)))))))
-
+         (try (.processMsgs ereader)
+              (catch Exception e (ex-handler e)))))
      {:client client
-      :publisher publisher
-      :ewrapper-impl ewrapperImpl})))
-
-
-(comment
-
-  (defn scanner-subscribe [req-id client instrument location-code scan-code]
-
-    (let [subscription (scanner-subscripion instrument location-code scan-code)]
-      (.reqScannerSubscription client req-id subscription nil)
-      req-id))
-
-  (def ew (ewrapper))
-  (let [cl (:client ew)]
-    (.reqContractDetails cl 1 (create-contract "AAPL")))
-
-  #_(let [ewrapper (EWrapperImpl.)
-        client (.getClient ewrapper)]
-    (.eConnect client "localhost" 4002 1)
-    (.reqContractDetails client 1 (create-contract "AAPL"))
-    (.eDisconnect client))
-
-  )
+      :wrapper wrapper
+      :publisher ch})))

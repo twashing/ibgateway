@@ -748,7 +748,7 @@
 
   (def client (com.interrupt.ibgateway.component.ewrapper/ewrapper :client))
   (def publisher (com.interrupt.ibgateway.component.ewrapper/ewrapper :publisher))
-  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper-impl))
+  (def ewrapper-impl (com.interrupt.ibgateway.component.ewrapper/ewrapper :wrapper))
   (def publication
     (pub publisher #(:req-id %)))
 
@@ -810,7 +810,7 @@
   (defn historical-start [req-id client publication historical-atom]
 
     (let [subscriber (chan)]
-      (ei/historical-subscribe req-id client)
+      (ei/historical-subscribe client req-id)
       (sub publication req-id subscriber)
       (consume-subscriber-historical historical-atom subscriber)))
 
@@ -1250,7 +1250,7 @@
 
   (let [client (:client com.interrupt.ibgateway.component.ewrapper/ewrapper)
         publisher (:publisher com.interrupt.ibgateway.component.ewrapper/ewrapper)
-        ewrapper-impl (:ewrapper-impl com.interrupt.ibgateway.component.ewrapper/ewrapper)
+        ewrapper-impl (:wrapper  com.interrupt.ibgateway.component.ewrapper/ewrapper)
         publication (pub publisher #(:topic %))
 
         stock-name "TSLA"
@@ -1273,7 +1273,7 @@
 
 (defn kickoff-stream-workbench []
 
-  (let [ewrapper-impl (ew/ewrapper :ewrapper-impl)
+  (let [ewrapper-impl (ew/ewrapper :wrapper)
         my-pool (mk-pool)
         input-source (atom (read-string (slurp "live.6.edn")))
         string-count (atom 0)
