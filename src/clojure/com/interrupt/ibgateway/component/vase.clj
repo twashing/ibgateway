@@ -6,8 +6,3 @@
 (defstate server
   :start (server/run-dev)
   :stop (phttp/stop server))
-
-(comment
-
-  (mount/start #'com.interrupt.ibgateway.component.vase/server)
-  (mount/stop #'com.interrupt.ibgateway.component.vase/server))

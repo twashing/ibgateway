@@ -49,7 +49,8 @@ services:
       - 3449:3449
     volumes:
       - /Users/timothyw/Projects/edgarly/ibgateway:/usr/app
-    entrypoint: lein run  # lein run --record  # -m com.interrupt.ibgateway.core/-main
+    entrypoint: lein run --record
+    # entrypoint: lein run
 
   kafka-tools:
     image: confluentinc/cp-kafka:3.3.1

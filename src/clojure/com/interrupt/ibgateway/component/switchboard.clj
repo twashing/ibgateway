@@ -1304,16 +1304,3 @@
 
 (defn stop-stream-workbench []
   (stop scheduled-fn))
-
-(comment
-
-  (def tick-list (atom []))
-  (def options {:tick-list tick-list})
-  (def evt1 {:value ";0;1522337866199;67085;253.23364232;true"
-             :topic "tickString"
-             :ticker-id 0})
-  (def evt2 {:value "255.59;1;1522337865948;67077;253.23335428;true"
-             :topic "tickString"
-             :ticker-id 0})
-
-  (live/handle-tick-string options evt1))
