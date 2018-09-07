@@ -6,7 +6,6 @@
              [com.interrupt.ibgateway.component.switchboard.store]
              [com.interrupt.ibgateway.component.processing-pipeline]
              [com.interrupt.ibgateway.component.figwheel]
-             [com.interrupt.ibgateway.core]
              [com.interrupt.ibgateway.cloud.storage]))
 
 
