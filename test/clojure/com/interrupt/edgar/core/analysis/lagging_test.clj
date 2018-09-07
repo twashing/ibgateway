@@ -128,6 +128,7 @@
 
 
 (comment
-  (def one (time-seq->simple-exponential-pair (->> (range 40) (map #(/ % 100))) #_(range 41)))
+  (def one (time-seq->simple-exponential-pair (->> (range 41) (map #(/ % 100)))))
+  (def one (time-seq->simple-exponential-pair (range 41)))
   (def two (let [{:keys [sma-list ema-list]} one]
              (map (fn [a b] (merge a b)) sma-list ema-list))))

@@ -150,7 +150,7 @@
         {input-key :input
          output-key :output
          etal-keys :etal
-         :or {input-key :last-trade-price-average
+         :or {input-key :last-trade-price
               output-key :last-trade-price-exponential
               etal-keys [:last-trade-price :last-trade-time :uuid]}} options]
 
@@ -179,10 +179,10 @@
 
                         ;; will produce a map of etal-keys, with associated values in ech
                         ;; and merge the output key to the map
-                        (-> etal-keys
-                            (zipmap (map #(% ech) etal-keys))
-                            (assoc output-key ema-now)
-                            list))))
+                        (as-> etal-keys ek
+                            (zipmap ek ((apply juxt etal-keys) ech))
+                            (assoc ek output-key ema-now)
+                            (list ek)))))
             []
             sma-list)))
 
