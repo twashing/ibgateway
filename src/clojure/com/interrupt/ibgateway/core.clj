@@ -30,7 +30,14 @@
   :stop (assoc state :running false))
 
 (defn init [_]
-  (mount/start))
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.switchboard.store/conn
+               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+               #'com.interrupt.ibgateway.component.repl-server/server
+               #'com.interrupt.ibgateway.component.vase/server
+               ;; #'com.interrupt.ibgateway.cloud.storage/s3
+               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
+               #'com.interrupt.ibgateway.core/state))
 
 (defn start []
   (while (:running state)

@@ -1,10 +1,14 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
+             [clojure.core.async :refer [chan >! <! close! merge go go-loop pub sub unsub-all sliding-buffer
+                                         mult tap pipeline]]
+             [clojure.tools.logging :refer [debug info warn error]]
              [com.interrupt.ibgateway.component.ewrapper]
              [com.interrupt.ibgateway.component.vase]
-             [com.interrupt.ibgateway.component.switchboard]
+             [com.interrupt.ibgateway.component.vase.service  :refer [send-message-to-all!]]
+             [com.interrupt.ibgateway.component.switchboard :as sw]
              [com.interrupt.ibgateway.component.switchboard.store]
-             [com.interrupt.ibgateway.component.processing-pipeline]
+             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
              [com.interrupt.ibgateway.component.figwheel]
              [com.interrupt.ibgateway.cloud.storage]))
 
@@ -48,6 +52,7 @@
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+              #'com.interrupt.ibgateway.component.repl-server/server
               #'com.interrupt.ibgateway.component.vase/server
               ;; #'com.interrupt.ibgateway.cloud.storage/s3
               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
@@ -60,6 +65,7 @@
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+               #'com.interrupt.ibgateway.component.repl-server/server
                #'com.interrupt.ibgateway.component.vase/server
                ;; #'com.interrupt.ibgateway.cloud.storage/s3
                ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
@@ -76,7 +82,7 @@
 
     (go-loop [r (<! joined-channel)]
 
-      (log/info "joined-channel : " r)
+      (info "joined-channel : " r)
       (send-message-to-all! r)
       (if-not r
         r

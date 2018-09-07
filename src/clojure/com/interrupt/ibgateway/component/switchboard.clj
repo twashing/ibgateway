@@ -1275,7 +1275,7 @@
 
   (let [ewrapper-impl (ew/ewrapper :wrapper)
         my-pool (mk-pool)
-        input-source (atom (read-string (slurp "live.6.edn")))
+        input-source (atom (read-string (slurp "live-recordings/2018-08-27-TSLA.edn")))
         string-count (atom 0)
         consume-fn (fn []
                      (let [{:keys [topic] :as ech} (first @input-source)]
