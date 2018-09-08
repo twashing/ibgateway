@@ -3,6 +3,7 @@
              [unilog.config :refer [start-logging!]]
              [clojure.tools.logging :refer [debug info warn error]]
              [clojure.tools.cli :refer [parse-opts]]
+             [clojure.tools.namespace.repl :as tn]
              [com.interrupt.ibgateway.component.repl-server]
              [com.interrupt.ibgateway.component.switchboard :as switchboard]
              [com.interrupt.ibgateway.component.vase :as vase])
@@ -45,6 +46,18 @@
     ;; (Thread/sleep 2000)
     ))
 
+(defn stop []
+  (mount/stop))
+
+(defn go' []
+  (init nil)
+  :ready)
+
+(defn reset []
+  (stop)
+  (tn/refresh :after 'com.interrupt.ibgateway.core/go'))
+
+
 
 ;; Daemon implementation
 (defn -init [this ^DaemonContext context]
@@ -57,6 +70,8 @@
   (mount/stop))
 
 (defn -destroy [this])
+
+
 
 (def cli-options
   [["-R" "--record" :default true]])

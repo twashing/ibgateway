@@ -36,9 +36,6 @@
 
 (defn onmessage-handler [e]
 
-  #_(.log js/console (.-data e))
-  #_(.log js/console (js/eval (clj->js (read-transit (.-data e)))))
-
   (let [charts (aget (.-charts js/Highcharts) 0)
         tick-series (aget (.-series charts) 0)
         sma-series (aget (.-series charts) 1)
@@ -58,8 +55,9 @@
         ema [last-trade-time last-trade-price-exponential]
         bband [last-trade-time lower-band upper-band]]
 
-    ;; (.log js/console d)
     (.log js/console (js/eval (clj->js message)))
+    (.log js/console (str "tick evaluated / " (js/eval (clj->js tick))))
+
     (.addPoint tick-series (js/eval (clj->js tick)) true false)
     (.addPoint sma-series (js/eval (clj->js sma)) true false)
     (.addPoint ema-series (js/eval (clj->js ema)) true false)

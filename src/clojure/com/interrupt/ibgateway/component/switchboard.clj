@@ -1,6 +1,6 @@
 (ns com.interrupt.ibgateway.component.switchboard
   (:require [clojure.core.async :refer [chan >! <! close! merge go go-loop pub sub unsub-all sliding-buffer
-                                        mult tap pipeline]]
+                                        onto-chan mult tap pipeline] :async async]
             [clojure.set :as cs]
             [clojure.math.combinatorics :as cmb]
             [clojure.tools.logging :refer [debug info warn error]]
@@ -29,6 +29,7 @@
             [com.interrupt.edgar.ib.handler.live :as live]
 
             [mount.core :refer [defstate] :as mount]
+            [clojure.tools.trace :refer [trace]]
             [overtone.at-at :refer :all]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]))
@@ -1271,36 +1272,49 @@
 #_(defn record-stop-live-data []
   (market/cancel-market-data client 0))
 
+(defn- read-one
+  [r]
+  (try
+    (read r)
+    (catch java.lang.RuntimeException e
+      (if (= "EOF while reading" (.getMessage e))
+        ::EOF
+        (throw e)))))
+
+(defn read-seq-from-file
+  "Reads a sequence of top-level objects in file at path."
+  [path]
+  (with-open [r (java.io.PushbackReader. (clojure.java.io/reader path))]
+    (binding [*read-eval* false]
+      (doall (take-while #(not= ::EOF %) (repeatedly #(read-one r)))))))
+
 (defn kickoff-stream-workbench []
 
-  (let [ewrapper-impl (ew/ewrapper :wrapper)
-        my-pool (mk-pool)
-        input-source (atom (read-string (slurp "live-recordings/2018-08-27-TSLA.edn")))
+  (let [ewrapper-impl (:wrapper ew/ewrapper)
+        input-source (-> (read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")
+                         flatten)
         string-count (atom 0)
-        consume-fn (fn []
-                     (let [{:keys [topic] :as ech} (first @input-source)]
-                       (case topic
-                         :tick-string (do
-                                        #_(when (< @string-count 4000)
-                                            (info "Sanity check" (swap! string-count inc) topic))
-                                        (as-> ech e
-                                          (dissoc e :topic)
-                                          (vals e)
-                                          (apply #(.tickString ewrapper-impl %1 %2 %3) e)))
-                         :tick-price (as-> ech e
-                                       (dissoc e :topic)
-                                       (vals e)
-                                       (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
-                         :tick-size (as-> ech e
-                                      (dissoc e :topic)
-                                      (vals e)
-                                      (apply #(.tickSize ewrapper-impl %1 %2 %3) e))))
+        ch (chan 100)]
 
-                     (swap! input-source #(rest %)))]
+    (onto-chan ch input-source)
+    (go-loop [{:keys [topic] :as ech} (<! ch)]
 
-    (def scheduled-fn (every 10
-                             consume-fn
-                             my-pool))))
+      (Thread/sleep 10)
+      (case topic
+        :tick-string (do
+                       #_(when (< @string-count 4000)
+                           (trace (str "Sanity check: " ech)))
+                       (as-> ech e
+                         (dissoc e :topic)
+                         (vals e)
+                         (apply #(.tickString ewrapper-impl %1 %2 %3) e)))
+        :tick-price (as-> ech e
+                      (dissoc e :topic)
+                      (vals e)
+                      (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
+        :tick-size (as-> ech e
+                     (dissoc e :topic)
+                     (vals e)
+                     (apply #(.tickSize ewrapper-impl %1 %2 %3) e)))
 
-(defn stop-stream-workbench []
-  (stop scheduled-fn))
+      (recur (<! ch)))))
