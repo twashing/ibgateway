@@ -19,6 +19,7 @@
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
                  [javax.servlet/javax.servlet-api "4.0.0"]
+                 [environ "1.1.0"]
 
                  ;; Pedestal libraries
                  [io.pedestal/pedestal.service "0.5.3"]
@@ -80,6 +81,7 @@
 
                    :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
                              [lein-cljsbuild "1.1.7"]
+                             [lein-environ "1.1.0"]
                              [lein-figwheel "0.5.16"]
                              [lein-virgil "0.1.8"]
                              [refactor-nrepl "2.4.0-SNAPSHOT"]]

@@ -1,20 +1,27 @@
 (ns com.interrupt.ibgateway.cloud.storage
-  (:require [mount.core :refer [defstate] :as mount])
-  (:import [com.amazonaws AmazonServiceException]
+  (:require [environ.core :as env]
+            [mount.core :as mount :refer [defstate]])
+  (:import [com.amazonaws.auth AWSStaticCredentialsProvider BasicAWSCredentials]
            [com.amazonaws.services.s3 AmazonS3 AmazonS3ClientBuilder]
-           [com.amazonaws.services.s3.model S3Object S3ObjectInputStream S3ObjectSummary]
-           [com.amazonaws AmazonServiceException]
-           [java.io File FileNotFoundException FileOutputStream IOException]
-           [java.util List]))
+           [com.amazonaws.services.s3.model S3Object S3ObjectInputStream]))
 
+(def aws-access-key-id (env/env :aws-access-key-id))
 
-;; In your environment, ensure that you have your AWS credentials set
-;; AWS_ACCESS_KEY_ID
-;; AWS_SECRET_ACCESS_KEY
-;; AWS_REGION
+(def aws-secret-access-key (env/env :aws-secret-access-key))
+
+(def aws-region (env/env :aws-region))
+
+(defn s3-client
+  [access-key-id secret-access-key region]
+  (.. (AmazonS3ClientBuilder/standard)
+      (withCredentials (->> secret-access-key
+                            (BasicAWSCredentials. access-key-id)
+                            AWSStaticCredentialsProvider.))
+      (withRegion region)
+      build))
 
 (defstate s3
-  :start (AmazonS3ClientBuilder/defaultClient))
+  :start (s3-client aws-access-key-id aws-secret-access-key aws-region))
 
 
 (defn put-file [^AmazonS3 s3 bucket-name file-name]
