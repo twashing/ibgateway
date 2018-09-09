@@ -6,4 +6,4 @@
        (every? (fn [[l r]]
                  (let [{ltime :last-trade-time} l
                        {rtime :last-trade-time} r]
-                   (< ltime rtime))))))
+                   (neg? (compare ltime rtime)))))))

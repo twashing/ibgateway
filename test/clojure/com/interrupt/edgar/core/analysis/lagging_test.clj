@@ -1,19 +1,41 @@
 (ns com.interrupt.edgar.core.analysis.lagging-test
-  (:require [clojure.test :refer :all]
-            [clojure.test.check :refer :all]
-            [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.spec.test.alpha :as stest]
-            [clojure.java.io :as io]
+  (:require [clj-time.coerce :as c]
             [clj-time.core :as t]
-            [clj-time.coerce :as c]
-            [com.gfredericks.test.chuck.clojure-test :refer [checking]]
-            [com.interrupt.edgar.core.analysis.lagging :as sut]
-            [com.interrupt.edgar.core.utils :refer [sine]]
             [clj-time.spec :as ts]
+            [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as g]
-            [clojure.tools.trace :refer [trace]]))
+            [clojure.spec.test.alpha :as stest]
+            [clojure.string :as str]
+            [clojure.test :refer :all]
+            [clojure.test.check :refer :all]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.tools.trace :refer [trace]]
+            [com.gfredericks.test.chuck.clojure-test :refer [checking]]
+            [com.interrupt.edgar.core.analysis.lagging :as sut]
+            [com.interrupt.edgar.core.utils :refer [sine]])
+  (:import [java.math RoundingMode]
+           [java.text DecimalFormat]))
 
+(defn double->str
+  ([d]
+   (double->str d 4))
+  ([d n]
+   (let [dfmt (DecimalFormat. (str "#." (str/join (repeat n "#"))))]
+     (.setRoundingMode dfmt RoundingMode/CEILING)
+     (.format dfmt d))))
+
+(deftest ema-test
+  (let [xs [1 2 3 4 5]]
+    (are [e v] (= (double->str e) (double->str v))
+      3.6584 (sut/ema xs)
+      2.3416 (sut/ema (reverse xs)))))
+
+(deftest bollinger-test
+  (let [xs [1 2 3 4 5]]
+    (are [e v] (= (map double->str e) (map double->str v))
+      [-0.1623 3.0 6.1623] (sut/bollinger xs)
+      [-0.1623 3.0 6.1623] (sut/bollinger (reverse xs)))))
 
 (def test-tick-data
   (->> "tick-data.4.edn"
@@ -37,13 +59,6 @@
   (testing "Spec is maintained under test conditions"
     (is (successful-check? (stest/check `sut/average)))))
 
-(deftest sum-test
-  (let [test-tick-data-first-twenty (take 20 test-tick-data)]
-    (is (= (->> test-tick-data-first-twenty
-                (map :last-trade-price)
-                (reduce +))
-           (sut/sum test-tick-data-first-twenty :last-trade-price)))))
-
 (deftest simple-moving-average-test
 
   (testing "Time ticks order from left to right"
@@ -56,21 +71,19 @@
       (is (thrown? AssertionError (sut/simple-moving-average options tick-list)))))
 
   (testing "Basic moving average calculation"
-    (let [options {}
-          tick-list-size 20
-          tick-list (->> test-tick-data
-                         (take tick-list-size)
-                         (map #(assoc % :last-trade-time
-                                      (Long/parseLong (:last-trade-time %)))))
+    (let [n 20
+          tick-list (take n test-tick-data)
 
-          result (sut/simple-moving-average options tick-list)
+          {:keys [last-trade-price-average]}
+          (sut/simple-moving-average {} tick-list)
 
-          average-comparator (as-> tick-list v
-                               (map :last-trade-price v)
-                               (reduce + v)
-                               (/ v tick-list-size))]
+          average-comparator (->> tick-list
+                                  (map :last-trade-price)
+                                  (reduce +)
+                                  (* (/ 1 n)))]
 
-      (is (= average-comparator (:last-trade-price-average result))))))
+      (is (= (double->str average-comparator)
+             (double->str last-trade-price-average))))))
 
 (deftest exponential-moving-average-test
 
@@ -125,10 +138,3 @@
   (time-seq->simple-exponential-pair (range 41))
 
   (is true))
-
-
-(comment
-  (def one (time-seq->simple-exponential-pair (->> (range 41) (map #(/ % 100)))))
-  (def one (time-seq->simple-exponential-pair (range 41)))
-  (def two (let [{:keys [sma-list ema-list]} one]
-             (map (fn [a b] (merge a b)) sma-list ema-list))))
