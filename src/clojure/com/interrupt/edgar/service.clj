@@ -206,7 +206,7 @@
       (stop-streaming-stock-data))))
 
 
-(defn get-streaming-stock-data [request]
+#_(defn get-streaming-stock-data [request]
 
   (let [client (:interactive-brokers-client edgar/*interactive-brokers-workbench*)
         stock-selection [ (-> request :query-params :stock-selection) ]
@@ -225,7 +225,7 @@
      ^:interceptors [body-params/body-params, session-interceptor]
      ["/list-filtered-input" {:get list-filtered-input}]
      #_["/get-historical-data" {:get get-historical-data}]
-     ["/get-streaming-stock-data" { :get [::init-streaming-stock-data (sse/start-event-stream init-streaming-stock-data)]
+     #_["/get-streaming-stock-data" {:get [::init-streaming-stock-data (sse/start-event-stream init-streaming-stock-data)]
                                    :post get-streaming-stock-data}]
      ]]])
 

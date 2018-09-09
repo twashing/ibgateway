@@ -1,6 +1,6 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
-             [clojure.core.async :refer [chan >! <! close! merge go go-loop pub sub unsub-all sliding-buffer
+             [clojure.core.async :refer [chan >! >!! <! <!! close! merge go go-loop pub sub unsub-all sliding-buffer
                                          mult tap pipeline]]
              [clojure.tools.logging :refer [debug info warn error]]
              [com.interrupt.ibgateway.component.ewrapper]
@@ -35,16 +35,24 @@
 
 (comment
 
+  (require '[com.interrupt.ibgateway.cloud.storage :refer [put-file get-file]])
+
   (mount/stop #'com.interrupt.ibgateway.cloud.storage/s3)
   (mount/start #'com.interrupt.ibgateway.cloud.storage/s3)
 
   (def bucket-name "edgarly")
   (def file-name "live-recordings/2018-08-27-TSLA.edn")
 
-  (put-file s3 bucket-name file-name))
+  (put-file s3 bucket-name file-name)
+  (get-file s3 bucket-name file-name))
 
 
 (comment
+
+
+  (def one (flatten (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")))
+  (def two (atom (-> (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")
+                     flatten)))
 
   (mount/find-all-states)
 
@@ -54,39 +62,38 @@
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               #'com.interrupt.ibgateway.component.repl-server/server
               #'com.interrupt.ibgateway.component.vase/server
-              ;; #'com.interrupt.ibgateway.cloud.storage/s3
+              #'com.interrupt.ibgateway.cloud.storage/s3
               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
               #'com.interrupt.ibgateway.core/state)
 
   (sw/stop-stream-workbench)
+  (reset)
 
-
-  ;; START
+  ;; 1. START
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.repl-server/server
                #'com.interrupt.ibgateway.component.vase/server
-               ;; #'com.interrupt.ibgateway.cloud.storage/s3
+               #'com.interrupt.ibgateway.cloud.storage/s3
                ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
                #'com.interrupt.ibgateway.core/state)
 
+  ;; 2. Point your browser to http://localhost:8080
+
+  ;; 3. Start streaming
   (sw/kickoff-stream-workbench)
 
+  ;; 4. Capture output channels and sent to browser
   (let [{joined-channel :joined-channel} pp/processing-pipeline]
-
-    #_(go-loop [events (<! merged-averages->tracer)]
-        (log/info "merged-averages->tracer: " events)
-        (if-let [next (<! merged-averages->tracer)]
-          (recur next)))
 
     (go-loop [r (<! joined-channel)]
 
-      (info "joined-channel : " r)
-      (send-message-to-all! r)
-      (if-not r
-        r
-        (recur (<! joined-channel))))))
+        (info  r)
+        (send-message-to-all! r)
+        (if-not r
+          r
+          (recur (<! joined-channel))))))
 
 
 (comment ;; from com.interrupt.ibgateway.component.processing-pipeline

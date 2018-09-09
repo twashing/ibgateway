@@ -199,7 +199,7 @@
 
 (defn channel->tracer [& channels]
   (for [ch channels
-          :let [tracer-ch (chan (sliding-buffer 100))]]
+        :let [tracer-ch (chan (sliding-buffer 100))]]
     (do
       (bind-channels->mult ch tracer-ch)
       tracer-ch)))
@@ -303,17 +303,6 @@
         (channel-strategy-bollinger-band)
 
 
-
-        #_(bind-channels->mult macd-ch
-                               macd->macd-strategy
-                               macd->on-balance-volume-strategy)
-
-        #_(bind-channels->mult stochastic-oscillator-ch
-                               stochastic-oscillator->stochastic-oscillator-strategy)
-
-        #_(bind-channels->mult on-balance-volume-ch
-                               on-balance-volume->on-balance-volume-ch)
-
         [tick-list->CROSS sma-list->CROSS
          ema-list->CROSS bollinger-band->CROSS
          macd->CROSS
@@ -337,14 +326,7 @@
                                                                :on-balance-volume on-balance-volume->CROSS
                                                                :relative-strength relative-strength->CROSS}})
 
-        connector-ch (chan (sliding-buffer 100))
-
-
-        [tick-list-ch->tracer macd-ch->tracer stochastic-osc-ch->tracer
-         obv-ch->tracer relative-strength-ch->tracer #_macd->join->tracer]
-
-        (channel->tracer tick-list-ch macd-ch stochastic-oscillator-ch
-                         on-balance-volume-ch relative-strength-ch #_macd->JOIN)]
+        connector-ch (chan (sliding-buffer 100))]
 
     ;; (bind-channels->mult macd-ch macd->JOIN)
 
@@ -390,7 +372,6 @@
     (pipeline-signals-lagging concurrency live/moving-average-window
                               strategy-merged-averages merged-averages strategy-moving-averages-ch
                               strategy-bollinger-band merged-bollinger-band strategy-bollinger-band-ch)
-
 
     {:joined-channel connector-ch}))
 

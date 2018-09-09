@@ -54,7 +54,7 @@
                  [com.cognitect/transit-cljs "0.8.256"]
                  [com.amazonaws/aws-java-sdk "1.11.401"]]
   :local-repo "m2"
-  :source-paths ["src/clojure" "workbench/clojure" "test/clojure"]
+  :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[org.clojure/tools.trace "0.7.9"]
                                   [org.clojure/test.check "0.10.0-alpha2"]
@@ -66,6 +66,7 @@
                                   [figwheel-sidecar "0.5.16"]
                                   [com.bhauman/rebel-readline "0.1.2"]]
 
+                   :source-paths ["src/clojure" "workbench/clojure" "test/clojure"]
                    :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
 
                    :resource-paths ["dev-resources"]
