@@ -1,14 +1,11 @@
 (ns com.interrupt.edgar.ib.handler.historical
-
-  (:use [clojure.core.strint]
-        [clojure.tools.namespace.repl])
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
             [com.interrupt.edgar.ib.market :as market]
             [com.interrupt.edgar.scheduler :as scheduler]
-            [com.interrupt.edgar.tee.datomic :as tdatomic]
-            ))
+            [clojure.core.strint :refer :all]
+            [clojure.tools.namespace.repl  :refer :all]))
 
 (defn- insert-into-event-list
   "bucket-tranche will have a structure of: [ { :id rslt :symbol stock-sym :event-list [] } ]
@@ -24,8 +21,7 @@
                    (update-in blist
                               [ event-index :event-list ]
                               (fn [inp]
-                                (conj inp rst))))))
-)
+                                (conj inp rst)))))))
 
 (defn- insert-price-difference
   "insert price difference, iff type is 'historicalData'"
@@ -60,8 +56,7 @@
 
                      ;;(log/debug "order-by-price-difference > input data[" inp "]")
                      (into []   ;; put the result into a vector
-                           (sort-by :price-difference > inp)))
-                   )))
+                           (sort-by :price-difference > inp))))))
 
 
 (defn- local-request-market-data [options]
@@ -73,8 +68,7 @@
         client (:client options)]
 
     (dosync (alter bucket conj { :id rslt :symbol stock-sym :company stock-name :price-difference 0.0 :event-list [] } ))
-    (market/request-market-data client rslt stock-sym true))
-  )
+    (market/request-market-data client rslt stock-sym true)))
 
 (defn- local-request-historical-data
 
@@ -101,8 +95,7 @@
         client (:client options)
         bsize (:bucket-size options)
         stock-lists (:stock-lists options)
-        tee-list (:tee-list options)
-        ]
+        tee-list (:tee-list options)]
 
 
     ;; ii.i get the next ID - (rst "tickerId")

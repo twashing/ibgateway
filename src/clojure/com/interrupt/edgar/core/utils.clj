@@ -1,4 +1,6 @@
-(ns com.interrupt.edgar.core.utils)
+(ns com.interrupt.edgar.core.utils
+  (:require [clojure.reflect :refer [reflect]]
+            [clojure.string :refer [join]]))
 
 
 (defn sine
@@ -25,3 +27,16 @@
                      (- input
                         (/ Math/PI 2)))))
      d))
+
+
+(defn inspect [obj]
+  (let [reflection (reflect obj)
+        members (sort-by :name (:members reflection))]
+    (println "Class:" (.getClass obj))
+    (println "Bases:" (:bases reflection))
+    (println "---------------------\nConstructors:")
+    (doseq [constructor (filter #(instance? clojure.reflect.Constructor %) members)]
+      (println (:name constructor) "(" (join ", " (:parameter-types constructor)) ")"))
+    (println "---------------------\nMethods:")
+    (doseq [method (filter #(instance? clojure.reflect.Method %) members)]
+      (println (:name method) "(" (join ", " (:parameter-types method)) ") ;=>" (:return-type method)))))

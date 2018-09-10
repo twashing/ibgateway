@@ -88,8 +88,8 @@
     (info "parsed-options: " parsed-options)
     (cond
 
-      (-> parsed-options :options :record)
-      (switchboard/record-live-data)
+      ;; (-> parsed-options :options :record)
+      ;; (switchboard/record-live-data)
 
       :else (info "No args provided"))
 

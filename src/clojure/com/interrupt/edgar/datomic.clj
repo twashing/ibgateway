@@ -1,7 +1,5 @@
 (ns com.interrupt.edgar.datomic
-
-  (:use [datomic.api :only [q db] :as d])
-)
+  (:require [datomic.api :refer [q db] :as d]))
 
 (def url "datomic:free://localhost:4334/edgar")
 
@@ -17,8 +15,7 @@
 
 (defn database-schema-create [conn]
   (def schema-tx (read-string (slurp "etc/edgar-schema.dtm")))
-  @(d/transact conn schema-tx)
-)
+  @(d/transact conn schema-tx))
 
 
 (defn insert-data [conn]
@@ -34,5 +31,4 @@
   (nth data-tx 2)
 
   ;; submit seed data transaction
-  @(d/transact conn data-tx)
-)
+  @(d/transact conn data-tx))

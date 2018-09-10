@@ -885,3 +885,246 @@
         (when-not (nil? r)
           (log/info "record" r)
           (recur (<! output-ch))))))
+
+
+(comment  ;; Track strategies / Manage orders
+
+  (require '[com.interrupt.edgar.ib.market :as market]
+           '[com.interrupt.edgar.core.analysis.lagging :as alagging]
+           '[com.interrupt.edgar.core.signal.common :as common]
+           '[com.interrupt.edgar.core.signal.lagging :as slagging]
+           '[com.interrupt.edgar.core.signal.leading :as sleading]
+           '[com.interrupt.edgar.core.signal.confirming :as sconfirming]
+           '[com.interrupt.edgar.core.strategy.strategy :as strategy]
+           '[com.interrupt.edgar.core.strategy.target :as target])
+
+
+  (def ^:dynamic *tracking-data* (ref []))
+  (def ^:dynamic *orderid-index* (ref 100))
+
+  (defn track-strategies
+    "Follows new strategy recommendations coming in"
+    [tick-list strategy-list]
+
+    ;; iterate through list of strategies
+    (reduce (fn [rA eA]
+
+              #_(println (str "... 1 > eA[" eA "] > some test if/else[" (some #(= % (:tickerId eA)) (map :tickerId @*tracking-data*)) "]"))
+              ;; does tickerId of current entry = any tickerIds in existing list?
+              (if (some #(= % (:tickerId eA))
+                        (map :tickerId @*tracking-data*))
+
+
+                ;; for tracking symbols, each new tick -> calculate:
+                ;;     $ gain/loss
+                ;;     % gain/loss
+                (dosync (alter *tracking-data* (fn [inp]
+
+                                                 (let [result-filter (filter #(= (-> % second :tickerId) (:tickerId eA))
+                                                                             (map-indexed (fn [idx itm] [idx itm]) inp))]
+
+                                                   #_(println (str "... 2 > value[" (ffirst (seq result-filter))
+                                                                   "] / result-filter[" (seq result-filter)
+                                                                   "] / input[" (type inp) "][" inp "]"))
+
+                                                   ;; update-in-place, the existing *tracking-data*
+                                                   ;; i. find index of relevent entry
+                                                   (into [] (update-in inp
+                                                                       [(ffirst (seq result-filter))]
+                                                                       (fn [i1]
+
+                                                                         #_(println (str "... 3 > update-in inp[" i1 "]"))
+                                                                         (let [price-diff (- (:last-trade-price (first tick-list)) (:orig-trade-price i1))
+                                                                               merge-result (merge i1 {:last-trade-price (:last-trade-price (first tick-list))
+                                                                                                       :last-trade-time (:last-trade-time eA)
+                                                                                                       :change-pct (/ price-diff (:orig-trade-price i1))
+                                                                                                       :change-prc price-diff})]
+
+                                                                           #_(println (str "... 4 > result[" merge-result "]"))
+                                                                           merge-result))))))))
+
+                ;; otherwise store them in a hacked-session
+                (dosync (alter *tracking-data* concat (list {:uuid (:uuid eA)
+                                                             :symbol (:symbol tick-list)
+                                                             :tickerId (:tickerId eA)
+                                                             :orig-trade-price (:last-trade-price eA)
+                                                             :orig-trade-time (:last-trade-time eA)
+                                                             :strategies (:strategies eA)
+                                                             :source-entry eA})))))
+            []
+            strategy-list))
+
+  (defn watch-strategies
+    "Tracks and instruments existing strategies in play"
+    [tick-list]
+
+    #_(println (str "... 1 > WATCH > watch-strategies > test[" (some #(= % (:tickerId (first tick-list)))
+                                                                     (map :tickerId @*tracking-data*)) "]"))
+
+    ;; check if latest tick matches a stock being watched
+    (if (some #(= % (:tickerId (first tick-list)))
+              (map :tickerId @*tracking-data*))
+
+      (dosync (alter *tracking-data* (fn [inp]
+
+                                       (let [result-filter (filter #(= (-> % second :tickerId) (:tickerId (first tick-list)))
+                                                                   (map-indexed (fn [idx itm] [idx itm]) inp))]
+
+                                         #_(println (str "... 2 > WATCH > result-filter[" (into [] result-filter) "] / integer key[" (first (map first result-filter)) "] / inp[" (into [] inp) "]"))
+
+                                         ;; update-in-place, the existing *tracking-data*
+                                         ;; i. find index of relevent entry
+                                         (into [] (update-in (into [] inp)
+                                                             [(first (map first (into [] result-filter)))]
+                                                             (fn [i1]
+
+                                                               #_(println (str "... 3 > WATCH > update-in > inp[" i1 "]"))
+                                                               (let [
+
+                                                                     ;; find peaks-valleys
+                                                                     peaks-valleys (common/find-peaks-valleys nil tick-list)
+                                                                     peaks (:peak (group-by :signal peaks-valleys))
+
+                                                                     stoploss-threshold? (target/stoploss-threshhold? (:orig-trade-price i1) (:last-trade-price (first tick-list)))
+                                                                     reached-target? (target/target-threshhold? (:orig-trade-price i1) (:last-trade-price (first tick-list)))
+
+
+                                                                     ;; ensure we're not below stop-loss
+                                                                     ;; are we: at 'target'
+
+                                                                     ;; OR
+
+                                                                     ;; are we: abouve last 2 peaks - hold
+                                                                     ;; are we: below first peak, but abouve second peak - hold
+                                                                     ;; are we: below previous 2 peaks - sell
+
+                                                                     action (if stoploss-threshold?
+
+                                                                              {:action :down :why :stoploss-threshold}
+
+                                                                              (if (every? #(>= (:last-trade-price (first tick-list))
+                                                                                               (:last-trade-price %))
+                                                                                          (take 2 peaks))
+
+                                                                                {:action :up :why :abouve-last-2-peaks}
+
+                                                                                (if (and (>= (:last-trade-price (first tick-list))
+                                                                                             (:last-trade-price (nth tick-list 2)))
+                                                                                         (<= (:last-trade-price (first tick-list))
+                                                                                             (:last-trade-price (second tick-list))))
+
+                                                                                  {:action :up :why :abouve-second-below-first-peak}
+
+                                                                                  {:action :down :why :below-first-2-peaks})))
+
+
+                                                                     price-diff (- (:last-trade-price (first tick-list)) (:orig-trade-price i1))
+                                                                     merge-result (merge i1 {:last-trade-price (:last-trade-price (first tick-list))
+                                                                                             :last-trade-time (:last-trade-time (first tick-list))
+                                                                                             :change-pct (/ price-diff (:orig-trade-price i1))
+                                                                                             :change-prc price-diff
+                                                                                             :action action})]
+
+                                                                 #_(println (str "... 4 > WATCH > result[" merge-result "]"))
+                                                                 merge-result))))))))))
+
+  (defn trim-strategies [tick-list]
+
+    (println (str "... trim-strategies / SELL test[" (some #(= :down (-> % :action :action)) @*tracking-data*)
+                  "] / ACTION[" (seq (filter #(= :down (-> % :action :action)) @*tracking-data*))
+                  "] / WHY[" (seq (filter #(= :down (-> % :action)) @*tracking-data*)) "]"))
+    (dosync (alter *tracking-data*
+                   (fn [inp]
+                     (into [] (remove #(= :down (-> % :action :action))
+                                      inp))))))
+
+  (defn manage-orders [strategy-list result-map tick-list-N]
+
+    ;; track any STRATEGIES
+    (let [strategy-list-trimmed (remove nil? (map first strategy-list))]
+
+      (if (-> strategy-list-trimmed empty? not)
+
+        (track-strategies tick-list-N strategy-list-trimmed)))
+
+
+    ;; watch any STRATEGIES in play
+    (if (not (empty? @*tracking-data*))
+      (watch-strategies tick-list-N))
+
+
+    ;; ORDER based on tracking data
+    ;; TODO - update access to ewrapper client
+    (let [client (:interactive-brokers-client edgar/*interactive-brokers-workbench*)
+          tick (first @*tracking-data*)]
+
+      (if (some #(= :up (-> % :action :action))
+                (filter #(= (:tickerId %) (-> tick-list-N first :tickerId)) @*tracking-data*))
+
+        ;; only buy that which we are not already :long
+        (if-not (= :long
+                   (-> (filter #(= (:tickerId %) (-> tick-list-N first :tickerId)) @*tracking-data*)
+                       first
+                       :position))
+          (do
+
+            ;; ... TODO: make sure we don't double-buy yet
+            ;; ... TODO: track orderId for sale
+            ;; ... TODO: stock-symbol has to be tied to the tickerId
+            (println "==> BUY now")
+            #_(dosync (alter *tracking-data* (fn [inp]
+
+                                               (let [result-filter (filter #(= (-> % second :tickerId) (:tickerId (first tick-list-N)))
+                                                                           (map-indexed (fn [idx itm] [idx itm]) inp))]
+
+                                                 ;; i. find index of relevent entry
+                                                 (update-in (into [] inp)
+                                                            [(first (map first (into [] result-filter)))]
+                                                            (fn [i1]
+
+                                                              #_(println (str "... 3 > BUY > update-in > inp[" i1 "]"))
+                                                              (let [merge-result (merge i1 {:order-id *orderid-index*
+                                                                                            :position :long
+                                                                                            :position-amount 100
+                                                                                            :position-price (:last-trade-price (first tick-list-N))})]
+
+                                                                #_(println (str "... 4 > BUY > result[" merge-result "]"))
+                                                                (market/buy-stock client @*orderid-index* (:symbol result-map) 100 (:last-trade-price tick))
+
+                                                                merge-result)))))))
+            (dosync (alter *orderid-index* inc))))
+
+        (if (some #(= :down (-> % :action :action))
+                  (filter #(= (:tickerId %) (-> tick-list-N first :tickerId)) @*tracking-data*))
+
+          (if (= :long
+                 (-> (filter #(= (:tickerId %) (-> tick-list-N first :tickerId)) @*tracking-data*)
+                     first
+                     :position))
+            (do
+
+              (println "==> SELL now / test[" (filter #(= (:tickerId %) (-> tick-list-N first :tickerId)) @*tracking-data*) "] ")
+              #_(dosync (alter *tracking-data* (fn [inp]
+
+                                                 (let [result-filter (filter #(= (-> % second :tickerId) (:tickerId (first tick-list-N)))
+                                                                             (map-indexed (fn [idx itm] [idx itm]) inp))]
+
+                                                   ;; i. find index of relevent entry
+                                                   (update-in (into [] inp)
+                                                              [(first (map first (into [] result-filter)))]
+                                                              (fn [i1]
+
+                                                                (println (str "... 3 > SELL > update-in > inp[" i1 "]"))
+                                                                (let [merge-result (merge i1 {:position :short
+                                                                                              :position-amount 100
+                                                                                              :position-price (:last-trade-price (first tick-list-N))})]
+
+                                                                  (println (str "... 4 > SELL > result[" merge-result "]"))
+                                                                  (market/sell-stock client @(:order-id i1) (:symbol result-map) 100 (:last-trade-price tick))
+                                                                  merge-result)))))))
+
+              ;; remove tracked stock if sell
+              (if (not (empty? @*tracking-data*))
+                (trim-strategies tick-list-N)))))))))
+
+

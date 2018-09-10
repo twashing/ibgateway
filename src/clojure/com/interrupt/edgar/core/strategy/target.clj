@@ -9,7 +9,6 @@
     change-pct))
 
 
-
 ;; Making a default stop / loss threshold of -5%
 (defn stoploss-threshhold? [orig-price current-price]
 
@@ -28,8 +27,6 @@
     change-test))
 
 
-
-
 ;; Making a default target threshold of 5%
 (defn target-threshhold? [orig-price current-price]
 
@@ -37,6 +34,7 @@
         change-test (>= change-pct 0.05)]
 
     change-test))
+
 
 (defn target-threshhold-wstocks? [orig-price current-price no-shares]
 

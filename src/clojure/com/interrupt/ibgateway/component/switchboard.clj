@@ -22,11 +22,7 @@
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
             [com.interrupt.ibgateway.component.switchboard.store :as store]
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
-            [com.interrupt.edgar.core.tee.live :as tlive]
-
-            [com.interrupt.edgar.core.edgar :as edgar]
             [com.interrupt.edgar.ib.market :as market]
-            [com.interrupt.edgar.ib.handler.live :as live]
 
             [mount.core :refer [defstate] :as mount]
             [clojure.tools.trace :refer [trace]]
@@ -1244,7 +1240,7 @@
           (recur (<! ch))))))
 
 
-(defn record-live-data []
+#_(defn record-live-data []
 
   (info "record-live-data / com.interrupt.ibgateway.component.ewrapper/ewrapper: "
         com.interrupt.ibgateway.component.ewrapper/ewrapper)

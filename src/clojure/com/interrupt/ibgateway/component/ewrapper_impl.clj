@@ -5,7 +5,7 @@
   (:import [com.ib.client Contract ContractDetails EReader ScannerSubscription]
            com.interrupt.ibgateway.EWrapperImpl))
 
-(defn- create-contract
+(defn create-contract
   [symbol]
   (doto (Contract.)
     (.symbol symbol)

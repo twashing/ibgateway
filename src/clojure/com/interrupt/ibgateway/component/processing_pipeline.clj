@@ -5,10 +5,10 @@
             [mount.core :refer [defstate] :as mount]
             [clojure.tools.logging :refer [debug info warn error] :as log]
             [net.cgrand.xforms :as x]
-            [com.interrupt.edgar.core.edgar :as edg]
+            [clojure.string :as cs]
+            [cljs-uuid.core :as uuid]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.edgar.ib.market :as mkt]
-            [com.interrupt.edgar.ib.handler.live :refer [feed-handler] :as live]
             [com.interrupt.edgar.core.analysis.lagging :as alag]
             [com.interrupt.edgar.core.analysis.leading :as alead]
             [com.interrupt.edgar.core.analysis.confirming :as aconf]
@@ -17,6 +17,52 @@
             [com.interrupt.edgar.core.signal.confirming :as sconf]
             [prpr.stream.cross :as stream.cross]
             [manifold.stream :as stream]))
+
+
+(def moving-average-window 20)
+(def moving-average-increment 1)
+(def rt-volume-time-and-sales-type 48)
+(def tick-string-type :tick-string)
+
+(defn rtvolume-time-and-sales? [event]
+  (and (= rt-volume-time-and-sales-type (:tick-type event))
+       (= tick-string-type (:topic event))))
+
+(defn parse-tick-string
+  "Input format:
+
+   {:type tickString, :tickerId 0, :tickType 48, :value 412.14;1;1367429375742;1196;410.39618025;true}
+
+   Value format:
+
+   :value       ;0;1522337866199;67085;253.23364232;true
+   :value 255.59;1;1522337865948;67077;253.23335428;true"
+  [event]
+
+  (let [tvalues (cs/split (:value event) #";")
+        tkeys [:last-trade-price :last-trade-size :last-trade-time :total-volume :vwap :single-trade-flag]]
+
+    (as-> (zipmap tkeys tvalues) rm
+      (merge rm {:ticker-id (:ticker-id event)
+                 :type (:topic event)
+                 :uuid (str (uuid/make-random))})
+      (assoc rm
+             :last-trade-price (if (not (empty? (:last-trade-price rm)))
+                                 (read-string (:last-trade-price rm)) 0)
+             :last-trade-time (Long/parseLong (:last-trade-time rm))
+             :last-trade-size (read-string (:last-trade-size rm))
+             :total-volume (read-string (:total-volume rm))
+             :vwap (read-string (:vwap rm))))))
+
+(defn empty-last-trade-price? [event]
+  (-> event :last-trade-price (<= 0)))
+
+(def handler-xform
+    (comp (filter rtvolume-time-and-sales?)
+       (map parse-tick-string)
+
+       ;; TODO For now, ignore empty lots
+       (remove empty-last-trade-price?)))
 
 
 (defn bind-channels->mult [source-list-ch & channels]
@@ -101,8 +147,8 @@
                                  bollinger-band-ch sma-list->bollinger-band-ch]
 
   (pipeline concurrency sma-list-ch (map (partial alag/simple-moving-average options)) tick-list->sma-ch)
-  (pipeline concurrency ema-list-ch (map (partial alag/exponential-moving-average options live/moving-average-window)) sma-list->ema-ch)
-  (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band live/moving-average-window)) sma-list->bollinger-band-ch))
+  (pipeline concurrency ema-list-ch (map (partial alag/exponential-moving-average options moving-average-window)) sma-list->ema-ch)
+  (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band moving-average-window)) sma-list->bollinger-band-ch))
 
 (defn pipeline-analysis-leading [concurrency options moving-average-window
                                  macd-ch sma-list->macd-ch
@@ -122,10 +168,10 @@
                                 strategy-bollinger-band merged-bollinger-band strategy-bollinger-band-ch]
 
   (pipeline concurrency strategy-merged-averages (map (partial join-averages (atom {}))) merged-averages)
-  (pipeline concurrency strategy-moving-averages-ch (map (partial slag/moving-averages live/moving-average-window)) strategy-merged-averages)
+  (pipeline concurrency strategy-moving-averages-ch (map (partial slag/moving-averages moving-average-window)) strategy-merged-averages)
 
   (pipeline concurrency strategy-bollinger-band (map (partial join-averages (atom {}) #{:tick-list :sma-list})) merged-bollinger-band)
-  (pipeline concurrency strategy-bollinger-band-ch (map (partial slag/bollinger-band live/moving-average-window)) strategy-bollinger-band))
+  (pipeline concurrency strategy-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) strategy-bollinger-band))
 
 (defn pipeline-signals-leading [concurrency moving-average-window strategy-macd-ch macd->macd-strategy
                                 strategy-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-strategy
@@ -136,13 +182,13 @@
   (pipeline concurrency strategy-stochastic-oscillator-ch (map slead/stochastic-oscillator)
             stochastic-oscillator->stochastic-oscillator-strategy)
 
-  (pipeline concurrency strategy-on-balance-volume-ch (map (partial sconf/on-balance-volume live/moving-average-window))
+  (pipeline concurrency strategy-on-balance-volume-ch (map (partial sconf/on-balance-volume moving-average-window))
             on-balance-volume->on-balance-volume-ch))
 
 (defn channel-analytics []
   {:source-list-ch (chan (sliding-buffer 100))
-   :tick-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
-   :sma-list-ch (chan (sliding-buffer 100) (x/partition live/moving-average-window live/moving-average-increment (x/into [])))
+   :tick-list-ch (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
+   :sma-list-ch (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
    :ema-list-ch (chan (sliding-buffer 100))
    :bollinger-band-ch (chan (sliding-buffer 100))
    :macd-ch (chan (sliding-buffer 100))
@@ -351,8 +397,8 @@
 
 
     ;; TICK LIST
-    (pipeline concurrency source-list-ch live/handler-xform (ew/ewrapper :publisher))
-    (pipeline concurrency tick-list-ch live/handler-xform source-list-ch)
+    (pipeline concurrency source-list-ch handler-xform (ew/ewrapper :publisher))
+    (pipeline concurrency tick-list-ch handler-xform source-list-ch)
 
 
     ;; ANALYSIS
@@ -361,7 +407,7 @@
                                ema-list-ch sma-list->ema-ch
                                bollinger-band-ch sma-list->bollinger-band-ch)
 
-    (pipeline-analysis-leading concurrency options live/moving-average-window macd-ch sma-list->macd-ch
+    (pipeline-analysis-leading concurrency options moving-average-window macd-ch sma-list->macd-ch
                                stochastic-oscillator-ch tick-list->stochastic-osc-ch)
 
     (pipeline-analysis-confirming concurrency on-balance-volume-ch tick-list->obv-ch
@@ -369,7 +415,7 @@
 
 
     ;; SIGNALS
-    (pipeline-signals-lagging concurrency live/moving-average-window
+    (pipeline-signals-lagging concurrency moving-average-window
                               strategy-merged-averages merged-averages strategy-moving-averages-ch
                               strategy-bollinger-band merged-bollinger-band strategy-bollinger-band-ch)
 
@@ -445,26 +491,26 @@
 
 
     ;; TICK LIST
-    (pipeline concurrency source-list-ch live/handler-xform (ew/ewrapper :publisher))
-    ;; (pipeline concurrency tick-list-ch live/handler-xform source-list-ch)
+    (pipeline concurrency source-list-ch handler-xform (ew/ewrapper :publisher))
+    ;; (pipeline concurrency tick-list-ch handler-xform source-list-ch)
 
 
     ;; ANALYSIS
     (pipeline-analysis-lagging concurrency options sma-list-ch tick-list->sma-ch ema-list-ch sma-list->ema-ch
                                bollinger-band-ch sma-list->bollinger-band-ch)
 
-    (pipeline-analysis-leading concurrency options live/moving-average-window macd-ch sma-list->macd-ch
+    (pipeline-analysis-leading concurrency options moving-average-window macd-ch sma-list->macd-ch
                                stochastic-oscillator-ch tick-list->stochastic-osc-ch)
 
     (pipeline-analysis-confirming concurrency on-balance-volume-ch tick-list->obv-ch
                                   relative-strength-ch tick-list->relative-strength-ch)
 
     ;; SIGNALS
-    (pipeline-signals-lagging concurrency live/moving-average-window
+    (pipeline-signals-lagging concurrency moving-average-window
                               strategy-merged-averages merged-averages strategy-moving-averages-ch
                               strategy-bollinger-band merged-bollinger-band strategy-bollinger-band-ch)
 
-    (pipeline-signals-leading concurrency live/moving-average-window strategy-macd-ch macd->macd-strategy
+    (pipeline-signals-leading concurrency moving-average-window strategy-macd-ch macd->macd-strategy
                               strategy-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-strategy
                               strategy-on-balance-volume-ch on-balance-volume->on-balance-volume-ch)
 

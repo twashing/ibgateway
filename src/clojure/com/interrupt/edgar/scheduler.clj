@@ -1,6 +1,5 @@
 (ns com.interrupt.edgar.scheduler
-  (:require [overtone.at-at :as at])
-  )
+  (:require [overtone.at-at :as at]))
 
 
 (defn initialize-pool
@@ -16,11 +15,9 @@
   (let [opts (merge {:msec 1000 :sec 60 :min 1} options)
         msec (:msec opts)
         sec (:sec opts)
-        min (:min opts)
-        ]
+        min (:min opts)]
 
     (at/every
      (* min sec msec)
      task-fn
-     my-pool))
-  )
+     my-pool)))
