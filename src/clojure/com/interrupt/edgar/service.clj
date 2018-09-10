@@ -1,10 +1,8 @@
 (ns com.interrupt.edgar.service
   (:import [javax.servlet.http HttpServletRequest HttpServletResponse]
            [java.text SimpleDateFormat])
-  (:require [com.interrupt.edgar.core.edgar :as edgar]
-            [com.interrupt.edgar.datomic :as edatomic]
+  (:require [com.interrupt.edgar.datomic :as edatomic]
             [com.interrupt.edgar.ib.market :as market]
-            [com.interrupt.edgar.ib.handler.live :as live]
             [com.interrupt.edgar.core.analysis.lagging :as alagging]
             [com.interrupt.edgar.core.signal.lagging :as slagging]
             [com.interrupt.edgar.core.signal.leading :as sleading]

@@ -1,7 +1,7 @@
 (ns com.interrupt.edgar.ib.market
   (:import [com.ib.client EWrapper EClientSocket Contract Order OrderState ContractDetails Execution])
-  (:use [clojure.core.strint])
-  (:require [com.interrupt.edgar.eclientsocket :as socket]
+  (:require [clojure.core.strint :refer :all]
+            [com.interrupt.ibgateway.component.ewrapper-impl :refer [create-contract]]
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [overtone.at-at :as at]
             [clj-time.core :as cime]
@@ -9,35 +9,6 @@
             [clj-time.format :as format]))
 
 
-(defn connect-to-market
-  "Connect to the IB marketplace. This should return a 'client' object"
-  []
-  #_(socket/connect-to-tws))
-
-(defn disconnect-from-market
-  "Disconnect from the IB marketplace."
-  []
-  #_(socket/disconnect-from-tws))
-
-(defn- create-contract [instrm]
-  (doto (Contract.)
-    (.symbol instrm)
-    (.secType "STK")
-    (.exchange "SMART")
-    (.currency "USD")))
-
-(defn- create-order [action qty price]
-
-  (let [order (Order.)]
-    (set! (.m_totalQuantity order) qty)
-    (set! (.m_action order) action)
-    (set! (.m_orderType order) "LMT")
-    (set! (.m_lmtPrice order) price)
-
-    order))
-
-
-;; ====
 ;; HISTORICAL Data
 (defn request-historical-data
   "Request historical historical information in the form of a feed or data snapshot.
@@ -61,27 +32,17 @@
   (.cancelHistoricalData client idx))
 
 
-
-
-(use '[clojure.reflect :only [reflect]])
-(use '[clojure.string :only [join]])
-
-(defn inspect [obj]
-  "nicer output for reflecting on an object's methods"
-  (let [reflection (reflect obj)
-        members (sort-by :name (:members reflection))]
-    (println "Class:" (.getClass obj))
-    (println "Bases:" (:bases reflection))
-    (println "---------------------\nConstructors:")
-    (doseq [constructor (filter #(instance? clojure.reflect.Constructor %) members)]
-      (println (:name constructor) "(" (join ", " (:parameter-types constructor)) ")"))
-    (println "---------------------\nMethods:")
-    (doseq [method (filter #(instance? clojure.reflect.Method %) members)]
-      (println (:name method) "(" (join ", " (:parameter-types method)) ") ;=>" (:return-type method)))))
-
-
-;; ====
 ;; MARKET Data
+(defn- create-order [action qty price]
+
+  (let [order (Order.)]
+    (set! (.m_totalQuantity order) qty)
+    (set! (.m_action order) action)
+    (set! (.m_orderType order) "LMT")
+    (set! (.m_lmtPrice order) price)
+
+    order))
+
 (defn request-market-data
   "Request historical market information in the form of a feed or data snapshot"
 
@@ -107,7 +68,6 @@
   (.cancelMktData client idx))
 
 
-;; ====
 ;; BUY / SELL stock
 (defn buy-stock [client idx instrm qty price]
 
@@ -124,20 +84,3 @@
 
     (println (str "sell-stock >> client[" client "] / idx[" idx "] / instrm[" instrm "] / contract[" contract "] / order[" order "]"))
     (.placeOrder client idx contract order)))
-
-
-(defn consume [handle-fn channel]
-  (go-loop []
-    (handle-fn (<! channel))
-    (recur)))
-
-(defn subscribe-to-market [publisher handle-fn]
-
-  (let [publication (pub publisher #(:topic %))
-        subscriber (chan)]
-
-    (sub publication :tick-price subscriber)
-    (sub publication :tick-size subscriber)
-    (sub publication :tick-string subscriber)
-
-    (consume handle-fn subscriber)))
