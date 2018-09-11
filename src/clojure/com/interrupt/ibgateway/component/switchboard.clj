@@ -1,34 +1,35 @@
 (ns com.interrupt.ibgateway.component.switchboard
   (:require [clojure.core.async :refer [chan >! <! close! merge go go-loop pub sub unsub-all sliding-buffer
                                         onto-chan mult tap pipeline] :async async]
-            [clojure.set :as cs]
             [clojure.math.combinatorics :as cmb]
+            [clojure.set :as cs]
             [clojure.tools.logging :refer [debug info warn error]]
-            [franzy.clients.producer.client :as producer]
-            [franzy.clients.consumer.client :as consumer]
-            [franzy.clients.consumer.callbacks :refer [consumer-rebalance-listener]]
-            [franzy.clients.producer.protocols :refer :all]
-            [franzy.clients.consumer.protocols :refer :all]
-            [franzy.common.metadata.protocols :refer :all]
-            [franzy.serialization.serializers :as serializers]
-            [franzy.serialization.deserializers :as deserializers]
-            [franzy.admin.zookeeper.client :as client]
-            [franzy.admin.topics :as topics]
-            [franzy.clients.producer.defaults :as pd]
-            [franzy.clients.consumer.defaults :as cd]
-            ;; [datomic.api :as d]
-            [mount.core :refer [defstate] :as mount]
+            [clojure.tools.trace :refer [trace]]
+            [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.edgar.subscription :as sub]
+            [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
-            [com.interrupt.ibgateway.component.switchboard.store :as store]
+            [com.interrupt.ibgateway.component.processing-pipeline :as pp]
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
-            [com.interrupt.edgar.ib.market :as market]
+            [com.interrupt.ibgateway.component.switchboard.store :as store]
+            [franzy.admin.topics :as topics]
+            [franzy.admin.zookeeper.client :as client]
+            [franzy.clients.consumer.callbacks :refer [consumer-rebalance-listener]]
+            [franzy.clients.consumer.client :as consumer]
+            [franzy.clients.consumer.defaults :as cd]
+            [franzy.clients.consumer.protocols :refer :all]
+            [franzy.clients.producer.client :as producer]
+            [franzy.clients.producer.defaults :as pd]
+            [franzy.clients.producer.protocols :refer :all]
+            [franzy.common.metadata.protocols :refer :all]
 
+            [franzy.serialization.deserializers :as deserializers]
+            [franzy.serialization.serializers :as serializers]
+            ;; [datomic.api :as d]
             [mount.core :refer [defstate] :as mount]
-            [clojure.tools.trace :refer [trace]]
-            [overtone.at-at :refer :all]
-            [com.interrupt.ibgateway.component.ewrapper :as ew]
-            [com.interrupt.ibgateway.component.processing-pipeline :as pp]))
+            [mount.core :refer [defstate] :as mount]
+            [overtone.at-at :refer :all]))
 
 
 #_(def topic-scanner-command "scanner-command")
@@ -1268,49 +1269,18 @@
 #_(defn record-stop-live-data []
   (market/cancel-market-data client 0))
 
-(defn- read-one
-  [r]
-  (try
-    (read r)
-    (catch java.lang.RuntimeException e
-      (if (= "EOF while reading" (.getMessage e))
-        ::EOF
-        (throw e)))))
-
-(defn read-seq-from-file
-  "Reads a sequence of top-level objects in file at path."
-  [path]
-  (with-open [r (java.io.PushbackReader. (clojure.java.io/reader path))]
-    (binding [*read-eval* false]
-      (doall (take-while #(not= ::EOF %) (repeatedly #(read-one r)))))))
-
 (defn kickoff-stream-workbench []
-
-  (let [ewrapper-impl (:wrapper ew/ewrapper)
-        input-source (-> (read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")
-                         flatten)
-        string-count (atom 0)
-        ch (chan 100)]
-
-    (onto-chan ch input-source)
-    (go-loop [{:keys [topic] :as ech} (<! ch)]
-
-      (Thread/sleep 10)
-      (case topic
-        :tick-string (do
-                       #_(when (< @string-count 4000)
-                           (trace (str "Sanity check: " ech)))
-                       (as-> ech e
-                         (dissoc e :topic)
-                         (vals e)
-                         (apply #(.tickString ewrapper-impl %1 %2 %3) e)))
-        :tick-price (as-> ech e
-                      (dissoc e :topic)
-                      (vals e)
-                      (apply #(.tickPrice ewrapper-impl %1 %2 %3 %4) e))
-        :tick-size (as-> ech e
-                     (dissoc e :topic)
-                     (vals e)
-                     (apply #(.tickSize ewrapper-impl %1 %2 %3) e)))
-
-      (recur (<! ch)))))
+  (let [{:keys [wrapper]} ew/ewrapper
+        sub (sub/->FileSubscription "live-recordings/2018-08-20-TSLA.edn" (chan 100))
+        ch (sub/subscribe sub)]
+    (go-loop []
+      (when-let [{:keys [topic] :as v} (<! ch)]
+        (Thread/sleep 10)
+        (let [f (case topic
+                  :tick-string #(.tickString wrapper %1 %2 %3)
+                  :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
+                  :tick-size #(.tickSize wrapper %1 %2 %3))]
+          (->> (dissoc v :topic)
+               vals
+               (apply f)))
+        (recur)))))
