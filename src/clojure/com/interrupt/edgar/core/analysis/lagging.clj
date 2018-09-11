@@ -1,101 +1,9 @@
 (ns com.interrupt.edgar.core.analysis.lagging
-  (:require [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as g]
-            [clojure.spec.test.alpha :as stest]
-            [clojure.test.check.generators :as gen]
-            [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
-
-
-;; ==>
-
-;; (s/def ::input-key #{:foo :bar})
-;;
-;; (def a-tuple (g/bind (s/gen ::input-key)
-;;                      (fn [x]
-;;                        (g/tuple (g/return x)
-;;                                 (g/double* {:min 1.0 :infinite? false, :NaN? false})))))
-;;
-;; (def b-tuple (g/tuple (g/return :b)
-;;                       (g/large-integer)))
-;;
-;; (def my-map (gen/let [at a-tuple
-;;                       tt b-tuple]
-;;
-;;               (->> [:input-key (first at)]
-;;                    (concat at tt)
-;;                    (apply array-map))))
-;;
-;; (g/generate my-map)
-
-;; ==>
-
-
-;; (s/def ::input-key #{:last-trade-price :last-trade-price-average})
-;; (s/def ::last-trade-time (set (range 10000 90000)))
-;; (s/def ::tick-entry (s/keys :req [::input-key ::last-trade-time]))
-;;
-;; (def tick-price-tuple (g/bind (s/gen ::input-key)
-;;                               (fn [x]
-;;                                 (g/tuple (g/return x)
-;;                                          (g/double* {:min 1.0 :infinite? false, :NaN? false})))))
-;; (def tick-time-tuple (g/tuple (g/return :last-trade-time)
-;;                               (g/large-integer)))
-;; (def tick-event (gen/let [price-tuple tick-price-tuple
-;;                           time-tuple tick-time-tuple]
-;;
-;;                   (->> [:input-key (first price-tuple)]
-;;                        (concat price-tuple time-tuple)
-;;                        (apply array-map))))
-;; (g/generate tick-event)
-;;
-;; (s/def ::my-map (s/merge (s/keys :req [::input-key ::last-trade-time])
-;;                          (s/map-of #{::input-key ::last-trade-time} #_::tick-price-tuple any?)))
-;; (g/generate (s/gen ::my-map))
-;;
-;; (s/def ::my-list (s/coll-of ::my-map))
-;; (g/generate (s/gen ::my-list))
-
-;; ==>
-
-
-(defn average [list-sum list-count]
-  (/ list-sum list-count))
-
-(s/fdef average
-        :args (s/and (s/cat :list-sum float? :list-count integer?)
-                     #(not (zero? (:list-count %))))
-        :ret number?)
-
-(defn sum [tick-list input-key]
-  (reduce #(let [ltprice (input-key %2)]
-             (+ ltprice %1))
-          0 tick-list))
-
-#_(s/fdef sum
-        :args (s/cat :tick-list (comp not empty?) :input-key keyword?)
-        :ret number?)
-
-(s/def ::a string?)
-(s/def ::b number?)
-#_(s/fdef sum
-        :args (s/cat :tick-list (s/keys :req-un [::a ::b]) :input-key keyword?)
-        :ret number?)
-
-#_(s/fdef sum
-        :args (s/and (s/cat :tick-list map? :input-key keyword?)
-                     #(contains? (:tick-list %) (:input-key %)))
-        :ret number?)
-
-#_(s/fdef sum
-        :args (s/and (s/cat :tick-list (comp not empty?) :input-key keyword?)
-                     (g/such-that (fn [[tick-list input-key]]
-                               (map #(assoc % :input-key input-key) tick-list))
-                             (g/tuple :tick-list :input-key)))
-        :ret number?)
-
+  (:require [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]
+            [com.interrupt.edgar.math :as math]))
 
 (defn simple-moving-average
-  "Takes the tick-list, and moves back as far as the tick window will take it.
+  "Takes the ticks, and moves back as far as the tick window will take it.
 
    Returns a simple average value for the input list
 
@@ -105,23 +13,40 @@
    :etal - other keys to emit in each result map
 
    ** This function assumes the latest tick is on the right**"
-  [options tick-list]
-  {:pre [(time-increases-left-to-right? tick-list)]}
+  [options ticks]
+  {:pre [(not-empty ticks)
+         (time-increases-left-to-right? ticks)]}
+  (let [{:keys [input output etal]
+         :or {input :last-trade-price
+              output :last-trade-price-average
+              etal [:last-trade-price :last-trade-time :uuid]}} options
+        xs (map input ticks)]
+    (-> (last ticks)
+        (select-keys etal)
+        (assoc output (math/mean xs) :population ticks))))
 
-  (let [{input-key :input
-         output-key :output
-         etal-keys :etal
-         :or {input-key :last-trade-price
-              output-key :last-trade-price-average
-              etal-keys [:last-trade-price :last-trade-time :uuid]}} options]
+(defn ema
+  "Exponential moving average (EMA)."
+  [xs]
+  (let [n (count xs)
+        k (/ 2 (inc n))]
+    (reduce (fn [acc x] (+ (* k x) (* (- 1 k) acc)))
+            (math/mean xs)
+            xs)))
 
-    (as-> tick-list v
-      (sum v input-key)
-      (average v (count tick-list))
-      (-> etal-keys
-          (zipmap (map #(% (last tick-list)) etal-keys))
-          (assoc output-key v
-                 :population tick-list)))))
+(defn ema-ticks
+  "EMA on ticks."
+  [options ticks]
+  {:pre [(not-empty ticks)
+         (time-increases-left-to-right? ticks)]}
+  (let [{:keys [input output etal]
+         :or {input :last-trade-price
+              output :last-trade-price-exponential
+              etal [:last-trade-price :last-trade-time :uuid]}} options
+        xs (map input ticks)]
+    (-> (last ticks)
+        (select-keys etal)
+        (assoc output (ema xs) :population ticks))))
 
 (defn exponential-moving-average
   "From a simple moving average, generates an accompanying exponential moving average list.
@@ -185,6 +110,32 @@
                             (list ek)))))
             []
             sma-list)))
+
+(defn bollinger
+  "Bollinger band [lower middle upper]."
+  [xs]
+  (let [avg (math/mean xs)
+        sd (math/sd xs)]
+    [(- avg (* 2 sd)) avg (+ avg (* 2 sd))]))
+
+(defn bollinger-ticks
+  [options ticks]
+  {:pre [(not-empty ticks)
+         (time-increases-left-to-right? ticks)]}
+  (let [{:keys [input etal]
+         :or {input :last-trade-price
+              etal [:last-trade-price :last-trade-time :uuid]}} options
+        xs (map input ticks)
+        [lower middle upper] (bollinger xs)]
+    (-> (last ticks)
+        (select-keys etal)
+        (assoc :last-trade-price-average middle
+               :upper-band upper
+               :lower-band lower
+               :population ticks))))
+
+(defn average [list-sum list-count]
+  (/ list-sum list-count))
 
 (defn bollinger-band
   "From a tick-list, generates an accompanying list with upper-band and lower-band
