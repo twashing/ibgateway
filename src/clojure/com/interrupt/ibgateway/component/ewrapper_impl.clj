@@ -47,18 +47,6 @@
   [client req-id]
   (.cancelHistoricalData client req-id))
 
-(defn live-subscribe
-  ([client req-id symbol]
-   (live-subscribe client req-id symbol "" false))
-  ([client req-id symbol genericTicklist snapshot]
-   (let [contract (create-contract symbol)]
-     (.reqMktData client (.intValue req-id) contract genericTicklist snapshot nil)
-     req-id)))
-
-(defn live-unsubscribe
-  [client req-id]
-  (.cancelMktData client req-id))
-
 (defn ewrapper-impl
   [ch]
   (proxy [EWrapperImpl] []

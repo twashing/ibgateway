@@ -70,7 +70,7 @@
                    :source-paths ["src/clojure" "workbench/clojure" "test/clojure"]
                    :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
 
-                   :resource-paths ["dev-resources"]
+                   :resource-paths ["dev-resources" "test/resources"]
                    :injections [(use 'lucid.core.inject)
                                 (inject '[clojure.core
                                           [clojure.repl dir]
@@ -84,8 +84,7 @@
                              [lein-figwheel "0.5.16"]
                              [lein-virgil "0.1.8"]]
 
-                   :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}
-             :test {:resource-paths ["test/resources"]}}
+                   :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}}
 
   :cljsbuild {:builds [{:id "main"
                         :source-paths ["src/clojurescript/"]
