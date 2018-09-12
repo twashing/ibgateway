@@ -28,14 +28,14 @@
 (deftest ema-test
   (let [xs [1 2 3 4 5]]
     (are [e v] (= (double->str e) (double->str v))
-      3.6584 (sut/ema xs)
+      3.6585 (sut/ema xs)
       2.3416 (sut/ema (reverse xs)))))
 
 (deftest bollinger-test
   (let [xs [1 2 3 4 5]]
     (are [e v] (= (map double->str e) (map double->str v))
-      [-0.1623 3.0 6.1623] (sut/bollinger xs)
-      [-0.1623 3.0 6.1623] (sut/bollinger (reverse xs)))))
+      [-0.1622 3.0 6.1623] (sut/bollinger xs)
+      [-0.1622 3.0 6.1623] (sut/bollinger (reverse xs)))))
 
 (def test-tick-data
   (->> "tick-data.4.edn"
