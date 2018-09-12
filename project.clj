@@ -64,7 +64,6 @@
                                   [im.chit/lucid.core.inject "1.3.13"]
                                   [http-kit.fake "0.2.2"]
                                   [cider/piggieback "0.3.6"]
-                                  [org.clojure/tools.nrepl "0.2.13"]
                                   [figwheel-sidecar "0.5.16"]
                                   [com.bhauman/rebel-readline "0.1.2"]]
 
@@ -80,12 +79,10 @@
                                           [clojure.reflect reflect]
                                           [clojure.repl apropos dir doc find-doc pst source]])]
 
-                   :plugins [[cider/cider-nrepl "0.17.0-SNAPSHOT"]
-                             [lein-cljsbuild "1.1.7"]
+                   :plugins [[lein-cljsbuild "1.1.7"]
                              [lein-environ "1.1.0"]
                              [lein-figwheel "0.5.16"]
-                             [lein-virgil "0.1.8"]
-                             [refactor-nrepl "2.4.0-SNAPSHOT"]]
+                             [lein-virgil "0.1.8"]]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}
              :test {:resource-paths ["test/resources"]}}
