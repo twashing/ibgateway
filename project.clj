@@ -79,7 +79,9 @@
                                           [clojure.reflect reflect]
                                           [clojure.repl apropos dir doc find-doc pst source]])]
 
-                   :plugins [[lein-cljsbuild "1.1.7"]
+                   :plugins [[refactor-nrepl "2.4.0"]
+                             [cider/cider-nrepl "0.18.0"]
+                             [lein-cljsbuild "1.1.7"]
                              [lein-environ "1.1.0"]
                              [lein-figwheel "0.5.16"]
                              [lein-virgil "0.1.8"]]
