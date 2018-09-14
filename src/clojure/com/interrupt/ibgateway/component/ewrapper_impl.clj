@@ -123,15 +123,15 @@
   ([host port client-id ch ex-handler]
    (let [wrapper (ewrapper-impl ch)
          client (.getClient wrapper)
-         signal (.getSignal wrapper)
-         ereader (EReader. client signal)]
+         signal (.getSignal wrapper)]
      (.eConnect client host port client-id)
-     (.start ereader)
-     (future
-       (while (.isConnected client)
-         (.waitForSignal signal)
-         (try (.processMsgs ereader)
-              (catch Exception e (ex-handler e)))))
+     (let [ereader (EReader. client signal)]
+       (.start ereader)
+       (future
+         (while (.isConnected client)
+           (.waitForSignal signal)
+           (try (.processMsgs ereader)
+                (catch Exception e (ex-handler e))))))
      {:client client
       :wrapper wrapper
       :publisher ch})))
