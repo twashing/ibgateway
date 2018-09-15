@@ -1,8 +1,12 @@
 (ns com.interrupt.ibgateway.component.ewrapper-impl
   (:require [clj-time.core :as t]
             [clj-time.format :as tf]
-            [clojure.core.async :as async])
-  (:import [com.ib.client Contract ContractDetails EReader ScannerSubscription]
+            [clojure.core.async :as async]
+            [clojure.string :as str]
+            [inflections.core :as inflections]
+            [net.cgrand.xforms :as x])
+  (:import [com.ib.client Contract EReader ScannerSubscription]
+           com.ib.controller.ScanCode
            com.interrupt.ibgateway.EWrapperImpl))
 
 (defn create-contract
@@ -13,12 +17,15 @@
     (.exchange "SMART")
     (.currency "USD")))
 
+(def scanner-num-rows 10)
+
 (defn scanner-subscription
   [instrument location-code scan-code]
   (doto (ScannerSubscription.)
     (.instrument instrument)
     (.locationCode location-code)
-    (.scanCode scan-code)))
+    (.scanCode scan-code)
+    (.numberOfRows scanner-num-rows)))
 
 (defn scanner-subscribe
   [client req-id instrument location-code scan-code]
@@ -47,8 +54,33 @@
   [client req-id]
   (.cancelHistoricalData client req-id))
 
+(def scan-codes (->> ScanCode .getEnumConstants (map str) sort))
+
+(defn scan-code-ch-kw
+  [code]
+  (keyword (format "%s-ch" (str/lower-case (inflections/dasherize code)))))
+
+(def scan-code-req-id-base 1000)
+
+(def req-id->scan-code-ch-kw
+  (->> (map-indexed (fn [i code]
+                      [(+ scan-code-req-id-base i)
+                       (scan-code-ch-kw code)])
+                    scan-codes)
+       (into {})))
+
+(defn scanner-chs
+  "Return map of scan code types (as keywords) to channels partitioned by n."
+  []
+  (let [codes scan-codes]
+    (into {} (for [code codes]
+               [(scan-code-ch-kw code)
+                (->> scanner-num-rows
+                     x/partition
+                     (async/chan (async/sliding-buffer 100)))]))))
+
 (defn ewrapper-impl
-  [ch]
+  [{ch :publisher :keys [scanner-chs]}]
   (proxy [EWrapperImpl] []
     (tickPrice [^Integer ticker-id ^Integer field ^Double price ^Integer can-auto-execute?]
       (let [val {:topic :tick-price
@@ -81,12 +113,13 @@
                  :req-id req-id
                  :message-end false
                  :symbol (. contract symbol)
-                 :sec-type (. contract secType)
-                 :rank rank}]
-        (async/put! ch val)))
+                 :sec-type (. contract getSecType)
+                 :rank rank}
+            scanner-ch (get scanner-chs (req-id->scan-code-ch-kw req-id))]
+        (async/put! scanner-ch val)))
 
     (scannerDataEnd [req-id]
-      (let [val {:topic :scanner-data`
+      (let [val {:topic :scanner-data
                  :req-id req-id
                  :message-end true}]
         (async/put! ch val)))
@@ -109,6 +142,11 @@
   [^Exception e]
   (println "Exception:" (.getMessage e)))
 
+(def default-chs-map
+  {:publisher (-> 1000 async/sliding-buffer async/chan)
+   :scanner-chs (scanner-chs)
+   :scanner-decision-ch (-> 100 async/sliding-buffer async/chan)})
+
 (defn ewrapper
   ([]
    (ewrapper "tws"))
@@ -117,11 +155,11 @@
   ([host port]
    (ewrapper host port 1))
   ([host port client-id]
-   (ewrapper host port client-id (-> 1000 async/sliding-buffer async/chan)))
-  ([host port client-id ch]
-   (ewrapper host port client-id ch default-exception-handler))
-  ([host port client-id ch ex-handler]
-   (let [wrapper (ewrapper-impl ch)
+   (ewrapper host port client-id default-chs-map))
+  ([host port client-id chs-map]
+   (ewrapper host port client-id chs-map default-exception-handler))
+  ([host port client-id chs-map ex-handler]
+   (let [wrapper (ewrapper-impl chs-map)
          client (.getClient wrapper)
          signal (.getSignal wrapper)]
      (.eConnect client host port client-id)
@@ -132,6 +170,6 @@
            (.waitForSignal signal)
            (try (.processMsgs ereader)
                 (catch Exception e (ex-handler e))))))
-     {:client client
-      :wrapper wrapper
-      :publisher ch})))
+     (merge {:client client
+             :wrapper wrapper}
+            chs-map))))
