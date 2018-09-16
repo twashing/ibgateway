@@ -3,6 +3,7 @@
             [clj-time.format :as tf]
             [clojure.core.async :as async]
             [clojure.string :as str]
+            [clojure.tools.logging :as log]
             [inflections.core :as inflections]
             [net.cgrand.xforms :as x])
   (:import [com.ib.client Contract EReader ScannerSubscription]
@@ -69,15 +70,28 @@
                     scan-codes)
        (into {})))
 
+(def relevant-scan-codes
+  ["HIGH_OPT_IMP_VOLAT"
+   "HIGH_OPT_IMP_VOLAT_OVER_HIST"
+   "HOT_BY_VOLUME"
+   "TOP_VOLUME_RATE"
+   "HOT_BY_OPT_VOLUME"
+   "OPT_VOLUME_MOST_ACTIVE"
+   "COMBO_MOST_ACTIVE"
+   "MOST_ACTIVE_USD"
+   "HOT_BY_PRICE"
+   "TOP_PRICE_RANGE"
+   "HOT_BY_PRICE_RANGE"])
+
+
 (defn scanner-chs
   "Return map of scan code types (as keywords) to channels partitioned by n."
   []
-  (let [codes scan-codes]
-    (into {} (for [code codes]
-               [(scan-code-ch-kw code)
-                (->> scanner-num-rows
-                     x/partition
-                     (async/chan (async/sliding-buffer 100)))]))))
+  (into {} (for [code relevant-scan-codes]
+             [(scan-code-ch-kw code)
+              (->> scanner-num-rows
+                   x/partition
+                   (async/chan (async/sliding-buffer 100)))])))
 
 (defn ewrapper-impl
   [{ch :publisher :keys [scanner-chs]}]
@@ -114,9 +128,12 @@
                  :message-end false
                  :symbol (. contract symbol)
                  :sec-type (. contract getSecType)
-                 :rank rank}
-            scanner-ch (get scanner-chs (req-id->scan-code-ch-kw req-id))]
-        (async/put! scanner-ch val)))
+                 :rank rank}]
+        (if-let [scanner-ch (->> req-id
+                                 req-id->scan-code-ch-kw
+                                 (get scanner-chs))]
+          (async/put! scanner-ch val)
+          (log/warnf "No scanner channel for req-id %s" req-id))))
 
     (scannerDataEnd [req-id]
       (let [val {:topic :scanner-data
