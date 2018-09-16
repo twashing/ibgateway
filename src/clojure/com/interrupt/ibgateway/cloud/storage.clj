@@ -1,15 +1,15 @@
 (ns com.interrupt.ibgateway.cloud.storage
-  (:require [environ.core :as env]
+  (:require [environ.core :refer [env]]
             [mount.core :as mount :refer [defstate]])
   (:import [com.amazonaws.auth AWSStaticCredentialsProvider BasicAWSCredentials]
            [com.amazonaws.services.s3 AmazonS3 AmazonS3ClientBuilder]
            [com.amazonaws.services.s3.model S3Object S3ObjectInputStream]))
 
-(def aws-access-key-id (env/env :aws-access-key-id))
+(def aws-access-key-id (env :aws-access-key-id))
 
-(def aws-secret-access-key (env/env :aws-secret-access-key))
+(def aws-secret-access-key (env :aws-secret-access-key))
 
-(def aws-region (env/env :aws-region))
+(def aws-region (env :aws-region))
 
 (defn s3-client
   [access-key-id secret-access-key region]

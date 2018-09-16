@@ -13,7 +13,7 @@
             [cognitect.transit :as transit]
             [com.interrupt.ibgateway.component.switchboard :as sw]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
-            [com.interrupt.ibgateway.component.figwheel])
+            [com.interrupt.ibgateway.component.figwheel.figwheel])
   (:import [org.eclipse.jetty.websocket.api Session]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 

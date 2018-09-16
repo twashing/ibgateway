@@ -5,8 +5,10 @@
              [clojure.tools.cli :refer [parse-opts]]
              [clojure.tools.namespace.repl :as tn]
              [com.interrupt.ibgateway.component.repl-server]
+             [com.interrupt.ibgateway.component.figwheel.repl-server]
              [com.interrupt.ibgateway.component.switchboard :as switchboard]
-             [com.interrupt.ibgateway.component.vase :as vase])
+             [com.interrupt.ibgateway.component.vase :as vase]
+             [com.interrupt.ibgateway.cloud.storage])
   (:import [org.apache.commons.daemon Daemon DaemonContext])
   (:gen-class
    :implements [org.apache.commons.daemon.Daemon]))
@@ -32,13 +34,15 @@
 
 (defn init [_]
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.switchboard.store/conn
+               ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.repl-server/server
+               ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
+               ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
                #'com.interrupt.ibgateway.component.vase/server
                ;; #'com.interrupt.ibgateway.cloud.storage/s3
-               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
-               #'com.interrupt.ibgateway.core/state))
+               ;; #'com.interrupt.ibgateway.core/state
+               ))
 
 (defn start []
   (while (:running state)

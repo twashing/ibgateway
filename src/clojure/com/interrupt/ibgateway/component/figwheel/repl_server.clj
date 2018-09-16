@@ -1,4 +1,4 @@
-(ns com.interrupt.ibgateway.component.repl-server
+(ns com.interrupt.ibgateway.component.figwheel.repl-server
   (:require [environ.core :refer [env]]
             [mount.core :refer [defstate] :as mount]
             [clojure.tools.nrepl.server :refer [start-server stop-server] :as nrepl]
@@ -7,7 +7,7 @@
 
 
 (def host "0.0.0.0")
-(def port 5554)
+(def port 5555)
 
 (defstate server
   :start (start-server :port port

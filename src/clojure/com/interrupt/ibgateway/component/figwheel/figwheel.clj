@@ -1,4 +1,4 @@
-(ns com.interrupt.ibgateway.component.figwheel
+(ns com.interrupt.ibgateway.component.figwheel.figwheel
   (:require [mount.core :refer [defstate] :as mount]
             [figwheel-sidecar.repl-api :as ra]))
 
