@@ -1,7 +1,7 @@
 (ns com.interrupt.ibgateway.component.ewrapper
   (:require [clojure.core.async :refer [close!]]
-            [mount.core :refer [defstate] :as mount]
-            [com.interrupt.ibgateway.component.ewrapper-impl :as ewi]))
+            [com.interrupt.ibgateway.component.ewrapper-impl :as ewi]
+            [mount.core :as mount :refer [defstate]]))
 
 (defstate ewrapper
   :start (ewi/ewrapper)
