@@ -18,25 +18,6 @@
     (.exchange "SMART")
     (.currency "USD")))
 
-(def scanner-num-rows 10)
-
-(defn scanner-subscription
-  [instrument location-code scan-code]
-  (doto (ScannerSubscription.)
-    (.instrument instrument)
-    (.locationCode location-code)
-    (.scanCode scan-code)
-    (.numberOfRows scanner-num-rows)))
-
-(defn scanner-subscribe
-  [client req-id instrument location-code scan-code]
-  (let [subscription (scanner-subscription instrument location-code scan-code)]
-    (.reqScannerSubscription client req-id subscription nil)
-    req-id))
-
-(defn scanner-unsubscribe [client req-id]
-  (.cancelScannerSubscription client req-id))
-
 (def datetime-formatter (tf/formatter "yyyyMMdd HH:mm:ss"))
 
 (defn historical-subscribe
@@ -70,6 +51,12 @@
                     scan-codes)
        (into {})))
 
+(defn scan-code-ch-kw->req-id
+  [ch-kw]
+  (-> {}
+      (into (for [[k v] req-id->scan-code-ch-kw] [v k]))
+      (get ch-kw)))
+
 (def relevant-scan-codes
   ["HIGH_OPT_IMP_VOLAT"
    "HIGH_OPT_IMP_VOLAT_OVER_HIST"
@@ -77,12 +64,32 @@
    "TOP_VOLUME_RATE"
    "HOT_BY_OPT_VOLUME"
    "OPT_VOLUME_MOST_ACTIVE"
-   "COMBO_MOST_ACTIVE"
    "MOST_ACTIVE_USD"
    "HOT_BY_PRICE"
    "TOP_PRICE_RANGE"
    "HOT_BY_PRICE_RANGE"])
 
+(def scanner-num-rows 10)
+
+(defn scanner-subscription
+  [instrument location-code scan-code]
+  (doto (ScannerSubscription.)
+    (.instrument instrument)
+    (.locationCode location-code)
+    (.scanCode scan-code)
+    (.numberOfRows scanner-num-rows)))
+
+(defn scanner-subscribe
+  [client instrument location-code scan-code]
+  (let [req-id (-> scan-code
+                   scan-code-ch-kw
+                   scan-code-ch-kw->req-id)
+        subscription (scanner-subscription instrument location-code scan-code)]
+    (.reqScannerSubscription client (int req-id) subscription nil)
+    req-id))
+
+(defn scanner-unsubscribe [client req-id]
+  (.cancelScannerSubscription client req-id))
 
 (defn scanner-chs
   "Return map of scan code types (as keywords) to channels partitioned by n."

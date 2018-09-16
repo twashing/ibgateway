@@ -355,44 +355,23 @@
     (def default-location "STK.US.MAJOR")
 
 
-    ;; Volatility
-    (ei/scanner-subscribe client 1 default-instrument default-location "HIGH_OPT_IMP_VOLAT")
-    (ei/scanner-subscribe client 2 default-instrument default-location "HIGH_OPT_IMP_VOLAT_OVER_HIST")
+    ;; Subscribe
+    (doseq [code ei/relevant-scan-codes]
+      (ei/scanner-subscribe client default-instrument default-location code))
 
-    ;; Volume
-    (ei/scanner-subscribe client 3 default-instrument default-location "HOT_BY_VOLUME")
-    (ei/scanner-subscribe client 4 default-instrument default-location "TOP_VOLUME_RATE")
-    (ei/scanner-subscribe client 5 default-instrument default-location "HOT_BY_OPT_VOLUME")
-    (ei/scanner-subscribe client 6 default-instrument default-location "OPT_VOLUME_MOST_ACTIVE")
-    (ei/scanner-subscribe client 7 default-instrument default-location "COMBO_MOST_ACTIVE")
+    ;; Unsubscribe
+    (doseq [code ei/relevant-scan-codes]
+      (ei/scanner-unsubscribe client (-> code
+                                         ei/scan-code-ch-kw
+                                         ei/scan-code-ch-kw->req-id)))
 
-    ;; Price Change
-    (ei/scanner-subscribe client 8 default-instrument default-location "MOST_ACTIVE_USD")
-    (ei/scanner-subscribe client 9 default-instrument default-location "HOT_BY_PRICE")
-    (ei/scanner-subscribe client 10 default-instrument default-location "TOP_PRICE_RANGE")
-    (ei/scanner-subscribe client 11 default-instrument default-location "HOT_BY_PRICE_RANGE")
-
-    (def scanner-chs
-      {:high-opt-imp-volat-ch (async/chan 1)
-       :high-opt-imp-volat-over-hist-ch (async/chan 1)
-       :hot-by-volume-ch (async/chan 1)
-       :top-volume-rate-ch (async/chan 1)
-       :hot-by-opt-volume-ch (async/chan 1)
-       :opt-volume-most-active-ch (async/chan 1)
-       :combo-most-active-ch (async/chan 1)
-       :most-active-usd-ch (async/chan 1)
-       :hot-by-price-ch (async/chan 1)
-       :top-price-range-ch (async/chan 1)
-       :hot-by-price-range-ch (async/chan 1)})
-
-
-    (let [{:keys [scanner-chs scanner-decision-ch] :as chs-map}
-          {:scanner-chs scanner-chs
-           :scanner-decision-ch (async/chan 1)}]
+    (let [{:keys [scanner-chs scanner-decision-ch] :as chs-map} ew/ewrapper]
 
       (sc/scanner-decide chs-map)
-      (go-loop [e (<! scanner-decision-ch)]
-        (info "scanner-decision / " e)))))
+      (go-loop []
+        (when-let [e (<! scanner-decision-ch)]
+          (info "scanner-decision /" e)
+          (recur))))))
 
 
 (comment  ;; from com.interrupt.ibgateway.component.ewrapper-impl

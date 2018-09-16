@@ -20,7 +20,6 @@
                  top-volume-rate-ch
                  hot-by-opt-volume-ch
                  opt-volume-most-active-ch
-                 combo-most-active-ch
                  most-active-usd-ch
                  hot-by-price-ch
                  top-price-range-ch
@@ -32,7 +31,6 @@
                  (<! top-volume-rate-ch)
                  (<! hot-by-opt-volume-ch)
                  (<! opt-volume-most-active-ch)
-                 (<! combo-most-active-ch)
                  (<! most-active-usd-ch)
                  (<! hot-by-price-ch)
                  (<! top-price-range-ch)
