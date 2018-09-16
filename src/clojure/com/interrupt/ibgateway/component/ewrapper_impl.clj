@@ -2,12 +2,9 @@
   (:require [clj-time.core :as t]
             [clj-time.format :as tf]
             [clojure.core.async :as async]
-            [clojure.string :as str]
             [clojure.tools.logging :as log]
-            [inflections.core :as inflections]
-            [net.cgrand.xforms :as x])
-  (:import [com.ib.client Contract EReader ScannerSubscription]
-           com.ib.controller.ScanCode
+            [com.interrupt.edgar.scanner :as scanner])
+  (:import [com.ib.client Contract EReader]
            com.interrupt.ibgateway.EWrapperImpl))
 
 (defn create-contract
@@ -36,69 +33,17 @@
   [client req-id]
   (.cancelHistoricalData client req-id))
 
-(def scan-codes (->> ScanCode .getEnumConstants (map str) sort))
-
-(defn scan-code-ch-kw
-  [code]
-  (keyword (format "%s-ch" (str/lower-case (inflections/dasherize code)))))
-
-(def scan-code-req-id-base 1000)
-
-(def req-id->scan-code-ch-kw
-  (->> (map-indexed (fn [i code]
-                      [(+ scan-code-req-id-base i)
-                       (scan-code-ch-kw code)])
-                    scan-codes)
-       (into {})))
-
-(defn scan-code-ch-kw->req-id
-  [ch-kw]
-  (-> {}
-      (into (for [[k v] req-id->scan-code-ch-kw] [v k]))
-      (get ch-kw)))
-
-(def relevant-scan-codes
-  ["HIGH_OPT_IMP_VOLAT"
-   "HIGH_OPT_IMP_VOLAT_OVER_HIST"
-   "HOT_BY_VOLUME"
-   "TOP_VOLUME_RATE"
-   "HOT_BY_OPT_VOLUME"
-   "OPT_VOLUME_MOST_ACTIVE"
-   "MOST_ACTIVE_USD"
-   "HOT_BY_PRICE"
-   "TOP_PRICE_RANGE"
-   "HOT_BY_PRICE_RANGE"])
-
-(def scanner-num-rows 10)
-
-(defn scanner-subscription
-  [instrument location-code scan-code]
-  (doto (ScannerSubscription.)
-    (.instrument instrument)
-    (.locationCode location-code)
-    (.scanCode scan-code)
-    (.numberOfRows scanner-num-rows)))
-
 (defn scanner-subscribe
   [client instrument location-code scan-code]
   (let [req-id (-> scan-code
-                   scan-code-ch-kw
-                   scan-code-ch-kw->req-id)
-        subscription (scanner-subscription instrument location-code scan-code)]
+                   scanner/scan-code->ch-kw
+                   scanner/ch-kw->req-id)
+        subscription (scanner/scanner-subscription instrument location-code scan-code)]
     (.reqScannerSubscription client (int req-id) subscription nil)
     req-id))
 
 (defn scanner-unsubscribe [client req-id]
   (.cancelScannerSubscription client req-id))
-
-(defn scanner-chs
-  "Return map of scan code types (as keywords) to channels partitioned by n."
-  []
-  (into {} (for [code relevant-scan-codes]
-             [(scan-code-ch-kw code)
-              (->> scanner-num-rows
-                   x/partition
-                   (async/chan (async/sliding-buffer 100)))])))
 
 (defn ewrapper-impl
   [{ch :publisher :keys [scanner-chs]}]
@@ -137,8 +82,8 @@
                  :sec-type (. contract getSecType)
                  :rank rank}]
         (if-let [scanner-ch (->> req-id
-                                 req-id->scan-code-ch-kw
-                                 (get scanner-chs))]
+                                 scanner/req-id->ch-kw
+                                 scanner/ch-kw->ch)]
           (async/put! scanner-ch val)
           (log/warnf "No scanner channel for req-id %s" req-id))))
 
@@ -167,9 +112,7 @@
   (println "Exception:" (.getMessage e)))
 
 (def default-chs-map
-  {:publisher (-> 1000 async/sliding-buffer async/chan)
-   :scanner-chs (scanner-chs)
-   :scanner-decision-ch (-> 100 async/sliding-buffer async/chan)})
+  {:publisher (-> 1000 async/sliding-buffer async/chan)})
 
 (defn ewrapper
   ([]

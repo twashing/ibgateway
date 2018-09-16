@@ -5,6 +5,7 @@
              [clojure.tools.logging :refer [debug info warn error]]
              [com.interrupt.edgar.scanner :as sc]
              [com.interrupt.ibgateway.component.ewrapper :as ew]
+             [com.interrupt.edgar.scanner :as scanner]
              [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
              [com.interrupt.ibgateway.component.vase]
              [com.interrupt.ibgateway.component.vase.service  :refer [send-message-to-all!]]
@@ -348,30 +349,17 @@
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
   (do
-
     (def client (:client ew/ewrapper))
-    (def publisher (:publisher ew/ewrapper))
-    (def default-instrument "STK")
-    (def default-location "STK.US.MAJOR")
-
 
     ;; Subscribe
-    (doseq [code ei/relevant-scan-codes]
-      (ei/scanner-subscribe client default-instrument default-location code))
+    (scanner/start client)
 
     ;; Unsubscribe
-    (doseq [code ei/relevant-scan-codes]
-      (ei/scanner-unsubscribe client (-> code
-                                         ei/scan-code-ch-kw
-                                         ei/scan-code-ch-kw->req-id)))
+    (scanner/stop client)
 
-    (let [{:keys [scanner-chs scanner-decision-ch] :as chs-map} ew/ewrapper]
-
-      (sc/scanner-decide chs-map)
-      (go-loop []
-        (when-let [e (<! scanner-decision-ch)]
-          (info "scanner-decision /" e)
-          (recur))))))
+    (when-let [leaderboard (scanner/scanner-decide)]
+      (doseq [[i m] (map-indexed vector leaderboard)]
+        (println i ":" m)))))
 
 
 (comment  ;; from com.interrupt.ibgateway.component.ewrapper-impl
