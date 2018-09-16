@@ -1,8 +1,9 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
              [clojure.core.async :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
-                                         sliding-buffer mult tap pipeline]]
+                                         sliding-buffer mult tap pipeline] :as async]
              [clojure.tools.logging :refer [debug info warn error]]
+             [com.interrupt.edgar.scanner :as sc]
              [com.interrupt.ibgateway.component.ewrapper :as ew]
              [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
              [com.interrupt.ibgateway.component.vase]
@@ -339,6 +340,59 @@
                    [?e :switchboard/state ?s]
                    [?s :db/ident :stock-historical-state/off]]
                  (d/db conn))))
+
+
+(comment  ;; A scanner workbench
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (do
+
+    (def client (:client ew/ewrapper))
+    (def publisher (:publisher ew/ewrapper))
+    (def default-instrument "STK")
+    (def default-location "STK.US.MAJOR")
+
+
+    ;; Volatility
+    (ei/scanner-subscribe client 1 default-instrument default-location "HIGH_OPT_IMP_VOLAT")
+    (ei/scanner-subscribe client 2 default-instrument default-location "HIGH_OPT_IMP_VOLAT_OVER_HIST")
+
+    ;; Volume
+    (ei/scanner-subscribe client 3 default-instrument default-location "HOT_BY_VOLUME")
+    (ei/scanner-subscribe client 4 default-instrument default-location "TOP_VOLUME_RATE")
+    (ei/scanner-subscribe client 5 default-instrument default-location "HOT_BY_OPT_VOLUME")
+    (ei/scanner-subscribe client 6 default-instrument default-location "OPT_VOLUME_MOST_ACTIVE")
+    (ei/scanner-subscribe client 7 default-instrument default-location "COMBO_MOST_ACTIVE")
+
+    ;; Price Change
+    (ei/scanner-subscribe client 8 default-instrument default-location "MOST_ACTIVE_USD")
+    (ei/scanner-subscribe client 9 default-instrument default-location "HOT_BY_PRICE")
+    (ei/scanner-subscribe client 10 default-instrument default-location "TOP_PRICE_RANGE")
+    (ei/scanner-subscribe client 11 default-instrument default-location "HOT_BY_PRICE_RANGE")
+
+    (def scanner-chs
+      {:high-opt-imp-volat-ch (async/chan 1)
+       :high-opt-imp-volat-over-hist-ch (async/chan 1)
+       :hot-by-volume-ch (async/chan 1)
+       :top-volume-rate-ch (async/chan 1)
+       :hot-by-opt-volume-ch (async/chan 1)
+       :opt-volume-most-active-ch (async/chan 1)
+       :combo-most-active-ch (async/chan 1)
+       :most-active-usd-ch (async/chan 1)
+       :hot-by-price-ch (async/chan 1)
+       :top-price-range-ch (async/chan 1)
+       :hot-by-price-range-ch (async/chan 1)})
+
+
+    (let [{:keys [scanner-chs scanner-decision-ch] :as chs-map}
+          {:scanner-chs scanner-chs
+           :scanner-decision-ch (async/chan 1)}]
+
+      (sc/scanner-decide chs-map)
+      (go-loop [e (<! scanner-decision-ch)]
+        (info "scanner-decision / " e)))))
 
 
 (comment  ;; from com.interrupt.ibgateway.component.ewrapper-impl
