@@ -116,7 +116,7 @@
                   filter-xf (filter (fn [cr] (= (:key cr) :inconceivable)))
                   ;;a naive transducer for viewing the values, again long way
                   value-xf (map (fn [cr] (:value cr)))
-                  ;;more misguided transducers
+                  ;; more misguided transducers
                   inconceivable-transduction (comp filter-xf value-xf)]
 
 

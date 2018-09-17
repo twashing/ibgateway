@@ -90,7 +90,7 @@
 
   :cljsbuild {:builds [{:id "main"
                         :source-paths ["src/clojurescript/"]
-                        ;; :figwheel true
+                        :figwheel true
                         :compiler {:main "com.interrupt.edgar.core"
                                    :asset-path "js/out"
                                    :output-to "resources/public/js/core.js"

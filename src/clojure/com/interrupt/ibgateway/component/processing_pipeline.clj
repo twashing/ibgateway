@@ -364,11 +364,17 @@
 
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
                                                 :skey-streams {:tick-list tick-list->CROSS
+
+                                                               ;; lagging
                                                                :sma-list sma-list->CROSS
                                                                :ema-list ema-list->CROSS
                                                                :bollinger-band bollinger-band->CROSS
+
+                                                               ;; leading
                                                                :macd macd->CROSS
                                                                :stochastic-oscillator stochastic-oscillator->CROSS
+
+                                                               ;; confirming
                                                                :on-balance-volume on-balance-volume->CROSS
                                                                :relative-strength relative-strength->CROSS}})
 

@@ -1,15 +1,16 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
-             [clojure.core.async :refer [chan >! >!! <! <!! close! merge go go-loop pub sub unsub-all sliding-buffer
-                                         mult tap pipeline]]
+             [clojure.core.async :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
+                                         sliding-buffer mult tap pipeline]]
              [clojure.tools.logging :refer [debug info warn error]]
-             [com.interrupt.ibgateway.component.ewrapper]
+             [com.interrupt.ibgateway.component.ewrapper :as ew]
+             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
              [com.interrupt.ibgateway.component.vase]
              [com.interrupt.ibgateway.component.vase.service  :refer [send-message-to-all!]]
              [com.interrupt.ibgateway.component.switchboard :as sw]
              [com.interrupt.ibgateway.component.switchboard.store]
              [com.interrupt.ibgateway.component.processing-pipeline :as pp]
-             [com.interrupt.ibgateway.component.figwheel]
+             [com.interrupt.ibgateway.component.figwheel.figwheel]
              [com.interrupt.ibgateway.cloud.storage]))
 
 
@@ -60,10 +61,11 @@
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-              #'com.interrupt.ibgateway.component.repl-server/server
+              ;; #'com.interrupt.ibgateway.component.repl-server/server
+              ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
+              ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
               #'com.interrupt.ibgateway.component.vase/server
-              #'com.interrupt.ibgateway.cloud.storage/s3
-              ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
+              ;; #'com.interrupt.ibgateway.cloud.storage/s3
               #'com.interrupt.ibgateway.core/state)
 
   (sw/stop-stream-workbench)
@@ -73,27 +75,35 @@
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-               #'com.interrupt.ibgateway.component.repl-server/server
+               ;; #'com.interrupt.ibgateway.component.repl-server/server
+               ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
+               ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
                #'com.interrupt.ibgateway.component.vase/server
-               #'com.interrupt.ibgateway.cloud.storage/s3
-               ;; #'com.interrupt.ibgateway.component.figwheel/figwheel
+               ;; #'com.interrupt.ibgateway.cloud.storage/s3
                #'com.interrupt.ibgateway.core/state)
 
   ;; 2. Point your browser to http://localhost:8080
 
+  (def control-channel (chan))
+  (>!! control-channel :exit)
+
+
   ;; 3. Start streaming
   (sw/kickoff-stream-workbench)
+
 
   ;; 4. Capture output channels and sent to browser
   (let [{joined-channel :joined-channel} pp/processing-pipeline]
 
     (go-loop [r (<! joined-channel)]
 
-        (info  r)
-        (send-message-to-all! r)
-        (if-not r
-          r
-          (recur (<! joined-channel))))))
+      (info  r)
+
+      ;; TODO remove :population
+      (send-message-to-all! r)
+      (if-not r
+        r
+        (recur (<! joined-channel))))))
 
 
 (comment ;; from com.interrupt.ibgateway.component.processing-pipeline
@@ -433,79 +443,63 @@
   ;; Sanity 1:  {:topic :scanner-data, :req-id 1, :message-end false, :symbol BAA, :sec-type #object[com.ib.client.Types$SecType 0x1ff4ec3a STK], :rank 1}
   ;; Sanity 1:  {:topic :scanner-data, :req-id 1, :message-end false, :symbol EBR B, :sec-type #object[com.ib.client.Types$SecType 0x1ff4ec3a STK], :rank 2}
 
+  ;; (require '[system.repl])
 
-  (require '[system.repl])
-  (def client (-> system.repl/system :ewrapper :ewrapper :client))
-  (def publisher (-> system.repl/system :ewrapper :ewrapper :publisher))
+  (def client (:client ew/ewrapper))
+  (def publisher (:publisher ew/ewrapper))
 
-  ;; ===
-  ;; Stock scanners
-  (def default-instrument "STK")
-  (def default-location "STK.US.MAJOR")
+  (do
+    ;; ===
+    ;; Stock scanners
+    (def default-instrument "STK")
+    (def default-location "STK.US.MAJOR")
 
-  ;; Volatility
-  (scanner-subscribe 1 client default-instrument default-location "HIGH_OPT_IMP_VOLAT")
-  (scanner-subscribe 2 client default-instrument default-location "HIGH_OPT_IMP_VOLAT_OVER_HIST")
+    ;; Volatility
+    (ei/scanner-subscribe client 1 default-instrument default-location "HIGH_OPT_IMP_VOLAT")
+    (ei/scanner-subscribe client 2 default-instrument default-location "HIGH_OPT_IMP_VOLAT_OVER_HIST")
 
-  ;; Volume
-  (scanner-subscribe 3 client default-instrument default-location "HOT_BY_VOLUME")
-  (scanner-subscribe 4 client default-instrument default-location "TOP_VOLUME_RATE")
-  (scanner-subscribe 5 client default-instrument default-location "HOT_BY_OPT_VOLUME")
-  (scanner-subscribe 6 client default-instrument default-location "OPT_VOLUME_MOST_ACTIVE")
-  (scanner-subscribe 7 client default-instrument default-location "COMBO_MOST_ACTIVE")
+    ;; Volume
+    (ei/scanner-subscribe client 3 default-instrument default-location "HOT_BY_VOLUME")
+    (ei/scanner-subscribe client 4 default-instrument default-location "TOP_VOLUME_RATE")
+    (ei/scanner-subscribe client 5 default-instrument default-location "HOT_BY_OPT_VOLUME")
+    (ei/scanner-subscribe client 6 default-instrument default-location "OPT_VOLUME_MOST_ACTIVE")
+    ;; (scanner-subscribe client 7 default-instrument default-location "COMBO_MOST_ACTIVE")
 
-  ;; Price Change
-  (scanner-subscribe 8 client default-instrument default-location "MOST_ACTIVE_USD")
-  (scanner-subscribe 9 client default-instrument default-location "HOT_BY_PRICE")
-  (scanner-subscribe 10 client default-instrument default-location "TOP_PRICE_RANGE")
-  (scanner-subscribe 11 client default-instrument default-location "HOT_BY_PRICE_RANGE")
+    ;; Price Change
+    (ei/scanner-subscribe client 8 default-instrument default-location "MOST_ACTIVE_USD")
+    (ei/scanner-subscribe client 9 default-instrument default-location "HOT_BY_PRICE")
+    (ei/scanner-subscribe client 10 default-instrument default-location "TOP_PRICE_RANGE")
+    (ei/scanner-subscribe client 11 default-instrument default-location "HOT_BY_PRICE_RANGE"))
 
+  (do
 
-  #_(let [req-id 12
-        ^Contract contract  ;; ...
-        ^String endDateTime  ;; ...
-        duration 2
-        ^Types$BarSize barSize  ;; ...
-        ^Types$WhatToShow whatToShow  ;; ...
-        rthOnly true]
+    ;; Subscribe
+    (def publication
+      (pub publisher #(:req-id %)))
 
-    (historical-subscribe [req-id
-                           client
-                           contract
-                           endDateTime
-                           duration
-                           ;; ^Types$DurationUnit durationUnit
-                           barSize
-                           whatToShow
-                           rthOnly]))
+    (def subscriber-one (chan))
+    (def subscriber-two (chan))
+    (def subscriber-three (chan))
+    (def subscriber-four (chan))
+    (def subscriber-five (chan))
+    (def subscriber-six (chan))
+    ;; (def subscriber-seven (chan))
+    (def subscriber-eight (chan))
+    (def subscriber-nine (chan))
+    (def subscriber-ten (chan))
+    (def subscriber-eleven (chan))
 
-  ;; Subscribe
-  (def publication
-    (pub publisher #(:req-id %)))
-
-  (def subscriber-one (chan))
-  (def subscriber-two (chan))
-  (def subscriber-three (chan))
-  (def subscriber-four (chan))
-  (def subscriber-five (chan))
-  (def subscriber-six (chan))
-  (def subscriber-seven (chan))
-  (def subscriber-eight (chan))
-  (def subscriber-nine (chan))
-  (def subscriber-ten (chan))
-  (def subscriber-eleven (chan))
-
-  (sub publication 1 subscriber-one)
-  (sub publication 2 subscriber-two)
-  (sub publication 3 subscriber-three)
-  (sub publication 4 subscriber-four)
-  (sub publication 5 subscriber-five)
-  (sub publication 6 subscriber-six)
-  (sub publication 7 subscriber-seven)
-  (sub publication 8 subscriber-eight)
-  (sub publication 9 subscriber-nine)
-  (sub publication 10 subscriber-ten)
-  (sub publication 11 subscriber-eleven)
+    (sub publication 1 subscriber-one)
+    (sub publication 2 subscriber-two)
+    (sub publication 3 subscriber-three)
+    (sub publication 4 subscriber-four)
+    (sub publication 5 subscriber-five)
+    (sub publication 6 subscriber-six)
+    ;; (sub publication 7 subscriber-seven)
+    (sub publication 8 subscriber-eight)
+    (sub publication 9 subscriber-nine)
+    (sub publication 10 subscriber-ten)
+    (sub publication 11 subscriber-eleven))
 
   (defn consume-subscriber [dest-atom subscriber]
     (go-loop [r1 nil]
@@ -516,49 +510,52 @@
 
       (recur (<! subscriber))))
 
-  ;; Buckets
-  (def volat-one (atom {}))
-  (def volat-two (atom {}))
-  (def volat-three (atom {}))
-  (def volat-four (atom {}))
-  (def volat-five (atom {}))
-  (def volat-six (atom {}))
-  (def volat-seven (atom {}))
-  (def volat-eight (atom {}))
-  (def volat-nine (atom {}))
-  (def volat-ten (atom {}))
-  (def volat-eleven (atom {}))
+  (do
+    ;; Buckets
+    (def volat-one (atom {}))
+    (def volat-two (atom {}))
+    (def volat-three (atom {}))
+    (def volat-four (atom {}))
+    (def volat-five (atom {}))
+    (def volat-six (atom {}))
+    ;; (def volat-seven (atom {}))
+    (def volat-eight (atom {}))
+    (def volat-nine (atom {}))
+    (def volat-ten (atom {}))
+    (def volat-eleven (atom {}))
 
-  (consume-subscriber volat-one subscriber-one)
-  (consume-subscriber volat-two subscriber-two)
-  (consume-subscriber volat-three subscriber-three)
-  (consume-subscriber volat-four subscriber-four)
-  (consume-subscriber volat-five subscriber-five)
-  (consume-subscriber volat-six subscriber-six)
-  (consume-subscriber volat-seven subscriber-seven)
-  (consume-subscriber volat-eight subscriber-eight)
-  (consume-subscriber volat-nine subscriber-nine)
-  (consume-subscriber volat-ten subscriber-ten)
-  (consume-subscriber volat-eleven subscriber-eleven)
+    (consume-subscriber volat-one subscriber-one)
+    (consume-subscriber volat-two subscriber-two)
+    (consume-subscriber volat-three subscriber-three)
+    (consume-subscriber volat-four subscriber-four)
+    (consume-subscriber volat-five subscriber-five)
+    (consume-subscriber volat-six subscriber-six)
+    ;; (consume-subscriber volat-seven subscriber-seven)
+    (consume-subscriber volat-eight subscriber-eight)
+    (consume-subscriber volat-nine subscriber-nine)
+    (consume-subscriber volat-ten subscriber-ten)
+    (consume-subscriber volat-eleven subscriber-eleven))
 
-  ;; Intersection
-  (require '[clojure.set :as s])
-  (def sone (set (map :symbol (vals @volat-one))))
-  (def stwo (set (map :symbol (vals @volat-two))))
-  (def s-volatility (s/intersection sone stwo))  ;; OK
+  (do
 
-  (def sthree (set (map :symbol (vals @volat-three))))
-  (def sfour (set (map :symbol (vals @volat-four))))
-  (def sfive (set (map :symbol (vals @volat-five))))
-  (def ssix (set (map :symbol (vals @volat-six))))
-  (def sseven (set (map :symbol (vals @volat-seven))))
-  (def s-volume (s/intersection sthree sfour #_sfive #_ssix #_sseven))
+    ;; Intersection
+    (require '[clojure.set :as s])
+    (def sone (set (map :symbol (vals @volat-one))))
+    (def stwo (set (map :symbol (vals @volat-two))))
+    (def s-volatility (s/intersection sone stwo))  ;; OK
 
-  (def seight (set (map :symbol (vals @volat-eight))))
-  (def snine (set (map :symbol (vals @volat-nine))))
-  (def sten (set (map :symbol (vals @volat-ten))))
-  (def seleven (set (map :symbol (vals @volat-eleven))))
-  (def s-price-change (s/intersection #_seight #_snine sten seleven))
+    (def sthree (set (map :symbol (vals @volat-three))))
+    (def sfour (set (map :symbol (vals @volat-four))))
+    (def sfive (set (map :symbol (vals @volat-five))))
+    (def ssix (set (map :symbol (vals @volat-six))))
+    ;; (def sseven (set (map :symbol (vals @volat-seven))))
+    (def s-volume (s/intersection sthree sfour #_sfive #_ssix #_sseven))
+
+    (def seight (set (map :symbol (vals @volat-eight))))
+    (def snine (set (map :symbol (vals @volat-nine))))
+    (def sten (set (map :symbol (vals @volat-ten))))
+    (def seleven (set (map :symbol (vals @volat-eleven))))
+    (def s-price-change (s/intersection #_seight #_snine sten seleven)))
 
   (s/intersection sone stwo snine)
   (s/intersection sone stwo seleven)
@@ -573,7 +570,7 @@
                             {:name "four" :val sfour}
                             {:name "five" :val sfive}
                             {:name "six" :val ssix}
-                            {:name "seven" :val sseven}
+                            ;; {:name "seven" :val sseven}
                             {:name "eight" :val seight}
                             {:name "nine" :val snine}
                             {:name "ten" :val sten}
@@ -1126,5 +1123,3 @@
               ;; remove tracked stock if sell
               (if (not (empty? @*tracking-data*))
                 (trim-strategies tick-list-N)))))))))
-
-
