@@ -1,8 +1,10 @@
 (ns com.interrupt.ibgateway.component.ewrapper-impl
   (:require [clj-time.core :as t]
             [clj-time.format :as tf]
-            [clojure.core.async :as async])
-  (:import [com.ib.client Contract ContractDetails EReader ScannerSubscription]
+            [clojure.core.async :as async]
+            [clojure.tools.logging :as log]
+            [com.interrupt.edgar.scanner :as scanner])
+  (:import [com.ib.client Contract EReader]
            com.interrupt.ibgateway.EWrapperImpl))
 
 (defn create-contract
@@ -12,22 +14,6 @@
     (.secType "STK")
     (.exchange "SMART")
     (.currency "USD")))
-
-(defn scanner-subscription
-  [instrument location-code scan-code]
-  (doto (ScannerSubscription.)
-    (.instrument instrument)
-    (.locationCode location-code)
-    (.scanCode scan-code)))
-
-(defn scanner-subscribe
-  [client req-id instrument location-code scan-code]
-  (let [subscription (scanner-subscription instrument location-code scan-code)]
-    (.reqScannerSubscription client req-id subscription nil)
-    req-id))
-
-(defn scanner-unsubscribe [client req-id]
-  (.cancelScannerSubscription client req-id))
 
 (def datetime-formatter (tf/formatter "yyyyMMdd HH:mm:ss"))
 
@@ -47,8 +33,20 @@
   [client req-id]
   (.cancelHistoricalData client req-id))
 
+(defn scanner-subscribe
+  [client instrument location-code scan-code]
+  (let [req-id (-> scan-code
+                   scanner/scan-code->ch-kw
+                   scanner/ch-kw->req-id)
+        subscription (scanner/scanner-subscription instrument location-code scan-code)]
+    (.reqScannerSubscription client (int req-id) subscription nil)
+    req-id))
+
+(defn scanner-unsubscribe [client req-id]
+  (.cancelScannerSubscription client req-id))
+
 (defn ewrapper-impl
-  [ch]
+  [{ch :publisher :keys [scanner-chs]}]
   (proxy [EWrapperImpl] []
     (tickPrice [^Integer ticker-id ^Integer field ^Double price ^Integer can-auto-execute?]
       (let [val {:topic :tick-price
@@ -81,12 +79,16 @@
                  :req-id req-id
                  :message-end false
                  :symbol (. contract symbol)
-                 :sec-type (. contract secType)
+                 :sec-type (. contract getSecType)
                  :rank rank}]
-        (async/put! ch val)))
+        (if-let [scanner-ch (->> req-id
+                                 scanner/req-id->ch-kw
+                                 scanner/ch-kw->ch)]
+          (async/put! scanner-ch val)
+          (log/warnf "No scanner channel for req-id %s" req-id))))
 
     (scannerDataEnd [req-id]
-      (let [val {:topic :scanner-data`
+      (let [val {:topic :scanner-data
                  :req-id req-id
                  :message-end true}]
         (async/put! ch val)))
@@ -109,6 +111,9 @@
   [^Exception e]
   (println "Exception:" (.getMessage e)))
 
+(def default-chs-map
+  {:publisher (-> 1000 async/sliding-buffer async/chan)})
+
 (defn ewrapper
   ([]
    (ewrapper "tws"))
@@ -117,11 +122,11 @@
   ([host port]
    (ewrapper host port 1))
   ([host port client-id]
-   (ewrapper host port client-id (-> 1000 async/sliding-buffer async/chan)))
-  ([host port client-id ch]
-   (ewrapper host port client-id ch default-exception-handler))
-  ([host port client-id ch ex-handler]
-   (let [wrapper (ewrapper-impl ch)
+   (ewrapper host port client-id default-chs-map))
+  ([host port client-id chs-map]
+   (ewrapper host port client-id chs-map default-exception-handler))
+  ([host port client-id chs-map ex-handler]
+   (let [wrapper (ewrapper-impl chs-map)
          client (.getClient wrapper)
          signal (.getSignal wrapper)]
      (.eConnect client host port client-id)
@@ -132,6 +137,6 @@
            (.waitForSignal signal)
            (try (.processMsgs ereader)
                 (catch Exception e (ex-handler e))))))
-     {:client client
-      :wrapper wrapper
-      :publisher ch})))
+     (merge {:client client
+             :wrapper wrapper}
+            chs-map))))

@@ -3,9 +3,8 @@
             [clj-time.format :as tf]
             [clojure.core.async :as async :refer [>! go]]
             [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [com.interrupt.ibgateway.component.ewrapper-impl :as ewrapper-impl])
-  (:import [com.ib.client Contract ScannerSubscription]
+            [clojure.java.io :as io])
+  (:import [com.ib.client Contract]
            java.io.PushbackReader))
 
 (defprotocol Subscription
@@ -58,26 +57,17 @@
 
 (def datetime-formatter (tf/formatter "yyyyMMdd HH:mm:ss"))
 
-(defn historical-data-subscription
-  ([client ch ticker-id]
-   (->> "TSLA"
-        ewrapper-impl/create-contract
-        (historical-data-subscription client ch ticker-id)))
-  ([client ch ticker-id contract]
-   (->> 16
-        t/days
-        (t/minus (t/now))
-        (tf/unparse datetime-formatter)
-        (historical-data-subscription client ch ticker-id contract)))
-  ([client ch ticker-id contract end-datetime]
-   (->HistoricalDataSubscription client ch ticker-id contract end-datetime
-                                 "4 M" "1 min" "TRADES" 1 1 nil)))
-
-(defrecord ScannerSubSubscription [client ch ticker-id
-                                   ^ScannerSubscription subscription
-                                   options]
-  Subscription
-  (subscribe [_]
-    (.reqScannerSubscription client ticker-id subscription options)
-    ch)
-  (unsubscribe [_] (.cancelScannerSubscription client ticker-id)))
+#_(defn historical-data-subscription
+    ([client ch ticker-id]
+     (->> "TSLA"
+          ewrapper-impl/create-contract
+          (historical-data-subscription client ch ticker-id)))
+    ([client ch ticker-id contract]
+     (->> 16
+          t/days
+          (t/minus (t/now))
+          (tf/unparse datetime-formatter)
+          (historical-data-subscription client ch ticker-id contract)))
+    ([client ch ticker-id contract end-datetime]
+     (->HistoricalDataSubscription client ch ticker-id contract end-datetime
+                                   "4 M" "1 min" "TRADES" 1 1 nil)))

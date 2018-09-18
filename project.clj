@@ -20,6 +20,7 @@
                  [org.clojure/math.combinatorics "0.1.4"]
                  [javax.servlet/javax.servlet-api "4.0.0"]
                  [environ "1.1.0"]
+                 [inflections "0.13.0"]
 
                  ;; Pedestal libraries
                  [io.pedestal/pedestal.service "0.5.3"]

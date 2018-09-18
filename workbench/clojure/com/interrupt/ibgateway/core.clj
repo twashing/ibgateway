@@ -1,9 +1,11 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
              [clojure.core.async :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
-                                         sliding-buffer mult tap pipeline]]
+                                         sliding-buffer mult tap pipeline] :as async]
              [clojure.tools.logging :refer [debug info warn error]]
+             [com.interrupt.edgar.scanner :as sc]
              [com.interrupt.ibgateway.component.ewrapper :as ew]
+             [com.interrupt.edgar.scanner :as scanner]
              [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
              [com.interrupt.ibgateway.component.vase]
              [com.interrupt.ibgateway.component.vase.service  :refer [send-message-to-all!]]
@@ -339,6 +341,25 @@
                    [?e :switchboard/state ?s]
                    [?s :db/ident :stock-historical-state/off]]
                  (d/db conn))))
+
+
+(comment  ;; A scanner workbench
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (do
+    (def client (:client ew/ewrapper))
+
+    ;; Subscribe
+    (scanner/start client)
+
+    ;; Unsubscribe
+    (scanner/stop client)
+
+    (when-let [leaderboard (scanner/scanner-decide)]
+      (doseq [[i m] (map-indexed vector leaderboard)]
+        (println i ":" m)))))
 
 
 (comment  ;; from com.interrupt.ibgateway.component.ewrapper-impl
