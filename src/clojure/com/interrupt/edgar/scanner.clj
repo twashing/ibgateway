@@ -2,8 +2,7 @@
   (:require [clojure.core.async :as async :refer [<! go-loop]]
             [clojure.string :as str]
             [com.interrupt.edgar.subscription :as sub]
-            [inflections.core :as inflections]
-            [net.cgrand.xforms :as x])
+            [inflections.core :as inflections])
   (:import com.ib.client.ScannerSubscription
            com.ib.controller.ScanCode))
 
@@ -47,15 +46,13 @@
       (into (for [[k v] req-id->ch-kw] [v k]))
       (get ch-kw)))
 
-(def default-num-rows 10)
-
 (def ch-kw->ch
   "Map of scan code channel kws to channels."
   (into {} (for [code relevant-scan-codes]
              [(scan-code->ch-kw code)
-              (->> default-num-rows
-                   x/partition
-                   (async/chan (async/sliding-buffer 10)))])))
+              (->> (remove #(= [::data-end] %))
+                   (comp (partition-by #(= ::data-end %)))
+                   (async/chan (async/sliding-buffer 100)))])))
 
 (def ch-kw->atom
   "Map of scan code channel kws to atoms."
@@ -68,7 +65,7 @@
     (.instrument instrument)
     (.locationCode location-code)
     (.scanCode scan-code)
-    (.numberOfRows default-num-rows)))
+    (.numberOfRows 10)))
 
 (defrecord ScannerSubSubscription [client
                                    ^ScannerSubscription subscription
