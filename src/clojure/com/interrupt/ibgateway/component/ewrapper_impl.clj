@@ -97,10 +97,11 @@
           (log/warnf "No scanner channel for req-id %s" req-id))))
 
     (scannerDataEnd [req-id]
-      (let [val {:topic :scanner-data
-                 :req-id req-id
-                 :message-end true}]
-        (async/put! ch val)))
+      (if-let [scanner-ch (->> req-id
+                               scanner/req-id->ch-kw
+                               scanner/ch-kw->ch)]
+        (async/put! scanner-ch ::scanner/data-end)
+        (log/warnf "No scanner channel for req-id %s" req-id)))
 
     (historicalData [req-id date open high low close volume count wap gaps?]
       (let [val {:topic :historical-data
