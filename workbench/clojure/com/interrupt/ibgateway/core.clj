@@ -1,20 +1,52 @@
 (ns com.interrupt.ibgateway.core
-  (:require  [mount.core :refer [defstate] :as mount]
-             [clojure.core.async :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
+  (:require  [clojure.core.async :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
                                          sliding-buffer mult tap pipeline] :as async]
              [clojure.tools.logging :refer [debug info warn error]]
-             [com.interrupt.edgar.scanner :as sc]
-             [com.interrupt.ibgateway.component.ewrapper :as ew]
+             [com.interrupt.edgar.account.summary :as acct-summary]
+             [com.interrupt.edgar.account.updates :as acct-updates]
              [com.interrupt.edgar.scanner :as scanner]
+             [com.interrupt.ibgateway.cloud.storage]
+             [com.interrupt.ibgateway.component.ewrapper :as ew]
              [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
-             [com.interrupt.ibgateway.component.vase]
-             [com.interrupt.ibgateway.component.vase.service  :refer [send-message-to-all!]]
+             [com.interrupt.ibgateway.component.figwheel.figwheel]
+             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
              [com.interrupt.ibgateway.component.switchboard :as sw]
              [com.interrupt.ibgateway.component.switchboard.store]
-             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
-             [com.interrupt.ibgateway.component.figwheel.figwheel]
-             [com.interrupt.ibgateway.cloud.storage]))
+             [com.interrupt.ibgateway.component.vase]
+             [com.interrupt.ibgateway.component.vase.service  :refer [send-message-to-all!]]
+             [mount.core :refer [defstate] :as mount])
+  (:import [com.ib.client EClient ExecutionFilter Order]))
 
+(comment
+  (def client (:client ew/ewrapper))
+
+  (acct-updates/start client "DF16170")
+
+  (acct-updates/stop client "DF16170")
+
+  @acct-updates/accounts-info
+
+  )
+
+(comment
+  (def client (:client ew/ewrapper))
+
+  (acct-summary/start client 1)
+
+  (acct-summary/stop client 1)
+
+  @acct-summary/account-summary
+
+  (.placeOrder client
+               @ei/valid-order-id
+               (ei/create-contract "AAPL")
+               (doto (Order.)
+                 (.action "BUY")
+                 (.orderType "MKT")
+                 (.totalQuantity 10)
+                 (.account "DF16170")))
+
+  )
 
 (comment
 
