@@ -3,9 +3,13 @@
             [clj-time.format :as tf]
             [clojure.core.async :as async]
             [clojure.tools.logging :as log]
+            [com.interrupt.edgar.account.summary :as acct-summary]
+            [com.interrupt.edgar.account.updates :as acct-updates]
             [com.interrupt.edgar.scanner :as scanner])
   (:import [com.ib.client Contract EReader]
            com.interrupt.ibgateway.EWrapperImpl))
+
+(def valid-order-id (atom -1))
 
 (defn create-contract
   [symbol]
@@ -46,8 +50,13 @@
   (.cancelScannerSubscription client req-id))
 
 (defn ewrapper-impl
-  [{ch :publisher :keys [scanner-chs]}]
+  [{ch :publisher
+    :keys [account-updates-ch
+           account-summary-ch]}]
   (proxy [EWrapperImpl] []
+    (nextValidId [^Integer order-id]
+      (reset! valid-order-id order-id))
+
     (tickPrice [^Integer ticker-id ^Integer field ^Double price ^Integer can-auto-execute?]
       (let [val {:topic :tick-price
                  :ticker-id ticker-id
@@ -105,14 +114,37 @@
                  :count count
                  :wap wap
                  :has-gaps gaps?}]
-        (async/put! ch val)))))
+        (async/put! ch val)))
+
+    (accountSummary [req-id account tag value currency]
+      (let [val {:req-id req-id
+                 :account account
+                 :tag tag
+                 :value (acct-summary/parse-tag-value tag value)
+                 :currency currency}]
+        (async/put! account-summary-ch val)))
+
+    (updateAccountValue [^String key
+                         ^String value
+                         ^String currency
+                         ^String account-name]
+      (let [val {:account-name account-name
+                 :key key
+                 :value value
+                 :currency currency}]
+        (async/put! account-updates-ch val)))
+
+    (accountDownloadEnd [^String account]
+      (async/put! account-updates-ch ::acct-updates/download-end))))
 
 (defn default-exception-handler
   [^Exception e]
   (println "Exception:" (.getMessage e)))
 
 (def default-chs-map
-  {:publisher (-> 1000 async/sliding-buffer async/chan)})
+  {:publisher (-> 1000 async/sliding-buffer async/chan)
+   :account-summary-ch acct-summary/account-summary-ch
+   :account-updates-ch acct-updates/account-updates-ch})
 
 (defn ewrapper
   ([]
