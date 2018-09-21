@@ -13,6 +13,7 @@
              [com.interrupt.ibgateway.component.switchboard :as sw]
              [com.interrupt.ibgateway.component.switchboard.store]
              [com.interrupt.ibgateway.component.vase]
+             [com.interrupt.edgar.contract :as contract]
              [com.interrupt.ibgateway.component.vase.service  :refer [send-message-to-all!]]
              [mount.core :refer [defstate] :as mount])
   (:import [com.ib.client EClient ExecutionFilter Order]))
@@ -39,7 +40,7 @@
 
   (.placeOrder client
                @ei/valid-order-id
-               (ei/create-contract "AAPL")
+               (contract/create "AAPL")
                (doto (Order.)
                  (.action "BUY")
                  (.orderType "MKT")
