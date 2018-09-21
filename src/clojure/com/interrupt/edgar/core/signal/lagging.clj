@@ -2,10 +2,10 @@
   (:require [com.interrupt.edgar.core.analysis.lagging :as analysis]
             [com.interrupt.edgar.core.analysis.confirming :as confirming]
             [com.interrupt.edgar.core.signal.common :as common]
-            [clojure.tools.logging :as log]))
+            [clojure.tools.logging :refer [info] :as log]))
 
 
-(defn join-averages
+#_(defn join-averages
   "Create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid.
 
    ** This function assumes the latest tick is on the right**"
@@ -45,53 +45,49 @@
    By default, this function will produce a Simple Moving Average and an Exponential Moving Average.
 
    ** This function assumes the latest tick is on the right**"
+  [tick-window {:keys [tick-list sma-list ema-list] :as joined-map}]
 
-  ([tick-window {:keys [tick-list sma-list ema-list]}]
-   (moving-averages tick-window tick-list sma-list ema-list))
-
-  ([tick-window tick-list sma-list ema-list]
-
-   ;; create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid
-   (let [joined-list (join-averages tick-window tick-list sma-list ema-list)
-
-         ;; _ (log/info "joined-list" joined-list)
-         partitioned-join (partition 2 1 (remove nil? joined-list))]
+  ;; create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid
+  (let [;; joined-list (join-averages tick-window tick-list sma-list ema-list)
+        ;; _ (log/info "joined-list" joined-list)
+        ;; merged-map (->> joined-map vals (apply merge))
+        partitioned-join (partition 2 1 (remove nil? joined-map))]
 
 
-     ;; find time points where ema-list (or second list) crosses over the sma-list (or 1st list)
-     (reduce (fn [rslt ech]
+    ;; find time points where ema-list (or second list) crosses over the sma-list (or 1st list)
+    (reduce (fn [rslt ech]
 
-               (let [fst (first ech)
-                     snd (second ech)
+              (let [fst (first ech)
+                    snd (second ech)
 
-                     ;; in the first element, has the ema crossed abouve the sma from the second element
-                     signal-up (and (< (:last-trade-price-exponential snd) (:last-trade-price-average snd))
-                                    (> (:last-trade-price-exponential fst) (:last-trade-price-average fst)))
+                    ;; in the first element, has the ema crossed abouve the sma from the second element
+                    signal-up (and (< (:last-trade-price-exponential snd) (:last-trade-price-average snd))
+                                   (> (:last-trade-price-exponential fst) (:last-trade-price-average fst)))
 
-                     ;; in the first element, has the ema crossed below the sma from the second element
-                     signal-down (and (> (:last-trade-price-exponential snd) (:last-trade-price-average snd))
-                                      (< (:last-trade-price-exponential fst) (:last-trade-price-average fst)))
+                    ;; in the first element, has the ema crossed below the sma from the second element
+                    signal-down (and (> (:last-trade-price-exponential snd) (:last-trade-price-average snd))
+                                     (< (:last-trade-price-exponential fst) (:last-trade-price-average fst)))
 
-                     raw-data fst]
+                    raw-data fst]
 
-                 ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
-                 (if signal-up
-                   (concat rslt
-                           (-> raw-data
-                               (assoc :signals [{:signal :up
-                                                 :why :moving-average-crossover
-                                                 :arguments [fst snd]}])
-                               list))
-                   (if signal-down
-                     (concat rslt
-                             (-> raw-data
-                                 (assoc :isgnals [{:signal :down
-                                                   :why :moving-average-crossover
-                                                   :arguments [fst snd]}])
-                                 list))
-                     (concat rslt (list raw-data))))))
-             []
-             partitioned-join))))
+                ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
+                (if signal-up
+                  (concat rslt
+                          (-> raw-data
+                              (assoc :signals [{:signal :up
+                                                :why :moving-average-crossover
+                                                :arguments [fst snd]}])
+                              list))
+                  (if signal-down
+                    (concat rslt
+                            (-> raw-data
+                                (assoc :isgnals [{:signal :down
+                                                  :why :moving-average-crossover
+                                                  :arguments [fst snd]}])
+                                list))
+                    (concat rslt (list raw-data))))))
+            []
+            partitioned-join)))
 
 (defn sort-bollinger-band [bband]
   (->> bband

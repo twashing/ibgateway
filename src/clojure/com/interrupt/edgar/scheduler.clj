@@ -1,14 +1,14 @@
 (ns com.interrupt.edgar.scheduler
-  (:require [overtone.at-at :as at]))
+  #_(:require [overtone.at-at :as at]))
 
 
-(defn initialize-pool
+#_(defn initialize-pool
   "Initialize the thread pool"
   []
 
   (defonce my-pool (at/mk-pool)))
 
-(defn schedule-task
+#_(defn schedule-task
   "Scedule a task to be performed. Options (and defaults) are {:msec 1000 :sec 60 :min 1}"
   [options task-fn]
 

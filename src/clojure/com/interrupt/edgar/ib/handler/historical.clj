@@ -3,7 +3,7 @@
             [clojure.string :as string]
             [clojure.tools.logging :as log]
             [com.interrupt.edgar.ib.market :as market]
-            [com.interrupt.edgar.scheduler :as scheduler]
+            #_[com.interrupt.edgar.scheduler :as scheduler]
             [clojure.core.strint :refer :all]
             [clojure.tools.namespace.repl  :refer :all]))
 
@@ -189,8 +189,8 @@
         time-duration (if (:time-duration options) (:time-duration options) "1 D")
         time-interval (if (:time-interval options) (:time-interval options) "1 day")]
 
-    (scheduler/initialize-pool)
-    (scheduler/schedule-task
+    #_(scheduler/initialize-pool)
+    #_(scheduler/schedule-task
      (merge {:min 1} (:scheduler-options options))
      (fn []
 

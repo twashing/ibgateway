@@ -7,7 +7,7 @@
             [clojure.core.strint :refer :all]
             [com.interrupt.edgar.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper-impl]
-            [overtone.at-at :as at]))
+            #_[overtone.at-at :as at]))
 
 
 ;; HISTORICAL Data

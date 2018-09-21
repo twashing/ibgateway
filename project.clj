@@ -13,9 +13,9 @@
                  [mount "0.1.12"]
                  [org.clojure/core.async "0.4.474"]
                  [com.interactivebrokers.tws/tws-api "9.72.17-SNAPSHOT"]
-                 [ymilky/franzy "0.0.1"]
-                 [ymilky/franzy-transit "0.0.1" :exclusions [commons-codec]]
-                 [ymilky/franzy-admin "0.0.1" :exclusions [org.slf4j/slf4j-log4j12]]
+                 ;; [ymilky/franzy "0.0.1"]
+                 ;; [ymilky/franzy-transit "0.0.1" :exclusions [commons-codec]]
+                 ;; [ymilky/franzy-admin "0.0.1" :exclusions [org.slf4j/slf4j-log4j12]]
                  [org.clojure/core.match "0.3.0-alpha4"]
                  [org.clojure/math.combinatorics "0.1.4"]
                  [javax.servlet/javax.servlet-api "4.0.0"]
@@ -33,8 +33,8 @@
                  [org.slf4j/log4j-over-slf4j "1.7.25"]
                  ;;
                  ;; ;; Edgar proper
-                 [org.clojure/data.csv "0.1.4"]
-                 [overtone/at-at "1.2.0"]
+                 ;; [org.clojure/data.csv "0.1.4"]
+                 ;; [overtone/at-at "1.2.0"]
                  [cljs-uuid "0.0.4"]
                  [org.clojure/tools.namespace "0.2.10"]
                  [clj-time "0.14.3"]
@@ -85,7 +85,7 @@
                              [lein-cljsbuild "1.1.7"]
                              [lein-environ "1.1.0"]
                              [lein-figwheel "0.5.16"]
-                             [lein-virgil "0.1.8"]]
+                             #_[lein-virgil "0.1.8"]]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}}
 

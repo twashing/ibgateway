@@ -35,9 +35,7 @@
 
   @acct-updates/accounts-info
 
-  @portfolio/portfolio-info
-
-  )
+  @portfolio/portfolio-info)
 
 (comment
   (def client (:client ew/ewrapper))
@@ -75,9 +73,7 @@
                  (.action "BUY")
                  (.orderType "MKT")
                  (.totalQuantity 50)
-                 (.account account)))
-
-  )
+                 (.account account))))
 
 (comment
 
@@ -92,12 +88,10 @@
   (mount/stop)
   (mount/find-all-states))
 
-
 (comment
 
   (mount/start #'com.interrupt.ibgateway.component.vase/server)
   (mount/stop #'com.interrupt.ibgateway.component.vase/server))
-
 
 (comment
 
@@ -133,6 +127,7 @@
               #'com.interrupt.ibgateway.component.vase/server
               ;; #'com.interrupt.ibgateway.cloud.storage/s3
               #'com.interrupt.ibgateway.core/state)
+
 
   (sw/stop-stream-workbench)
   (reset)
