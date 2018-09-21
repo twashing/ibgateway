@@ -23,7 +23,8 @@
               (recur)))
           (finally (async/close! ch)))))
     ch)
-  (unsubscribe [_]))
+  (unsubscribe [_]
+    (async/close! ch)))
 
 (defrecord LiveSubscription [client ch ticker-id
                              ^Contract contract

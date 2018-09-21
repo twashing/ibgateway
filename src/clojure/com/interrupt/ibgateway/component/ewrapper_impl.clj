@@ -1,6 +1,7 @@
 (ns com.interrupt.ibgateway.component.ewrapper-impl
   (:require [clj-time.core :as t]
             [clj-time.format :as tf]
+            [clojure.tools.logging :refer [debug info warn error]]
             [clojure.core.async :as async]
             [clojure.tools.logging :as log]
             [com.interrupt.edgar.account.summary :as acct-summary]
@@ -170,7 +171,7 @@
   ([host port]
    (ewrapper host port 1))
   ([host port client-id]
-   (ewrapper host port client-id default-chs-map))
+   (ewrapper host port client-id {:publisher (-> 1000 async/sliding-buffer async/chan)}))
   ([host port client-id chs-map]
    (ewrapper host port client-id chs-map default-exception-handler))
   ([host port client-id chs-map ex-handler]
