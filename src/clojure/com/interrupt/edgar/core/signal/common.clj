@@ -36,7 +36,7 @@
   "** This function assumes the latest tick is on the right**"
   [period partitioned-list]
   (every? (fn [inp]
-            (> (:last-trade-price (first inp))
+            (< (:last-trade-price (first inp))
                (:last-trade-price (second inp))))
           (take period partitioned-list)))
 
@@ -44,7 +44,7 @@
   "** This function assumes the latest tick is on the right**"
   [period partitioned-list]
   (every? (fn [inp]
-            (< (:last-trade-price (first inp))
+            (> (:last-trade-price (first inp))
                (:last-trade-price (second inp))))
           (take period partitioned-list)))
 

@@ -6,8 +6,7 @@
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [clojure.core.strint :refer :all]
             [com.interrupt.edgar.contract :as contract]
-            [com.interrupt.ibgateway.component.ewrapper-impl]
-            [overtone.at-at :as at]))
+            [com.interrupt.ibgateway.component.ewrapper-impl]))
 
 
 ;; HISTORICAL Data

@@ -2,7 +2,7 @@
   (:require [com.interrupt.edgar.core.analysis.lagging :as analysis]
             [com.interrupt.edgar.core.analysis.confirming :as confirming]
             [com.interrupt.edgar.core.signal.common :as common]
-            [clojure.tools.logging :as log]))
+            [clojure.tools.logging :refer [info] :as log]))
 
 
 (defn join-averages
@@ -45,53 +45,47 @@
    By default, this function will produce a Simple Moving Average and an Exponential Moving Average.
 
    ** This function assumes the latest tick is on the right**"
+  [tick-window {:keys [tick-list sma-list ema-list] :as joined-map}]
 
-  ([tick-window {:keys [tick-list sma-list ema-list]}]
-   (moving-averages tick-window tick-list sma-list ema-list))
-
-  ([tick-window tick-list sma-list ema-list]
-
-   ;; create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid
-   (let [joined-list (join-averages tick-window tick-list sma-list ema-list)
-
-         ;; _ (log/info "joined-list" joined-list)
-         partitioned-join (partition 2 1 (remove nil? joined-list))]
+  ;; create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid
+  (let [joined-list (join-averages tick-window tick-list sma-list ema-list)
+        partitioned-join (partition 2 1 (remove nil? joined-list))]
 
 
-     ;; find time points where ema-list (or second list) crosses over the sma-list (or 1st list)
-     (reduce (fn [rslt ech]
+    ;; find time points where ema-list (or second list) crosses over the sma-list (or 1st list)
+    (reduce (fn [rslt ech]
 
-               (let [fst (first ech)
-                     snd (second ech)
+              (let [fst (first ech)
+                    snd (second ech)
 
-                     ;; in the first element, has the ema crossed abouve the sma from the second element
-                     signal-up (and (< (:last-trade-price-exponential snd) (:last-trade-price-average snd))
-                                    (> (:last-trade-price-exponential fst) (:last-trade-price-average fst)))
+                    ;; in the first element, has the ema crossed abouve the sma from the second element
+                    signal-up (and (< (:last-trade-price-exponential snd) (:last-trade-price-average snd))
+                                   (> (:last-trade-price-exponential fst) (:last-trade-price-average fst)))
 
-                     ;; in the first element, has the ema crossed below the sma from the second element
-                     signal-down (and (> (:last-trade-price-exponential snd) (:last-trade-price-average snd))
-                                      (< (:last-trade-price-exponential fst) (:last-trade-price-average fst)))
+                    ;; in the first element, has the ema crossed below the sma from the second element
+                    signal-down (and (> (:last-trade-price-exponential snd) (:last-trade-price-average snd))
+                                     (< (:last-trade-price-exponential fst) (:last-trade-price-average fst)))
 
-                     raw-data fst]
+                    raw-data fst]
 
-                 ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
-                 (if signal-up
-                   (concat rslt
-                           (-> raw-data
-                               (assoc :signals [{:signal :up
-                                                 :why :moving-average-crossover
-                                                 :arguments [fst snd]}])
-                               list))
-                   (if signal-down
-                     (concat rslt
-                             (-> raw-data
-                                 (assoc :isgnals [{:signal :down
-                                                   :why :moving-average-crossover
-                                                   :arguments [fst snd]}])
-                                 list))
-                     (concat rslt (list raw-data))))))
-             []
-             partitioned-join))))
+                ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
+                (if signal-up
+                  (concat rslt
+                          (-> raw-data
+                              (assoc :signals [{:signal :up
+                                                :why :moving-average-crossover
+                                                :arguments [fst snd]}])
+                              list))
+                  (if signal-down
+                    (concat rslt
+                            (-> raw-data
+                                (assoc :signals [{:signal :down
+                                                  :why :moving-average-crossover
+                                                  :arguments [fst snd]}])
+                                list))
+                    (concat rslt (list raw-data))))))
+            []
+            partitioned-join)))
 
 (defn sort-bollinger-band [bband]
   (->> bband
@@ -120,163 +114,149 @@
        iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
 
    ** This function assumes the latest tick is on the right**"
-  ([tick-window {:keys [tick-list sma-list]}]
-   (bollinger-band tick-window tick-list sma-list))
+  [tick-window {:keys [tick-list bollinger-band]}]
 
-  ([tick-window tick-list sma-list]
+  (let [;; Track widest & narrowest band over the last 'n' (3) ticks
+        sorted-bands (sort-bollinger-band bollinger-band)
+        most-narrow (take 3 sorted-bands)
+        most-wide (take-last 3 sorted-bands)
 
-   (let [bband (analysis/bollinger-band tick-window sma-list)]
+        ;; _ (log/info "each-list: " bollinger-band)
+        ;; _ (log/info "Most narrow / wide: " most-narrow most-wide)
 
-     (reduce (fn [rslt ech-list]
+        partitioned-list (partition 2 1 bollinger-band)
 
-               (let [;; Track widest & narrowest band over the last 'n' ( 3 ) ticks
-                     sorted-bands (sort-bollinger-band ech-list)
-                     most-narrow (take 3 sorted-bands)
-                     most-wide (take-last 3 sorted-bands)
+        upM? (common/up-market? 10 partitioned-list)
+        downM? (common/down-market? 10 partitioned-list)
 
-                     ;; _ (log/info "Most narrow / wide: " most-narrow most-wide)
+        ;; _ (log/info "upM? / downM?" upM? downM?)
 
-                     partitioned-list (partition 2 1 ech-list)
+        ;; TODO - determine how far back to look (defaults to 10 ticks) to decide on an UP or DOWN market
+        ;; TODO - does tick price fluctuate abouve and below the MA
+        ;; TODO - B iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
+        #_side-market? #_(if (and (not upM?) (not downM?))
+                           true false)
 
-                     upM? (common/up-market? 10 partitioned-list)
-                     downM? (common/down-market? 10 partitioned-list)
+        ;; find last 3 peaks and valleys
+        peaks-valleys (common/find-peaks-valleys nil tick-list)
+        peaks (:peak (group-by :signal peaks-valleys))
+        valleys (:valley (group-by :signal peaks-valleys))]
 
-                     ;; _ (log/info "upM? / downM?" upM? downM?)
+    (if (or upM? downM?)
 
-                     ;; TODO - determine how far back to look (defaults to 10 ticks) to decide on an UP or DOWN market
-                     ;; TODO - does tick price fluctuate abouve and below the MA
-                     ;; TODO - B iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
-                     #_side-market? #_(if (and (not upM?) (not downM?))
-                                    true false)
+      ;; A.
+      (let [latest-diff (- (-> bollinger-band last :upper-band)
+                           (-> bollinger-band last :lower-band))
+            less-than-any-narrow? (some #(< latest-diff (:difference %)) most-narrow)]
 
-                     ;; find last 3 peaks and valleys
-                     peaks-valleys (common/find-peaks-valleys nil ech-list)
-                     peaks (:peak (group-by :signal peaks-valleys))
-                     valleys (:valley (group-by :signal peaks-valleys))
+        (if less-than-any-narrow?
 
-                     ;; _ (log/info "peaks-valleys" peaks-valleys)
-                     ]
+          ;; entry signal -> close is outside of band, and previous swing high/low is inside the band
+          (if upM?
 
-                 (if (empty? ech-list)
+            (if (and (< (-> bollinger-band last :last-trade-price)
+                        (-> bollinger-band last :lower-band))
 
-                   (concat rslt (list nil))
+                     ;; TODO we probably want to bound the range backwards, by 5 - 7 ticks
+                     (> (-> valleys last :last-trade-price)
+                        (:lower-band (first (some #(= (:last-trade-time %)
+                                                      (-> valleys last :last-trade-time))
+                                                  bollinger-band)))))
 
-                   (if (or upM? downM?)
+              (-> bollinger-band
+                  last
+                  (assoc :signals [{:signal :down
+                                    :why :bollinger-close-abouve
+                                    :arguments [bollinger-band valleys]}]))
 
-                     ;; A.
-                     (let [latest-diff (- (:upper-band (first ech-list)) (:lower-band (first ech-list)))
-                           less-than-any-narrow? (some #(< latest-diff (:difference %)) most-narrow)]
+              (-> bollinger-band last))
 
-                       (if less-than-any-narrow?
+            (if (and (> (-> bollinger-band last :last-trade-price)
+                        (-> bollinger-band last :upper-band))
+                     (< (-> peaks last :last-trade-price)
+                        (:upper-band (first (some #(= (:last-trade-time %)
+                                                      (-> peaks last :last-trade-time)))
+                                            bollinger-band))))
 
-                         ;; entry signal -> close is outside of band, and previous swing high/low is inside the band
-                         (if upM?
+              (-> bollinger-band
+                  last
+                  (assoc :signals [{:signal :up
+                                    :why :bollinger-close-below
+                                    :arguments [bollinger-band peaks]}]))
 
-                           (if (and (< (:last-trade-price (first ech-list)) (:lower-band (first ech-list)))
-                                    (> (:last-trade-price (first valleys)) (:lower-band (first (some #(= (:last-trade-time %) (:last-trade-time (first valleys)))
-                                                                                                     ech-list)))))
+              (-> bollinger-band last)))))
 
-                             (concat rslt (-> ech-list
-                                              first
-                                              (assoc :signals [{:signal :down
-                                                                :why :bollinger-close-abouve
-                                                                :arguments [ech-list valleys]}])))
+      ;; B.
+      (let [latest-diff (- (-> bollinger-band last :upper-band)
+                           (-> bollinger-band last :lower-band))
+            more-than-any-wide? (some (fn [inp] (> latest-diff (:difference inp))) most-wide)]
 
-                             (concat rslt (-> ech-list first list)))
+        (if more-than-any-wide?
 
-                           (if (and (> (:last-trade-price (first ech-list)) (:upper-band (first ech-list)))
-                                    (< (:last-trade-price (first peaks)) (:upper-band (first (some #(= (:last-trade-time %) (:last-trade-time (first peaks))))
-                                                                                             ech-list))))
-
-                             (concat rslt (-> ech-list
-                                              first
-                                              (assoc :signals [{:signal :up
-                                                                :why :bollinger-close-below
-                                                                :arguments [ech-list peaks]}])
-                                              list))
-
-                             (concat rslt (-> ech-list first list))))))
-
-                     ;; B.
-                     (let [latest-diff (- (:upper-band (first ech-list)) (:lower-band (first ech-list)))
-                           more-than-any-wide? (some (fn [inp] (> latest-diff (:difference inp))) most-wide)]
-
-                       (if more-than-any-wide?
-
-                         ;; B iii RSI Divergence
-                         (let [OVER_BOUGHT 80
-                               OVER_SOLD 20
-                               rsi-list (confirming/relative-strength-index 14 ech-list)
+          ;; B iii RSI Divergence
+          (let [OVER_BOUGHT 80
+                OVER_SOLD 20
+                rsi-list (confirming/relative-strength-index 14 bollinger-band)
 
 
-                               ;; i. price makes a higher high and
-                               higher-highPRICE? (if (empty? peaks)
-                                                   false
-                                                   (> (:last-trade-price (first ech-list))
-                                                      (:last-trade-price (first peaks))))
+                ;; i. price makes a higher high and
+                higher-highPRICE? (if (empty? peaks)
+                                    false
+                                    (> (-> bollinger-band last :last-trade-price)
+                                       (-> peaks last :last-trade-price)))
 
 
-                               ;; ii. rsi devergence makes a lower high
-                               lower-highRSI? (if (or (empty? peaks)
-                                                      (some #(nil? (:last-trade-time %)) rsi-list)
-                                                      (not (nil? rsi-list)))
-                                                false
-                                                (< (:rsi (first rsi-list))
-                                                   (:rsi (first (filter (fn [inp]
+                ;; ii. rsi devergence makes a lower high
+                lower-highRSI? (if (or (empty? peaks)
+                                       (some #(nil? (:last-trade-time %)) rsi-list)
+                                       (not (nil? rsi-list)))
+                                 false
+                                 (< (-> rsi-list last :rsi)
+                                    (:rsi (first (filter #(= (:last-trade-time %)
+                                                             (-> peaks last :last-trade-time))
+                                                         rsi-list)))))
 
-                                                                          (log/info "... signal.lagging/bollinger-band > lower-lowRSI? > rsi-list > ech[" inp "]")
-                                                                          (= (:last-trade-time inp)
-                                                                             (:last-trade-time (first peaks))))
-                                                                        rsi-list)))))
-
-                               ;; iii. and divergence should happen abouve the overbought line
-                               divergence-overbought? (> (:rsi (first rsi-list))
-                                                         OVER_BOUGHT)
+                ;; iii. and divergence should happen abouve the overbought line
+                divergence-overbought? (> (-> rsi-list last :rsi)
+                                          OVER_BOUGHT)
 
 
 
-                               ;; i. price makes a lower low
-                               lower-highPRICE? (if (or (empty? valleys)
-                                                        (some #(nil? (:last-trade-time %)) rsi-list))
-                                                  false
-                                                  (< (:last-trade-price (first ech-list))
-                                                     (:last-trade-price (first valleys))))
+                ;; i. price makes a lower low
+                lower-highPRICE? (if (or (empty? valleys)
+                                         (some #(nil? (:last-trade-time %)) rsi-list))
+                                   false
+                                   (< (-> bollinger-band last :last-trade-price)
+                                      (-> valleys last :last-trade-price)))
 
-                               higher-highRSI? (if (or (empty? valleys)
-                                                       (not (nil? rsi-list)))
-                                                 false
-                                                 (> (:rsi (first rsi-list))
-                                                    (:rsi (first (filter (fn [inp]
+                higher-highRSI? (if (or (empty? valleys)
+                                        (not (nil? rsi-list)))
+                                  false
+                                  (> (-> rsi-list last :rsi)
+                                     (:rsi (first (filter #(= (:last-trade-time %)
+                                                              (:last-trade-time (first valleys)))
+                                                          rsi-list)))))
 
-                                                                           (log/info "... signal.lagging/bollinger-band > higher-highRSI? > RSI-LIST > ech[" inp "]")
-                                                                           (= (:last-trade-time inp)
-                                                                              (:last-trade-time (first valleys))))
-                                                                         rsi-list)))))
+                divergence-oversold? (< (-> rsi-list last :rsi)
+                                        OVER_SOLD)]
 
-                               divergence-oversold? (< (:rsi (first rsi-list))
-                                                       OVER_SOLD)]
+            (if (and higher-highPRICE? lower-highRSI? divergence-overbought?)
 
-                           (if (and higher-highPRICE? lower-highRSI? divergence-overbought?)
+              (-> bollinger-band
+                  last
+                  (assoc :signals [{:signal :down
+                                    :why :bollinger-divergence-overbought
+                                    :arguments [peaks bollinger-band rsi-list]}]))
 
-                             (concat rslt (-> ech-list
-                                              first
-                                              (assoc :signals [{:signal :down
-                                                                :why :bollinger-divergence-overbought
-                                                                :arguments [peaks ech-list rsi-list]}])
-                                              list))
+              (if (and lower-highPRICE? higher-highRSI? divergence-oversold?)
 
-                             (if (and lower-highPRICE? higher-highRSI? divergence-oversold?)
+                (-> bollinger-band
+                    last
+                    (assoc :signals [{:signal :up
+                                      :why :bollinger-divergence-oversold
+                                      :arguments [valleys bollinger-band rsi-list]}]))
 
-                               (concat rslt (-> ech-list
-                                                first
-                                                (assoc :signals [{:signal :up
-                                                                  :why :bollinger-divergence-oversold
-                                                                  :arguments [valleys ech-list rsi-list]}])
-                                                list))
+                (-> bollinger-band last))))
 
-                               (concat rslt (-> ech-list first list)))))
-
-                         (concat rslt (-> ech-list first list))))))
-                 (concat rslt (-> ech-list first list))))
-             []
-             (partition tick-window 1 bband)))))
+          (-> bollinger-band last))))
+    (-> bollinger-band last)))

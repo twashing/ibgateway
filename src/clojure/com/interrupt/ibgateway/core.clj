@@ -1,17 +1,10 @@
 (ns com.interrupt.ibgateway.core
   (:require  [mount.core :refer [defstate] :as mount]
              [unilog.config :refer [start-logging!]]
+             [clojure.tools.namespace.repl :as tn]
              [clojure.tools.logging :refer [debug info warn error]]
              [clojure.tools.cli :refer [parse-opts]]
-             [clojure.tools.namespace.repl :as tn]
-             [com.interrupt.ibgateway.component.ewrapper]
-             [com.interrupt.ibgateway.component.switchboard.store]
-             [com.interrupt.ibgateway.component.processing-pipeline]
-             [com.interrupt.ibgateway.component.repl-server]
-             [com.interrupt.ibgateway.component.figwheel.repl-server]
-             [com.interrupt.ibgateway.component.switchboard :as switchboard]
-             [com.interrupt.ibgateway.component.vase :as vase]
-             [com.interrupt.ibgateway.cloud.storage])
+             [com.interrupt.ibgateway.component.repl-server])
   (:import [org.apache.commons.daemon Daemon DaemonContext])
   (:gen-class
    :implements [org.apache.commons.daemon.Daemon]))
@@ -36,36 +29,13 @@
   :stop (assoc state :running false))
 
 (defn init [_]
-  (mount/start ;; #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               ;; #'com.interrupt.ibgateway.component.switchboard/control-channel
-               ;; ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
-               ;; #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-               #'com.interrupt.ibgateway.component.repl-server/server
-               ;; ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
-               ;; ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
-               ;; #'com.interrupt.ibgateway.component.vase/server
-               ;; ;; #'com.interrupt.ibgateway.cloud.storage/s3
-               ;; ;; #'com.interrupt.ibgateway.core/state
-               ))
+  (mount/start #'com.interrupt.ibgateway.component.repl-server/server))
 
 (defn start []
-  (while (:running state)
-    ;; (println "tick")
-    ;; (Thread/sleep 2000)
-    ))
+  (while (:running state)))
 
 (defn stop []
-  (mount/stop ;; #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              ;; #'com.interrupt.ibgateway.component.switchboard/control-channel
-              ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
-              ;; #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-              #'com.interrupt.ibgateway.component.repl-server/server
-              ;; ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
-              ;; ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
-              ;; #'com.interrupt.ibgateway.component.vase/server
-              ;; ;; #'com.interrupt.ibgateway.cloud.storage/s3
-              ;; #'com.interrupt.ibgateway.core/state
-              ))
+  (mount/stop #'com.interrupt.ibgateway.component.repl-server/server))
 
 (defn go' []
   (init nil)

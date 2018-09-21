@@ -15,34 +15,26 @@
   ;; (println "obv-list" obv-list)
   ;; (println "obv-list count" (count obv-list))
 
-  (let [divergence-obv
-        (reduce (fn [rslt ech-list]
+  (let [lst (last obv-list)
 
-                  (let [lst (last ech-list)
+        price-peaks-valleys (common/find-peaks-valleys nil obv-list)
+        obv-peaks-valleys (common/find-peaks-valleys {:input :obv} obv-list)
 
-                        price-peaks-valleys (common/find-peaks-valleys nil ech-list)
-                        obv-peaks-valleys (common/find-peaks-valleys {:input :obv} ech-list)
+        dUP? (common/divergence-up?
+               {:input-top :last-trade-price :input-bottom :obv} obv-list price-peaks-valleys obv-peaks-valleys)
 
-                        dUP? (common/divergence-up?
-                              {:input-top :last-trade-price :input-bottom :obv} ech-list price-peaks-valleys obv-peaks-valleys)
-                        dDOWN? (common/divergence-down?
-                                {:input-top :last-trade-price :input-bottom :obv} ech-list price-peaks-valleys obv-peaks-valleys)]
+        dDOWN? (common/divergence-down?
+                 {:input-top :last-trade-price :input-bottom :obv} obv-list price-peaks-valleys obv-peaks-valleys)]
 
-                    (if (or dUP? dDOWN?)
+    (if (or dUP? dDOWN?)
 
-                      (if dUP?
-                        (concat rslt (-> lst
-                                         (assoc :signals [{:signal :up
-                                                           :why :obv-divergence
-                                                           :arguments [ech-list price-peaks-valleys obv-peaks-valleys]}])
-                                         list))
-                        (concat rslt (-> lst
-                                         (assoc :signals [{:signal :down
-                                                           :why :obv-divergence
-                                                           :arguments [ech-list price-peaks-valleys obv-peaks-valleys]}])
-                                         list)))
-                      (concat rslt (-> ech-list last list)))))
-                []
-                (partition view-window 1 obv-list))]
+      (if dUP?
 
-    divergence-obv))
+        (assoc lst :signals [{:signal :up
+                          :why :obv-divergence
+                          :arguments [obv-list price-peaks-valleys obv-peaks-valleys]}])
+
+        (assoc lst :signals [{:signal :down
+                              :why :obv-divergence
+                              :arguments [obv-list price-peaks-valleys obv-peaks-valleys]}]))
+      (last obv-list))))
