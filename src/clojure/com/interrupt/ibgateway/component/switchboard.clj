@@ -1,5 +1,5 @@
 (ns com.interrupt.ibgateway.component.switchboard
-  (:require [clojure.core.async :refer [chan >! <! close! merge go go-loop pub sub unsub-all sliding-buffer
+  (:require [clojure.core.async :refer [chan >! >!! <! close! alts! merge go go-loop pub sub unsub-all sliding-buffer
                                         onto-chan mult tap pipeline] :async async]
             [clojure.math.combinatorics :as cmb]
             [clojure.set :as cs]
@@ -1269,18 +1269,31 @@
 #_(defn record-stop-live-data []
   (market/cancel-market-data client 0))
 
+
+(defstate control-channel
+  :start (chan)
+  :stop (close! control-channel))
+
+(defn stop-stream-workbench []
+  (>!! control-channel :exit))
+
 (defn kickoff-stream-workbench []
   (let [{:keys [wrapper]} ew/ewrapper
         sub (sub/->FileSubscription "live-recordings/2018-08-20-TSLA.edn" (chan 100))
         ch (sub/subscribe sub)]
     (go-loop []
-      (when-let [{:keys [topic] :as v} (<! ch)]
-        (Thread/sleep 10)
-        (let [f (case topic
-                  :tick-string #(.tickString wrapper %1 %2 %3)
-                  :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
-                  :tick-size #(.tickSize wrapper %1 %2 %3))]
-          (->> (dissoc v :topic)
-               vals
-               (apply f)))
-        (recur)))))
+      (let [[v c] (alts! [ch control-channel])]
+        (if (= v :exit)
+          (sub/unsubscribe sub)
+          (let [{:keys [topic]} v]
+
+            ;; (info "kickoff-stream-workbench / value / " v)
+            (Thread/sleep 10)
+            (let [f (case topic
+                      :tick-string #(.tickString wrapper %1 %2 %3)
+                      :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
+                      :tick-size #(.tickSize wrapper %1 %2 %3))]
+              (->> (dissoc v :topic)
+                   vals
+                   (apply f)))
+            (recur)))))))

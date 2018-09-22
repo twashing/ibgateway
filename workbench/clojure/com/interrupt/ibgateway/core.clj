@@ -113,7 +113,7 @@
   (get-file s3 bucket-name file-name))
 
 
-(comment
+(comment ;; A processing-pipelinen workbench
 
 
   (def one (flatten (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")))
@@ -124,6 +124,7 @@
 
   ;; STOP
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.switchboard/control-channel
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               ;; #'com.interrupt.ibgateway.component.repl-server/server
@@ -138,6 +139,7 @@
 
   ;; 1. START
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.switchboard/control-channel
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                ;; #'com.interrupt.ibgateway.component.repl-server/server
@@ -149,8 +151,9 @@
 
   ;; 2. Point your browser to http://localhost:8080
 
-  (def control-channel (chan))
-  (>!! control-channel :exit)
+  (require '[clojure.core.async.impl.protocols :refer [closed?]])
+  (closed? sw/control-channel)
+  (closed? (:joined-channel pp/processing-pipeline))
 
 
   ;; 3. Start streaming

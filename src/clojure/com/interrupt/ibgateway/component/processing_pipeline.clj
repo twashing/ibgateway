@@ -174,16 +174,12 @@
   (pipeline concurrency strategy-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) strategy-bollinger-band))
 
 (defn pipeline-signals-leading [concurrency moving-average-window strategy-macd-ch macd->macd-strategy
-                                strategy-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-strategy
-                                strategy-on-balance-volume-ch on-balance-volume->on-balance-volume-ch ]
+                                strategy-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-strategy]
 
   (pipeline concurrency strategy-macd-ch (map slead/macd) macd->macd-strategy)
 
   (pipeline concurrency strategy-stochastic-oscillator-ch (map slead/stochastic-oscillator)
-            stochastic-oscillator->stochastic-oscillator-strategy)
-
-  (pipeline concurrency strategy-on-balance-volume-ch (map (partial sconf/on-balance-volume moving-average-window))
-            on-balance-volume->on-balance-volume-ch))
+            stochastic-oscillator->stochastic-oscillator-strategy))
 
 (defn channel-analytics []
   {:source-list-ch (chan (sliding-buffer 100))
@@ -349,6 +345,15 @@
         (channel-strategy-bollinger-band)
 
 
+        macd->macd-strategy (chan (sliding-buffer 100))
+        ;; macd->on-balance-volume-strategy (chan (sliding-buffer 100))
+        stochastic-oscillator->stochastic-oscillator-strategy (chan (sliding-buffer 100))
+        on-balance-volume->on-balance-volume-ch (chan (sliding-buffer 100))
+        strategy-macd-ch (chan (sliding-buffer 100))
+        strategy-stochastic-oscillator-ch (chan (sliding-buffer 100))
+        strategy-on-balance-volume-ch (chan (sliding-buffer 100))
+
+
         [tick-list->CROSS sma-list->CROSS
          ema-list->CROSS bollinger-band->CROSS
          macd->CROSS
@@ -376,7 +381,13 @@
 
                                                                ;; confirming
                                                                :on-balance-volume on-balance-volume->CROSS
-                                                               :relative-strength relative-strength->CROSS}})
+                                                               :relative-strength relative-strength->CROSS
+
+                                                               ;; strategy-macd-ch
+                                                               ;; strategy-stochastic-oscillator-ch
+                                                               ;; strategy-on-balance-volume-ch
+
+                                                               }})
 
         connector-ch (chan (sliding-buffer 100))]
 
@@ -391,9 +402,11 @@
                           [ema-list-ch ema-list->moving-averages-strategy
                            ema-list->JOIN]
                           [bollinger-band-ch bollinger-band->JOIN]
-                          [macd-ch macd->JOIN]
-                          [stochastic-oscillator-ch stochastic-oscillator->JOIN]
-                          [on-balance-volume-ch on-balance-volume->JOIN]
+                          [macd-ch macd->macd-strategy macd->JOIN]
+                          [stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-strategy
+                           stochastic-oscillator->JOIN]
+                          [on-balance-volume-ch on-balance-volume->on-balance-volume-ch
+                           on-balance-volume->JOIN]
                           [relative-strength-ch relative-strength->JOIN]]]
 
       (apply bind-channels->mult source+mults))
@@ -578,7 +591,7 @@
        :strategy-moving-averages-ch->tracer strategy-moving-averages-ch->tracer})))
 
 (defn teardown-publisher-channel [processing-pipeline]
-  #_(doseq [vl (vals processing-pipeline)]
+  (doseq [vl (vals processing-pipeline)]
     (close! vl)))
 
 (defstate processing-pipeline

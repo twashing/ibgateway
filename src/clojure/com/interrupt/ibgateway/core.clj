@@ -4,6 +4,9 @@
              [clojure.tools.logging :refer [debug info warn error]]
              [clojure.tools.cli :refer [parse-opts]]
              [clojure.tools.namespace.repl :as tn]
+             [com.interrupt.ibgateway.component.ewrapper]
+             [com.interrupt.ibgateway.component.switchboard.store]
+             [com.interrupt.ibgateway.component.processing-pipeline]
              [com.interrupt.ibgateway.component.repl-server]
              [com.interrupt.ibgateway.component.figwheel.repl-server]
              [com.interrupt.ibgateway.component.switchboard :as switchboard]
@@ -33,15 +36,16 @@
   :stop (assoc state :running false))
 
 (defn init [_]
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
-               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+  (mount/start ;; #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               ;; #'com.interrupt.ibgateway.component.switchboard/control-channel
+               ;; ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
+               ;; #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.repl-server/server
-               ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
-               ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
-               #'com.interrupt.ibgateway.component.vase/server
-               ;; #'com.interrupt.ibgateway.cloud.storage/s3
-               ;; #'com.interrupt.ibgateway.core/state
+               ;; ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
+               ;; ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
+               ;; #'com.interrupt.ibgateway.component.vase/server
+               ;; ;; #'com.interrupt.ibgateway.cloud.storage/s3
+               ;; ;; #'com.interrupt.ibgateway.core/state
                ))
 
 (defn start []
@@ -51,7 +55,17 @@
     ))
 
 (defn stop []
-  (mount/stop))
+  (mount/stop ;; #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              ;; #'com.interrupt.ibgateway.component.switchboard/control-channel
+              ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
+              ;; #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+              #'com.interrupt.ibgateway.component.repl-server/server
+              ;; ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
+              ;; ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
+              ;; #'com.interrupt.ibgateway.component.vase/server
+              ;; ;; #'com.interrupt.ibgateway.cloud.storage/s3
+              ;; #'com.interrupt.ibgateway.core/state
+              ))
 
 (defn go' []
   (init nil)
