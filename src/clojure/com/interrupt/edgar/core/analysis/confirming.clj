@@ -1,6 +1,24 @@
 (ns com.interrupt.edgar.core.analysis.confirming
   (:require [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
 
+(defn obv
+  [prices volumes]
+  (->> (map vector (rest prices) (rest volumes))
+       (reduce (fn [[prev-p prev-v] [p v]]
+                 [p (case (compare prev-p p)
+                      -1 (+ prev-v v)
+                      0 prev-v
+                      1 (- prev-v v))])
+               [(first prices) 0])
+       second))
+
+(defn obv-ticks
+  [ticks]
+  {:pre [(time-increases-left-to-right? ticks)]}
+  (let [prices (map :last-trade-price ticks)
+        volumes (map :total-volume ticks)]
+    (-> (last ticks)
+        (assoc :obv (obv prices volumes)))))
 
 (defn on-balance-volume
   "On Balance Volume (OBV) measures buying and selling pressure as a cumulative indicator that i) adds volume on up days and ii) subtracts volume on down days. We'll look for divergences between OBV and price to predict price movements or use OBV to confirm price trends.
@@ -52,6 +70,27 @@
                          (partition 2 1 tick-list))]
 
     obv-list))
+
+(defn rsi
+  [prices]
+  (let [rs (->> (rest prices)
+                (reduce (fn [[prev-p gain loss] p]
+                          (let [diff (- p prev-p)]
+                            (cons p (cond
+                                      (pos? diff) [(+ gain diff) loss]
+                                      (neg? diff) [gain (- loss diff)]
+                                      :else [gain loss]))))
+                        [(first prices) 0 0])
+                rest
+                (apply /))]
+    (- 100 (/ 100 (inc rs)))))
+
+(defn rsi-ticks
+  [ticks]
+  {:pre [(time-increases-left-to-right? ticks)]}
+  (let [prices (map :last-trade-price ticks)]
+    (-> (last ticks)
+        (assoc :rsi (rsi prices)))))
 
 (defn relative-strength-index
   "The Relative Strength Index (RSI) is a momentum oscillator that measures the speed and change of price movements. It oscillates between zero and 100.
