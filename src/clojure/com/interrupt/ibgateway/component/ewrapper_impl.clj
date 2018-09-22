@@ -5,7 +5,9 @@
             [clojure.tools.logging :as log]
             [com.interrupt.edgar.account.summary :as acct-summary]
             [com.interrupt.edgar.account.updates :as acct-updates]
+            [com.interrupt.edgar.account.portfolio :as portfolio]
             [com.interrupt.edgar.contract :as contract]
+            [com.interrupt.edgar.obj-convert :as obj-convert]
             [com.interrupt.edgar.scanner :as scanner])
   (:import [com.ib.client Contract EReader]
            com.interrupt.ibgateway.EWrapperImpl))
@@ -44,8 +46,9 @@
 
 (defn ewrapper-impl
   [{ch :publisher
-    :keys [account-updates-ch
-           account-summary-ch]}]
+    :keys [account-summary-ch
+           account-updates-ch
+           portfolio-updates-ch]}]
   (proxy [EWrapperImpl] []
     (nextValidId [^Integer order-id]
       (reset! valid-order-id order-id))
@@ -128,6 +131,24 @@
                  :currency currency}]
         (async/put! account-updates-ch val)))
 
+    (updatePortfolio [^Contract contract
+                      ^Double position
+                      ^Double market-price
+                      ^Double market-value
+                      ^Double average-cost
+                      ^Double unrealized-pnl
+                      ^Double realized-pnl
+                      ^String account-name]
+      (let [val {:contract (obj-convert/convert contract)
+                 :position position
+                 :market-price market-price
+                 :market-value market-value
+                 :average-cost average-cost
+                 :unrealized-pnl unrealized-pnl
+                 :realized-pnl realized-pnl
+                 :account-name account-name}]
+        (async/put! portfolio-updates-ch val)))
+
     (accountDownloadEnd [^String account]
       (async/put! account-updates-ch ::acct-updates/download-end))))
 
@@ -138,7 +159,8 @@
 (def default-chs-map
   {:publisher (-> 1000 async/sliding-buffer async/chan)
    :account-summary-ch acct-summary/account-summary-ch
-   :account-updates-ch acct-updates/account-updates-ch})
+   :account-updates-ch acct-updates/account-updates-ch
+   :portfolio-updates-ch portfolio/portfolio-updates-ch})
 
 (defn ewrapper
   ([]
