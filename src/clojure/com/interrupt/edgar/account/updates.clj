@@ -1,6 +1,7 @@
 (ns com.interrupt.edgar.account.updates
   (:require [clojure.core.async :as async :refer [<! go-loop]]
             [clojure.string :as str]
+            [com.interrupt.edgar.account.portfolio :as portfolio]
             [com.interrupt.edgar.subscription :as sub]))
 
 (def accounts-info (atom nil))
@@ -35,6 +36,8 @@
   (let [ch (-> client
                (->AccountUpdatesSubscription account-updates-ch acct-code)
                sub/subscribe)]
+
+    ;; Account updates
     (go-loop []
       (when-let [ms (<! ch)]
         (swap! accounts-info
@@ -42,6 +45,18 @@
                           (assoc-in info [account-name key] value))
                         %
                         ms))
+        (recur)))
+
+    ;; Portfolio updates
+    (go-loop []
+      (when-let [m (<! portfolio/portfolio-updates-ch)]
+        (swap! portfolio/portfolio-info
+               #(let [{:keys [account-name]
+                       {:keys [conid] :as contract} :contract} m
+                      v (-> m
+                            (dissoc :account-name)
+                            (assoc :contract (dissoc contract :conid)))]
+                  (assoc-in % [account-name conid] v)))
         (recur)))))
 
 (defn stop

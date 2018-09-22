@@ -1,31 +1,41 @@
 (ns com.interrupt.ibgateway.core
-  (:require  [clojure.core.async :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
-                                         sliding-buffer mult tap pipeline] :as async]
-             [clojure.tools.logging :refer [debug info warn error]]
-             [com.interrupt.edgar.account.summary :as acct-summary]
-             [com.interrupt.edgar.account.updates :as acct-updates]
-             [com.interrupt.edgar.scanner :as scanner]
-             [com.interrupt.ibgateway.cloud.storage]
-             [com.interrupt.ibgateway.component.ewrapper :as ew]
-             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
-             [com.interrupt.ibgateway.component.figwheel.figwheel]
-             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
-             [com.interrupt.ibgateway.component.switchboard :as sw]
-             [com.interrupt.ibgateway.component.switchboard.store]
-             [com.interrupt.ibgateway.component.vase]
-             [com.interrupt.edgar.contract :as contract]
-             [com.interrupt.ibgateway.component.vase.service  :refer [send-message-to-all!]]
-             [mount.core :refer [defstate] :as mount])
+  (:require [clojure.core.async
+             :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
+                     sliding-buffer mult tap pipeline] :as async]
+            [clojure.tools.logging :refer [debug info warn error]]
+            [com.interrupt.edgar.account.portfolio :as portfolio]
+            [com.interrupt.edgar.account.summary :as acct-summary]
+            [com.interrupt.edgar.account.updates :as acct-updates]
+            [com.interrupt.edgar.contract :as contract]
+            [com.interrupt.edgar.scanner :as scanner]
+            [com.interrupt.ibgateway.cloud.storage]
+            [com.interrupt.ibgateway.component.ewrapper :as ew]
+            [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
+            [com.interrupt.ibgateway.component.figwheel.figwheel]
+            [com.interrupt.ibgateway.component.processing-pipeline :as pp]
+            [com.interrupt.ibgateway.component.switchboard :as sw]
+            [com.interrupt.ibgateway.component.switchboard.store]
+            [com.interrupt.ibgateway.component.vase]
+            [com.interrupt.ibgateway.component.vase.service
+             :refer [send-message-to-all!]]
+            [mount.core :refer [defstate] :as mount])
   (:import [com.ib.client EClient ExecutionFilter Order]))
 
 (comment
+  (def account "DU16007")
+
+  (mount/stop #'ew/ewrapper)
+  (mount/start #'ew/ewrapper)
+
   (def client (:client ew/ewrapper))
 
-  (acct-updates/start client "DF16170")
+  (acct-updates/start client account)
 
-  (acct-updates/stop client "DF16170")
+  (acct-updates/stop client account)
 
   @acct-updates/accounts-info
+
+  @portfolio/portfolio-info
 
   )
 
@@ -44,8 +54,28 @@
                (doto (Order.)
                  (.action "BUY")
                  (.orderType "MKT")
-                 (.totalQuantity 10)
-                 (.account "DF16170")))
+                 (.totalQuantity 3)
+                 (.account account)))
+
+  (.reqIds client -1)
+
+  (.placeOrder client
+               @ei/valid-order-id
+               (contract/create "AMZN")
+               (doto (Order.)
+                 (.action "BUY")
+                 (.orderType "MKT")
+                 (.totalQuantity 20)
+                 (.account account)))
+
+  (.placeOrder client
+               @ei/valid-order-id
+               (contract/create "AAPL")
+               (doto (Order.)
+                 (.action "BUY")
+                 (.orderType "MKT")
+                 (.totalQuantity 50)
+                 (.account account)))
 
   )
 
