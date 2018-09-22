@@ -13,27 +13,18 @@
             [clojure.tools.trace :refer [trace]]
             [com.gfredericks.test.chuck.clojure-test :refer [checking]]
             [com.interrupt.edgar.core.analysis.lagging :as sut]
-            [com.interrupt.edgar.core.utils :refer [sine]])
-  (:import [java.math RoundingMode]
-           [java.text DecimalFormat]))
-
-(defn double->str
-  ([d]
-   (double->str d 4))
-  ([d n]
-   (let [dfmt (DecimalFormat. (str "#." (str/join (repeat n "#"))))]
-     (.setRoundingMode dfmt RoundingMode/CEILING)
-     (.format dfmt d))))
+            [com.interrupt.edgar.core.utils :refer [sine]]
+            [com.interrupt.edgar.utils :as utils]))
 
 (deftest ema-test
   (let [xs [1 2 3 4 5]]
-    (are [e v] (= (double->str e) (double->str v))
+    (are [e v] (= (utils/double->str e) (utils/double->str v))
       3.6585 (sut/ema xs)
       2.3416 (sut/ema (reverse xs)))))
 
 (deftest bollinger-test
   (let [xs [1 2 3 4 5]]
-    (are [e v] (= (map double->str e) (map double->str v))
+    (are [e v] (= (map utils/double->str e) (map utils/double->str v))
       [-0.1622 3.0 6.1623] (sut/bollinger xs)
       [-0.1622 3.0 6.1623] (sut/bollinger (reverse xs)))))
 
@@ -82,8 +73,8 @@
                                   (reduce +)
                                   (* (/ 1 n)))]
 
-      (is (= (double->str average-comparator)
-             (double->str last-trade-price-average))))))
+      (is (= (utils/double->str average-comparator)
+             (utils/double->str last-trade-price-average))))))
 
 (deftest exponential-moving-average-test
 
