@@ -5,25 +5,18 @@
             [clojure.tools.logging :as log]
             [com.interrupt.edgar.account.summary :as acct-summary]
             [com.interrupt.edgar.account.updates :as acct-updates]
+            [com.interrupt.edgar.contract :as contract]
             [com.interrupt.edgar.scanner :as scanner])
   (:import [com.ib.client Contract EReader]
            com.interrupt.ibgateway.EWrapperImpl))
 
 (def valid-order-id (atom -1))
 
-(defn create-contract
-  [symbol]
-  (doto (Contract.)
-    (.symbol symbol)
-    (.secType "STK")
-    (.exchange "SMART")
-    (.currency "USD")))
-
 (def datetime-formatter (tf/formatter "yyyyMMdd HH:mm:ss"))
 
 (defn historical-subscribe
   ([client ticker-id]
-   (historical-subscribe client ticker-id (create-contract "TSLA")))
+   (historical-subscribe client ticker-id (contract/create "TSLA")))
   ([client ticker-id contract]
    (->> (t/minus (t/now) (t/days 16))
         (tf/unparse datetime-formatter)
