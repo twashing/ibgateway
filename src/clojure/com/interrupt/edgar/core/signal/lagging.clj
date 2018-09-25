@@ -5,7 +5,7 @@
             [clojure.tools.logging :refer [info] :as log]))
 
 
-#_(defn join-averages
+(defn join-averages
   "Create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid.
 
    ** This function assumes the latest tick is on the right**"
@@ -48,10 +48,8 @@
   [tick-window {:keys [tick-list sma-list ema-list] :as joined-map}]
 
   ;; create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid
-  (let [;; joined-list (join-averages tick-window tick-list sma-list ema-list)
-        ;; _ (log/info "joined-list" joined-list)
-        ;; merged-map (->> joined-map vals (apply merge))
-        partitioned-join (partition 2 1 (remove nil? joined-map))]
+  (let [joined-list (join-averages tick-window tick-list sma-list ema-list)
+        partitioned-join (partition 2 1 (remove nil? joined-list))]
 
 
     ;; find time points where ema-list (or second list) crosses over the sma-list (or 1st list)
