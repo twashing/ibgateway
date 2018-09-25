@@ -61,7 +61,7 @@
     (comp (filter rtvolume-time-and-sales?)
        (map parse-tick-string)
 
-       ;; TODO For now, ignore empty lots
+       ;; NOTE For now, ignore empty lots
        (remove empty-last-trade-price?)))
 
 
@@ -164,18 +164,63 @@
   (pipeline-relative-strength-index concurrency relative-strength-ch tick-list->relative-strength-ch))
 
 (defn pipeline-signals-lagging [concurrency moving-average-window
-                                merged-averages signal-moving-averages-ch
-                                merged-bollinger-band signal-bollinger-band-ch]
+                                connector-ch signal-moving-averages-ch signal-bollinger-band-ch]
 
-  (pipeline concurrency signal-moving-averages-ch (map (partial slag/moving-averages moving-average-window)) merged-averages)
+  (let [m (mult connector-ch)
 
-  #_(pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) merged-bollinger-band))
+        ;; TODO Taking each analytic, and regathering a sliding partitioned
+        ;; ** There has to be a better way to do this
+        remove-population-xf (map #(update-in % [:sma-list] dissoc :population))
+        partition-xf (x/partition moving-average-window moving-average-increment (x/into []))
+        join-xf (map #(let [tick-list (map (fn [{:keys [tick-list]}] tick-list) %)
+                            sma-list (map (fn [{:keys [sma-list]}] sma-list) %)
+                            ema-list (map (fn [{:keys [ema-list]}] ema-list) %)
+                            bollinger-band (map (fn [{:keys [bollinger-band]}] bollinger-band) %)
+                            macd (map (fn [{:keys [macd]}] macd) %)
+                            stochastic-oscillator (map (fn [{:keys [stochastic-oscillator]}]
+                                                         stochastic-oscillator) %)
+                            on-balance-volume (map (fn [{:keys [on-balance-volume]}] on-balance-volume) %)
+                            relative-strength (map (fn [{:keys [relative-strength]}] relative-strength) %)]
 
-(defn pipeline-signals-leading [concurrency moving-average-window signal-macd-ch macd->macd-signal
+                        {:tick-list tick-list
+                         :sma-list sma-list
+                         :ema-list ema-list
+                         :bollinger-band bollinger-band
+                         :macd macd
+                         :stochastic-oscillator stochastic-oscillator
+                         :on-balance-volume on-balance-volume
+                         :relative-strength relative-strength}))
+
+        remove-population-ch (chan (sliding-buffer 100) remove-population-xf)
+        partitioned-ch (chan (sliding-buffer 100) partition-xf)
+        partitioned-joined-ch (chan (sliding-buffer 100) join-xf)
+
+        mult-moving-averages (mult partitioned-joined-ch)
+        tap->moving-averages (chan (sliding-buffer 100))
+        tap->bollinger-band (chan (sliding-buffer 100) (filter #(->> (:bollinger-band %)
+                                                                     (remove nil?)
+                                                                     count
+                                                                     (= moving-average-window))))]
+
+    (tap m remove-population-ch)
+    (tap mult-moving-averages tap->moving-averages)
+    (tap mult-moving-averages tap->bollinger-band)
+
+    (pipeline concurrency partitioned-ch (map identity) remove-population-ch)
+    (pipeline concurrency partitioned-joined-ch (map identity) partitioned-ch)
+
+    (pipeline concurrency signal-moving-averages-ch (map (partial slag/moving-averages moving-average-window)) tap->moving-averages)
+
+    ;; TODO bollinger band isn't yielding any signals
+    (pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) tap->bollinger-band)))
+
+(defn pipeline-signals-leading [concurrency moving-average-window
+                                signal-macd-ch macd->macd-signal
                                 signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal]
 
   (pipeline concurrency signal-macd-ch (map slead/macd) macd->macd-signal)
 
+  ;; TODO stochastic oscillator isn't yielding any signals
   (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
             stochastic-oscillator->stochastic-oscillator-signal))
 
@@ -436,76 +481,25 @@
 
 
     ;; SIGNALS
-    #_(bind-channels->mult connector-ch merged-averages merged-bollinger-band)
+    (pipeline-signals-lagging concurrency moving-average-window
+                              connector-ch signal-moving-averages-ch signal-bollinger-band-ch)
 
-    ;; TODO Taking each analytic, and regathering a sliding partitioned
-    ;; There has to be a better way to do this
-    (let [m (mult connector-ch)
-
-          remove-population-xf (map #(update-in % [:sma-list] dissoc :population))
-          partition-xf (x/partition moving-average-window moving-average-increment (x/into []))
-          join-xf (map #(let [tick-list (map (fn [{:keys [tick-list]}] tick-list) %)
-                              sma-list (map (fn [{:keys [sma-list]}] sma-list) %)
-                              ema-list (map (fn [{:keys [ema-list]}] ema-list) %)
-                              bollinger-band (map (fn [{:keys [bollinger-band]}] bollinger-band) %)
-                              macd (map (fn [{:keys [macd]}] macd) %)
-                              stochastic-oscillator (map (fn [{:keys [stochastic-oscillator]}]
-                                                           stochastic-oscillator) %)
-                              on-balance-volume (map (fn [{:keys [on-balance-volume]}] on-balance-volume) %)
-                              relative-strength (map (fn [{:keys [relative-strength]}] relative-strength) %)]
-
-                          {:tick-list tick-list
-                           :sma-list sma-list
-                           :ema-list ema-list
-                           :bollinger-band bollinger-band
-                           :macd macd
-                           :stochastic-oscillator stochastic-oscillator
-                           :on-balance-volume on-balance-volume
-                           :relative-strength relative-strength}))
-
-          remove-population-ch (chan (sliding-buffer 100) remove-population-xf)
-          partitioned-ch (chan (sliding-buffer 100) partition-xf)
-          partitioned-joined-ch (chan (sliding-buffer 100) join-xf)
-
-          mult-moving-averages (mult partitioned-joined-ch)
-          tap->moving-averages (chan (sliding-buffer 100))
-          tap->bollinger-band (chan (sliding-buffer 100) (filter #(->> (:bollinger-band %)
-                                                                       (remove nil?)
-                                                                       count
-                                                                       (= moving-average-window))))]
-
-      (tap m remove-population-ch)
-      (tap mult-moving-averages tap->moving-averages)
-      (tap mult-moving-averages tap->bollinger-band)
-
-      (pipeline concurrency partitioned-ch (map identity) remove-population-ch)
-      (pipeline concurrency partitioned-joined-ch (map identity) partitioned-ch)
-
-      (pipeline concurrency signal-moving-averages-ch (map (partial slag/moving-averages moving-average-window)) tap->moving-averages)
-      (pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) tap->bollinger-band)
-
-      #_(pipeline-signals-lagging concurrency moving-average-window
-                                  partitioned-joined-ch signal-moving-averages-ch
-                                  merged-bollinger-band signal-bollinger-band-ch)
-
-      (go-loop [c 0
-                r (<! signal-bollinger-band-ch)]
-        (info "count: " c " / result: " r)
-        (when r
-          (recur (inc c) (<! signal-bollinger-band-ch)))))
-
-    #_(pipeline-signals-leading concurrency moving-average-window
+    (pipeline-signals-leading concurrency moving-average-window
                               signal-macd-ch macd->macd-signal
                               signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal)
 
-    #_(pipeline concurrency signal-on-balance-volume-ch (map (partial sconf/on-balance-volume moving-average-window))
+    (go-loop [c 0 r (<! signal-stochastic-oscillator-ch)]
+      (info "count: " c " / result: " r)
+      (when r
+        (recur (inc c) (<! signal-stochastic-oscillator-ch))))
+
+    (pipeline concurrency signal-on-balance-volume-ch (map (partial sconf/on-balance-volume moving-average-window))
               on-balance-volume->on-balance-volume-ch)
 
     {:joined-channel connector-ch}))
 
 #_(defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
 
-  ;; TODO Remove :population
   (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
 
         ;; Channels Analytics
