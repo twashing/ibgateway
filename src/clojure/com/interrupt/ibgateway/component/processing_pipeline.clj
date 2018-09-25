@@ -239,7 +239,7 @@
      :merged-bollinger-band (async/merge [tick-list->bollinger-band-signal
                                           sma-list->bollinger-band-signal])
      :signal-bollinger-band (chan (sliding-buffer 100) (filter :joined))
-     :signal-bollinger-band-ch  (chan (sliding-buffer 100))}))
+     :signal-bollinger-band-ch (chan (sliding-buffer 100))}))
 
 (defn channel->tracer [& channels]
   (for [ch channels
@@ -441,6 +441,7 @@
     ;; TODO Taking each analytic, and regathering a sliding partitioned
     ;; There has to be a better way to do this
     (let [m (mult connector-ch)
+
           remove-population-xf (map #(update-in % [:sma-list] dissoc :population))
           partition-xf (x/partition moving-average-window moving-average-increment (x/into []))
           join-xf (map #(let [tick-list (map (fn [{:keys [tick-list]}] tick-list) %)
@@ -466,50 +467,32 @@
           partitioned-ch (chan (sliding-buffer 100) partition-xf)
           partitioned-joined-ch (chan (sliding-buffer 100) join-xf)
 
-          ;; partition-xf (x/partition moving-average-window moving-average-increment (x/into []))
-          ;; join-xf (map (fn [x]
-          ;;                (let [tick-list (map (fn [{:keys [tick-list]}] tick-list) x)
-          ;;                      sma-list (map (fn [{:keys [sma-list]}] sma-list) x)
-          ;;                      ema-list (map (fn [{:keys [ema-list]}] ema-list) x)
-          ;;                      bollinger-band (map (fn [{:keys [bollinger-band]}] bollinger-band) x)
-          ;;                      macd (map (fn [{:keys [macd]}] macd) x)
-          ;;                      stochastic-oscillator (map (fn [{:keys [stochastic-oscillator]}]
-          ;;                                                   stochastic-oscillator) x)
-          ;;                      on-balance-volume (map (fn [{:keys [on-balance-volume]}] on-balance-volume) x)
-          ;;                      relative-strength (map (fn [{:keys [relative-strength]}] relative-strength) x)]
-          ;;
-          ;;                  {:tick-list tick-list
-          ;;                   :sma-list sma-list
-          ;;                   :ema-list ema-list
-          ;;                   :bollinger-band bollinger-band
-          ;;                   :macd macd
-          ;;                   :stochastic-oscillator stochastic-oscillator
-          ;;                   :on-balance-volume on-balance-volume
-          ;;                   :relative-strength relative-strength})))
-
-          ;; TODO filter out nils
-          ]
+          mult-moving-averages (mult partitioned-joined-ch)
+          tap->moving-averages (chan (sliding-buffer 100))
+          tap->bollinger-band (chan (sliding-buffer 100) (filter #(->> (:bollinger-band %)
+                                                                       (remove nil?)
+                                                                       count
+                                                                       (= moving-average-window))))]
 
       (tap m remove-population-ch)
+      (tap mult-moving-averages tap->moving-averages)
+      (tap mult-moving-averages tap->bollinger-band)
 
       (pipeline concurrency partitioned-ch (map identity) remove-population-ch)
       (pipeline concurrency partitioned-joined-ch (map identity) partitioned-ch)
-      (pipeline concurrency signal-moving-averages-ch (map (partial slag/moving-averages moving-average-window)) partitioned-joined-ch)
+
+      (pipeline concurrency signal-moving-averages-ch (map (partial slag/moving-averages moving-average-window)) tap->moving-averages)
+      (pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) tap->bollinger-band)
+
       #_(pipeline-signals-lagging concurrency moving-average-window
                                   partitioned-joined-ch signal-moving-averages-ch
                                   merged-bollinger-band signal-bollinger-band-ch)
 
       (go-loop [c 0
-                r (<! signal-moving-averages-ch)]
+                r (<! signal-bollinger-band-ch)]
         (info "count: " c " / result: " r)
         (when r
-          (recur (inc c) (<! signal-moving-averages-ch)))))
-
-    #_(go-loop [c 0
-              r (<! merged-averages)]
-      (info "count: " c " / result merged-averages: " r)
-      (when r
-        (recur (inc c) (<! merged-averages))))
+          (recur (inc c) (<! signal-bollinger-band-ch)))))
 
     #_(pipeline-signals-leading concurrency moving-average-window
                               signal-macd-ch macd->macd-signal
