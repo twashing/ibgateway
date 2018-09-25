@@ -488,13 +488,39 @@
                               signal-macd-ch macd->macd-signal
                               signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal)
 
+    ;; TODO on-balance-volume isn't yielding any signals
+    (pipeline concurrency signal-on-balance-volume-ch (map (partial sconf/on-balance-volume moving-average-window))
+              on-balance-volume->on-balance-volume-ch)
+
+    (go-loop [c 0 r (<! signal-moving-averages-ch)]
+      (info "count: " c " / MA signals: " r)
+      (when r
+        (recur (inc c) (<! signal-moving-averages-ch))))
+
+    (go-loop [c 0 r (<! signal-bollinger-band-ch)]
+      (info "count: " c " / BB signals: " r)
+      (when r
+        (recur (inc c) (<! signal-bollinger-band-ch))))
+
+    (go-loop [c 0 r (<! signal-macd-ch)]
+      (info "count: " c " / MACD signals: " r)
+      (when r
+        (recur (inc c) (<! signal-macd-ch))))
+
     (go-loop [c 0 r (<! signal-stochastic-oscillator-ch)]
-      (info "count: " c " / result: " r)
+      (info "count: " c " / SO signals: " r)
       (when r
         (recur (inc c) (<! signal-stochastic-oscillator-ch))))
 
-    (pipeline concurrency signal-on-balance-volume-ch (map (partial sconf/on-balance-volume moving-average-window))
-              on-balance-volume->on-balance-volume-ch)
+    (go-loop [c 0 r (<! signal-on-balance-volume-ch)]
+      (info "count: " c " / OBV signal result: " r)
+      (when r
+        (recur (inc c) (<! signal-on-balance-volume-ch))))
+
+    #_(go-loop [c 0 r (<! signal-on-balance-volume-ch)]
+      (info "count: " c " / result: " r)
+      (when r
+        (recur (inc c) (<! signal-on-balance-volume-ch))))
 
     {:joined-channel connector-ch}))
 
