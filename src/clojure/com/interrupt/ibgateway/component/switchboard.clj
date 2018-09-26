@@ -13,23 +13,8 @@
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
             [com.interrupt.ibgateway.component.switchboard.store :as store]
-            [franzy.admin.topics :as topics]
-            [franzy.admin.zookeeper.client :as client]
-            [franzy.clients.consumer.callbacks :refer [consumer-rebalance-listener]]
-            [franzy.clients.consumer.client :as consumer]
-            [franzy.clients.consumer.defaults :as cd]
-            [franzy.clients.consumer.protocols :refer :all]
-            [franzy.clients.producer.client :as producer]
-            [franzy.clients.producer.defaults :as pd]
-            [franzy.clients.producer.protocols :refer :all]
-            [franzy.common.metadata.protocols :refer :all]
-
-            [franzy.serialization.deserializers :as deserializers]
-            [franzy.serialization.serializers :as serializers]
-            ;; [datomic.api :as d]
             [mount.core :refer [defstate] :as mount]
-            [mount.core :refer [defstate] :as mount]
-            [overtone.at-at :refer :all]))
+            [mount.core :refer [defstate] :as mount]))
 
 
 #_(def topic-scanner-command "scanner-command")

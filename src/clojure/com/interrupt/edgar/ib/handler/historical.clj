@@ -3,7 +3,6 @@
             [clojure.string :as string]
             [clojure.tools.logging :as log]
             [com.interrupt.edgar.ib.market :as market]
-            [com.interrupt.edgar.scheduler :as scheduler]
             [clojure.core.strint :refer :all]
             [clojure.tools.namespace.repl  :refer :all]))
 
@@ -173,6 +172,41 @@
     (handle-snapshot-continue options rst)))
 
 
+(defn run-historical-data [options]
+
+  (let [bucket (:bucket options)
+        tranche-size (if (:tranche-size options) (:tranche-size options) 10)
+        remaining-list (ref (:stock-lists options))
+        time-duration (if (:time-duration options) (:time-duration options) "1 D")
+        time-interval (if (:time-interval options) (:time-interval options) "1 day")
+        current-tranche (take tranche-size @remaining-list)]
+
+    (log/debug "")
+    (log/debug "schedule-historical-data > RUNNING task > remaining-list count["
+               (count @remaining-list)"] current-tranche[" current-tranche "]")
+    (log/debug "schedule-historical-data > remaining-list[" @remaining-list "]")
+
+    ;; ii.iii) reqMarketData for that next stock; repeat constantly through: NYSE, NASDAQ, AMEX
+    (dosync (alter bucket (fn [inp] [] )))
+
+    ;; A. Iterate through tranche and make a historical data request
+    (reduce (fn [rslt ech]
+
+              (let [stock-sym (-> ech first string/trim)
+                    stock-name (-> ech second string/trim)]
+
+                (local-request-historical-data (dissoc
+                                                 (merge {:id rslt :stock-symbol stock-sym :stock-name stock-name} options)
+                                                 :stock-lists)
+                                               time-duration
+                                               time-interval))
+              (inc rslt))
+            0
+            current-tranche)
+
+    ;; B. ensure that remaining list is decremented
+    (dosync (alter remaining-list nthrest tranche-size))))
+
 (defn schedule-historical-data
   "Request historical data in configured tranches. Interactive Brokers allows at most, 60 simultaneous requests every 10 minutes
 
@@ -183,40 +217,4 @@
 
   [options]
 
-  (let [bucket (:bucket options)
-        tranche-size (if (:tranche-size options) (:tranche-size options) 10)
-        remaining-list (ref (:stock-lists options))
-        time-duration (if (:time-duration options) (:time-duration options) "1 D")
-        time-interval (if (:time-interval options) (:time-interval options) "1 day")]
-
-    (scheduler/initialize-pool)
-    (scheduler/schedule-task
-     (merge {:min 1} (:scheduler-options options))
-     (fn []
-
-       (let [current-tranche (take tranche-size @remaining-list)]
-
-         (log/debug "")
-         (log/debug "schedule-historical-data > RUNNING task > remaining-list count[" (count @remaining-list)"] current-tranche[" current-tranche "]")
-         (log/debug "schedule-historical-data > remaining-list[" @remaining-list "]")
-
-         ;; ii.iii) reqMarketData for that next stock; repeat constantly through: NYSE, NASDAQ, AMEX
-         (dosync (alter bucket (fn [inp] [] )))
-
-         ;; A. Iterate through tranche and make a historical data request
-         (reduce (fn [rslt ech]
-
-                   (let [stock-sym (-> ech first string/trim)
-                         stock-name (-> ech second string/trim)]
-
-                     (local-request-historical-data (dissoc
-                                                     (merge {:id rslt :stock-symbol stock-sym :stock-name stock-name} options)
-                                                     :stock-lists)
-                                                    time-duration
-                                                    time-interval))
-                   (inc rslt))
-                 0
-                 current-tranche)
-
-         ;; B. ensure that remaining list is decremented
-         (dosync (alter remaining-list nthrest tranche-size)))))))
+  (run-historical-data options))
