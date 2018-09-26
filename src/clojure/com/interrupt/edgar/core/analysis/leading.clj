@@ -2,6 +2,23 @@
   (:require [com.interrupt.edgar.core.analysis.lagging :as lagging]
             [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
 
+(defn macd-ticks
+  ([ticks]
+   (macd-ticks ticks 12 26 9))
+  ([ticks fast-window slow-window signal-window]
+   {:pre [(time-increases-left-to-right? ticks)
+          (< fast-window slow-window)
+          (let [n (count ticks)]
+            (= n (max n slow-window signal-window fast-window)))]}
+   (let [prices (map :last-trade-price ticks)
+         ema-slow (lagging/ema (take-last slow-window prices))
+         ema-signal (lagging/ema (take-last signal-window prices))
+         ema-fast (lagging/ema (take-last fast-window prices))
+         macd (- ema-fast ema-slow)]
+     (-> (last ticks)
+         (assoc :last-trade-macd macd
+                :ema-signal ema-signal
+                :histogram (- macd ema-signal))))))
 
 (defn macd
   "The MACD 'oscillator' or 'indicator' is a collection of three signals (or computed data-series), calculated from historical price data. These three signal lines are:
@@ -72,6 +89,24 @@
               :histogram (- (:last-trade-macd e-macd) (:ema-signal e-ema))}))
          macd
          ema-signal)))
+
+(defn so
+  [prices]
+  (let [c (last prices)
+        low (apply min prices)
+        high (apply max prices)]
+    (if (= low high)
+      0
+      (* 100 (/ (- c low) (- high low))))))
+
+(defn so-ticks
+  [ticks]
+  {:pre [(time-increases-left-to-right? ticks)]}
+  (let [prices (map :last-trade-price)]
+    (-> (last ticks)
+        (assoc :highest-price (apply max prices)
+               :lowest-price (apply min prices)
+               :K (so prices)))))
 
 (defn stochastic-oscillator
   "The stochastic oscillator is a momentum indicator. According to George C. Lane (the inventor), it 'doesn't follow price, it doesn't follow volume or anything like that. It follows the speed or the momentum of price. As a rule, the momentum changes direction before price'. A 3-line Stochastics will give an anticipatory signal in %K, a signal in the turnaround of %D at or before a bottom, and a confirmation of the turnaround in %D-Slow. Smoothing the indicator over 3 periods is standard. Returns a list, equal in length to the tick-list, but only with slots filled, where preceding tick-list allows.
