@@ -36,14 +36,12 @@
                     (concat rslt (-> lst
                                      (assoc :signals [{:signal :up
                                                        :why :macd-signal-crossover
-                                                       :arguments [ech]
-                                                       #_:function #_macd-cross-abouve?}])
+                                                       :arguments [ech]}])
                                      list))
                     (concat rslt (-> lst
                                      (assoc :signals [{:signal :down
                                                        :why :macd-signal-crossover
-                                                       :arguments [ech]
-                                                       #_:function #_macd-cross-below?}])
+                                                       :arguments [ech]}])
                                      list)))
                   (concat rslt (list lst)))))
             []
@@ -102,7 +100,7 @@
 
       i)
       when i. closing price makes a higher high and ii. MACD makes a lower high
-      ... TODO - when price rises and falls quickly
+      TODO - when price rises and falls quickly
 
       OR
 
@@ -110,14 +108,14 @@
       look for high price resistance over last 3 peaks
       when i. closing price makes a higher high and ii. histogram makes a lower high
 
-      ... TODO - after both are true, look for
+      TODO - after both are true, look for
          i. subsequent 3 closing prices to be below the high
 
          OR
 
          ii. if histogram goes into negative territory
 
-   ... TODO - C. MACD Stairsteps (http://www.youtube.com/watch?v=L-cB_zZcpks)
+     TODO - C. MACD Stairsteps (http://www.youtube.com/watch?v=L-cB_zZcpks)
 
       ENTRY:
          when i. MACD crosses over ii. the signal line
@@ -129,10 +127,8 @@
    ** This function assumes the latest tick is on the right**"
   [macd-list]
 
-  (let [;; A.
-        macd-A (macd-signal-crossover macd-list)
-
-        ;; B.
+  ;; TODO guard original lengths after partitioning
+  (let [macd-A (macd-signal-crossover macd-list)
         macd-B (macd-divergence 10 macd-list)]
 
     ;; joining the results of all the signals
@@ -266,6 +262,7 @@
   ;; (println "stochastic-list" stochastic-list)
   ;; (println "stochastic-list count" (count stochastic-list))
 
+  ;; TODO why is stochastic-oscillator returning empty results
   (let [;; A. is %K abouve or below the overbought or oversold levels
         stochastic-A (stochastic-level stochastic-list)
 

@@ -10,11 +10,12 @@
 
    ** This function assumes the latest tick is on the right**"
 
-  [view-window obv-list]
+  [obv-list]
 
   ;; (println "obv-list" obv-list)
   ;; (println "obv-list count" (count obv-list))
 
+  ;; TODO return the entire OBV list
   (let [lst (last obv-list)
 
         price-peaks-valleys (common/find-peaks-valleys nil obv-list)
@@ -31,8 +32,8 @@
       (if dUP?
 
         (assoc lst :signals [{:signal :up
-                          :why :obv-divergence
-                          :arguments [obv-list price-peaks-valleys obv-peaks-valleys]}])
+                              :why :obv-divergence
+                              :arguments [obv-list price-peaks-valleys obv-peaks-valleys]}])
 
         (assoc lst :signals [{:signal :down
                               :why :obv-divergence

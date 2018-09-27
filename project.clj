@@ -90,6 +90,6 @@
                         :compiler {:main "com.interrupt.edgar.core"
                                    :asset-path "js/out"
                                    :output-to "resources/public/js/core.js"
-                                   :output-dir "resources/public/js/out" } }]}
+                                   :output-dir "resources/public/js/out"}}]}
 
   :main com.interrupt.ibgateway.core)

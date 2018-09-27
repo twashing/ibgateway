@@ -1,5 +1,6 @@
 (ns com.interrupt.edgar.core.analysis.confirming
-  (:require [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
+  (:require [com.interrupt.edgar.core.analysis.common
+             :refer [time-increases-left-to-right?]]))
 
 (defn obv
   [prices volumes]
@@ -93,7 +94,8 @@
         (assoc :rsi (rsi prices)))))
 
 (defn relative-strength-index
-  "The Relative Strength Index (RSI) is a momentum oscillator that measures the speed and change of price movements. It oscillates between zero and 100.
+  "The Relative Strength Index (RSI) is a momentum oscillator that measures the speed and change of price movements.
+   It oscillates between zero and 100.
 
    If no 'tick-window' is given, it defaults to 14
 
@@ -104,10 +106,9 @@
   (let [twindow (if tick-window tick-window 14)
         window-list (partition twindow 1 tick-list)]
 
-    ;; run over the collection of populations
     (reduce (fn [rslt ech]
 
-              ;; each item will be a population of tick-window (default of 14)
+              ;; The tick-list will be a population of tick-window (default of 14)
               (let [pass-one (reduce (fn [rslt ech]
 
                                        (let [fst (:last-trade-price (last ech))
@@ -123,7 +124,7 @@
                                              (conj rslt (assoc (last ech) :signal :down)))
                                            (conj rslt (assoc (last ech) :signal :sideways)))))
                                      []
-                                     (partition 2 1 ech))
+                                     (partition 2 1 tick-list))
 
 
                     up-list (:up (group-by :signal pass-one))
@@ -131,16 +132,18 @@
 
                     avg-gains (/ (apply + (map :last-trade-price up-list))
                                  tick-window)
+
                     avg-losses (/ (apply + (map :last-trade-price down-list))
                                   tick-window)
 
                     rs (if-not (= 0 avg-losses)
                          (/ avg-gains avg-losses)
                          0)
+
                     rsi (- 100 (/ 100 (+ 1 rs)))]
 
-                (concat rslt (list {:last-trade-time (:last-trade-time (last ech))
-                                    :last-trade-price (:last-trade-price (last ech))
+                (concat rslt (list {:last-trade-time (:last-trade-time (last tick-list))
+                                    :last-trade-price (:last-trade-price (last tick-list))
                                     :rs rs
                                     :rsi rsi}))))
             []
