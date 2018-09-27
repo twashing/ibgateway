@@ -400,7 +400,6 @@
     (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
                                      signal-bollinger-band-ch)
 
-    ;; TODO macd to single entry signals (not a list of ticks)
     ;; TODO stochastic oscillator isn't yielding any signals
     (pipeline-signals-leading concurrency moving-average-window
                               signal-macd-ch macd->macd-signal
@@ -415,12 +414,12 @@
       (when r
         (recur (inc c) (<! signal-moving-averages-ch))))
 
-    (go-loop [c 0 r (<! signal-bollinger-band-ch)]
+    #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
       (info "count: " c " / BB signals: " r)
       (when r
         (recur (inc c) (<! signal-bollinger-band-ch))))
 
-    #_(go-loop [c 0 r (<! signal-macd-ch)]
+    (go-loop [c 0 r (<! signal-macd-ch)]
       (info "count: " c " / MACD signals: " r)
       (when r
         (recur (inc c) (<! signal-macd-ch))))

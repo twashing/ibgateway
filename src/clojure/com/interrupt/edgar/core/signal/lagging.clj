@@ -29,13 +29,11 @@
     (if signal-up
       (-> lst
           (assoc :signals [{:signal :up
-                            :why :moving-average-crossover
-                            #_:arguments #_[lst snd]}]))
+                            :why :moving-average-crossover}]))
       (if signal-down
         (-> lst
             (assoc :signals [{:signal :down
-                              :why :moving-average-crossover
-                              #_:arguments #_[lst snd]}]))
+                              :why :moving-average-crossover}]))
         lst))))
 
 (defn sort-bollinger-band [bband]
@@ -129,8 +127,7 @@
           (-> bollinger-band
               last
               (assoc :signals [{:signal :down
-                                :why :bollinger-divergence-overbought
-                                #_:arguments #_[peaks bollinger-band rsi-list]}])
+                                :why :bollinger-divergence-overbought}])
               ((partial bind-result item)))
 
           (if (and lower-highPRICE? higher-highRSI? divergence-oversold?)
@@ -138,8 +135,7 @@
             (-> bollinger-band
                 last
                 (assoc :signals [{:signal :up
-                                  :why :bollinger-divergence-oversold
-                                  #_:arguments #_[valleys bollinger-band rsi-list]}])
+                                  :why :bollinger-divergence-oversold}])
                 ((partial bind-result item)))
 
             (-> bollinger-band last ((partial bind-result item))))))
@@ -179,16 +175,14 @@
       (-> bollinger-band
           last
           (assoc :signals [{:signal :down
-                            :why :bollinger-close-abouve
-                            #_:arguments #_[bollinger-band valleys]}])
+                            :why :bollinger-close-abouve}])
           ((partial bind-result item)))
 
       (peak-inside-upper+price-abouve-upper? bollinger-band peaks)
       (-> bollinger-band
           last
           (assoc :signals [{:signal :up
-                            :why :bollinger-close-below
-                            #_:arguments #_[bollinger-band peaks]}])
+                            :why :bollinger-close-below}])
           ((partial bind-result item)))
 
       :else (-> bollinger-band last ((partial bind-result item))))))
@@ -199,8 +193,7 @@
     (-> bollinger-band
         last
         (assoc :signals [{:signal :down
-                          :why :bollinger-close-abouve
-                          #_:arguments #_[bollinger-band valleys]}])
+                          :why :bollinger-close-abouve}])
         ((partial bind-result item)))
     (-> bollinger-band last ((partial bind-result item)))))
 
@@ -210,8 +203,7 @@
     (-> bollinger-band
         last
         (assoc :signals [{:signal :up
-                          :why :bollinger-close-below
-                          #_:arguments #_[bollinger-band peaks]}])
+                          :why :bollinger-close-below}])
         ((partial bind-result item)))
     (-> bollinger-band last ((partial bind-result item)))))
 

@@ -114,17 +114,6 @@
 
 (comment ;; A processing-pipelinen workbench
 
-  ;; up-market?
-  ;; down-market?
-  ;; sideways-market?
-  ;; any-market?
-  ;; bollinger-band-squeeze?
-
-  ;; any-market? (rsi divergence)
-  ;; sideways-market? (overbought oversold)
-  ;; up-market? bollinger-band-squeeze?
-  ;; down-market? bollinger-band-squeeze?
-
 
   (def one (flatten (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")))
   (def two (atom (-> (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")
