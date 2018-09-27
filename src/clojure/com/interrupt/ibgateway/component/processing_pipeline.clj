@@ -172,7 +172,7 @@
     (pipeline concurrency partitioned-joined-ch (map identity) bollinger-band-exists-ch)
     (pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) partitioned-joined-ch)
 
-    (go-loop [c 0 r (<! signal-bollinger-band-ch)]
+    #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
       (info "count: " c " r / " r)
       (when r
         (recur (inc c) (<! signal-bollinger-band-ch))))))
@@ -183,7 +183,6 @@
 
   (pipeline concurrency signal-macd-ch (map slead/macd) macd->macd-signal)
 
-  ;; TODO stochastic oscillator isn't yielding any signals
   (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
             stochastic-oscillator->stochastic-oscillator-signal))
 
@@ -397,15 +396,18 @@
     (pipeline-signals-moving-average concurrency lagging-signals-moving-averages-ch
                                      signal-moving-averages-ch)
 
+    ;; TODO bollinger-band signals should be fleshout out more
     (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
                                      signal-bollinger-band-ch)
 
-    #_(pipeline-signals-leading concurrency moving-average-window
+    ;; TODO macd to single entry signals (not a list of ticks)
+    ;; TODO stochastic oscillator isn't yielding any signals
+    (pipeline-signals-leading concurrency moving-average-window
                               signal-macd-ch macd->macd-signal
                               signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal)
 
     ;; TODO on-balance-volume isn't yielding any signals
-    #_(pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
+    (pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
               on-balance-volume->on-balance-volume-ch)
 
     #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
@@ -413,7 +415,7 @@
       (when r
         (recur (inc c) (<! signal-moving-averages-ch))))
 
-    #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
+    (go-loop [c 0 r (<! signal-bollinger-band-ch)]
       (info "count: " c " / BB signals: " r)
       (when r
         (recur (inc c) (<! signal-bollinger-band-ch))))

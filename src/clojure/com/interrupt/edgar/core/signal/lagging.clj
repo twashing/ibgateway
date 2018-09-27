@@ -30,12 +30,12 @@
       (-> lst
           (assoc :signals [{:signal :up
                             :why :moving-average-crossover
-                            :arguments [lst snd]}]))
+                            #_:arguments #_[lst snd]}]))
       (if signal-down
         (-> lst
             (assoc :signals [{:signal :down
                               :why :moving-average-crossover
-                              :arguments [lst snd]}]))
+                              #_:arguments #_[lst snd]}]))
         lst))))
 
 (defn sort-bollinger-band [bband]
@@ -43,6 +43,178 @@
        (remove nil?)
        (map (fn [inp] (assoc inp :difference (- (:upper-band inp) (:lower-band inp)))))
        (sort-by :difference)))
+
+(defn bind-result [item a]
+  (update-in item [:result] conj a))
+
+(defn analysis-rsi-divergence [{:keys [tick-list bollinger-band] :as item} most-wide peaks-valleys]
+
+  (let [peaks (:peak (group-by :signal peaks-valleys))
+        valleys (:valley (group-by :signal peaks-valleys))
+        latest-diff (- (-> bollinger-band last :upper-band)
+                       (-> bollinger-band last :lower-band))
+        more-than-any-wide? (some (fn [inp] (> latest-diff (:difference inp))) most-wide)]
+
+    (if more-than-any-wide?
+
+      ;; B iii RSI Divergence
+      (let [OVER_BOUGHT 80
+            OVER_SOLD 20
+
+            rsi-list (confirming/relative-strength-index 14 tick-list)
+
+
+            ;; i. price makes a higher high and
+            ;; TODO
+            ;; bollinger band with is wider than the previous wide AND
+            ;; price makes a: higher high price AND
+            ;; rsi makes a: lower high (abouve teh overbought line) AND
+            ;; bar should close underneath the prior 3 bars
+            higher-highPRICE? (if (empty? peaks)
+                                false
+                                (> (-> bollinger-band last :last-trade-price)
+                                   (-> peaks last :last-trade-price)))
+
+            _ (info "peaks /" peaks)
+            _ (info "rsi-list /" rsi-list)
+            _ (info "lhs /" (-> rsi-list last :rsi))
+            _ (info "rhs /" (->> rsi-list
+                                 (filter #(= (:last-trade-time %)
+                                             (-> peaks last :last-trade-time)))))
+
+
+            ;; ii. rsi devergence makes a lower high
+            lower-highRSI? (if (or (empty? peaks)
+                                   (some #(nil? (:last-trade-time %)) rsi-list))
+                             false
+                             (let [matching-rsi (->> rsi-list
+                                                     (filter #(= (:last-trade-time %)
+                                                                 (-> peaks last :last-trade-time)))
+                                                     first
+                                                     :rsi)]
+                               (and matching-rsi
+                                    (< (-> rsi-list last :rsi)
+                                       matching-rsi))))
+
+            ;; iii. and divergence should happen abouve the overbought line
+            divergence-overbought? (> (-> rsi-list last :rsi)
+                                      OVER_BOUGHT)
+
+
+            ;; i. price makes a lower low
+            lower-highPRICE? (if (or (empty? valleys)
+                                     (some #(nil? (:last-trade-time %)) rsi-list))
+                               false
+                               (< (-> bollinger-band last :last-trade-price)
+                                  (-> valleys last :last-trade-price)))
+
+            higher-highRSI? (if (or (empty? valleys)
+                                    (empty? rsi-list))
+                              false
+                              (let [matching-rsi (->> rsi-list
+                                                      (filter #(= (:last-trade-time %)
+                                                                  (:last-trade-time (first valleys))))
+                                                      first
+                                                      :rsi)]
+
+                                (and matching-rsi
+                                     (> (-> rsi-list last :rsi)
+                                        matching-rsi))))
+
+            divergence-oversold? (< (-> rsi-list last :rsi)
+                                    OVER_SOLD)]
+
+        (if (and higher-highPRICE? lower-highRSI? divergence-overbought?)
+
+          (-> bollinger-band
+              last
+              (assoc :signals [{:signal :down
+                                :why :bollinger-divergence-overbought
+                                #_:arguments #_[peaks bollinger-band rsi-list]}])
+              ((partial bind-result item)))
+
+          (if (and lower-highPRICE? higher-highRSI? divergence-oversold?)
+
+            (-> bollinger-band
+                last
+                (assoc :signals [{:signal :up
+                                  :why :bollinger-divergence-oversold
+                                  #_:arguments #_[valleys bollinger-band rsi-list]}])
+                ((partial bind-result item)))
+
+            (-> bollinger-band last ((partial bind-result item))))))
+
+      (-> bollinger-band last ((partial bind-result item))))))
+
+(defn valley-inside-lower+price-below-lower? [bollinger-band valleys]
+
+  (and (< (-> bollinger-band last :last-trade-price)
+          (-> bollinger-band last :lower-band))
+
+       ;; NOTE Maybe we want to bound the range backwards, by 5 - 7 ticks.
+       (> (-> valleys last :last-trade-price)
+          (->> bollinger-band
+               (filter #(= (:last-trade-time %)
+                           (-> valleys last :last-trade-time)))
+               first
+               :lower-band))))
+
+(defn peak-inside-upper+price-abouve-upper? [bollinger-band peaks]
+  (and (> (-> bollinger-band last :last-trade-price)
+          (-> bollinger-band last :upper-band))
+       (< (-> peaks last :last-trade-price)
+          (->> bollinger-band
+               (filter #(= (:last-trade-time %)
+                           (-> peaks last :last-trade-time)))
+               first
+               :upper-band))))
+
+(defn analysis-overbought-oversold [{:keys [bollinger-band] :as item} peaks-valleys]
+
+  (let [peaks (:peak (group-by :signal peaks-valleys))
+        valleys (:valley (group-by :signal peaks-valleys))]
+
+    (cond
+      (valley-inside-lower+price-below-lower? bollinger-band valleys)
+      (-> bollinger-band
+          last
+          (assoc :signals [{:signal :down
+                            :why :bollinger-close-abouve
+                            #_:arguments #_[bollinger-band valleys]}])
+          ((partial bind-result item)))
+
+      (peak-inside-upper+price-abouve-upper? bollinger-band peaks)
+      (-> bollinger-band
+          last
+          (assoc :signals [{:signal :up
+                            :why :bollinger-close-below
+                            #_:arguments #_[bollinger-band peaks]}])
+          ((partial bind-result item)))
+
+      :else (-> bollinger-band last ((partial bind-result item))))))
+
+(defn analysis-up-market+bollinger-band-squeeze [{:keys [bollinger-band] :as item} valleys]
+
+  (if (valley-inside-lower+price-below-lower? bollinger-band valleys)
+    (-> bollinger-band
+        last
+        (assoc :signals [{:signal :down
+                          :why :bollinger-close-abouve
+                          #_:arguments #_[bollinger-band valleys]}])
+        ((partial bind-result item)))
+    (-> bollinger-band last ((partial bind-result item)))))
+
+(defn analysis-down-market+bollinger-band-squeeze [{:keys [bollinger-band] :as item} peaks]
+
+  (if (peak-inside-upper+price-abouve-upper? bollinger-band peaks)
+    (-> bollinger-band
+        last
+        (assoc :signals [{:signal :up
+                          :why :bollinger-close-below
+                          #_:arguments #_[bollinger-band peaks]}])
+        ((partial bind-result item)))
+    (-> bollinger-band last ((partial bind-result item)))))
+
 
 (defn bollinger-band
   "Implementing signals for analysis/bollinger-band. Taken from these videos:
@@ -53,184 +225,83 @@
       A. when the band width is very low, can indicate that price will breakout sooner than later;
 
       i. MA is in an UP or DOWN market
-      ii. check for narrow bollinger band width ; less than the most previous narrow band width
+      ii. check for narrow bollinger band width; less than the most previous narrow band width
       iii. close is outside of band, and previous swing high/low is inside the band
 
 
-       B. when the band width is very high (high volatility); can mean that the trend is ending soon; can i. change direction or ii. consolidate
+      B. When the band width is very high (high volatility), can mean that the trend is ending soon
+         and can i. change direction or ii. consolidate
 
-       i. MA is in a sideways (choppy) market -> check if many closes that are abouve or below the bollinger band
-       ii. check for a wide bollinger band width ; greater than the most previous wide band
-       iii. RSI Divergence; i. price makes a higher high and ii. rsi devergence makes a lower high iii. and divergence should happen abouve the overbought line
-       iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
+      i. MA is in a sideways (choppy) market -> check if many closes that are abouve or below the bollinger band
+      ii. check for a wide bollinger band width ; greater than the most previous wide band
+      iii. RSI Divergence;
+        i. price makes a higher high and
+        ii. rsi devergence makes a lower high and
+        iii. divergence should happen abouve the overbought line
+      iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
 
    ** This function assumes the latest tick is on the right"
-  [tick-window {:keys [tick-list bollinger-band]}]
+  [tick-window {:keys [tick-list bollinger-band] :as item}]
 
+  ;; TODO up-market definition includes an MA that is abouve the tick line
+  ;; TODO - determine how far back to look (defaults to 5 ticks) to decide on an UP or DOWN market
+  ;; TODO - does tick price fluctuate abouve and below the MA
+  ;; TODO - B iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
+
+  ;; TODO for an up market, also consider if
+  ;;   i. latest tick swings abouve the MA (previous tick was below) AND
+  ;;   ii. latest tick is abouve the most recent peak
+
+  ;; TODO any market + a BB squeeze
+  ;; Look for a failed attempt to take out a prior high after a BB squeeze breakout
+  ;;   That breakout has failed to go abouve the previous breakout
+  ;; Look for a close underneath the BB squeeze low
+
+  ;; TODO Sideways market definition can include - MA croses abouve and below tick line
+
+  ;; TODO Overbought - price (preferably an ask) lands abouve the upper band, then a close below
+  ;;   - target exit price is the lower band
+
+  ;; TODO Oversold - price (preferably a bid) lands below the lower band
 
   (let [;; Track widest & narrowest band over the last 'n' (3) ticks
+        market-trend-by-ticks 5
         sorted-bands (sort-bollinger-band bollinger-band)
-        most-narrow (take 3 sorted-bands)
-        most-wide (take-last 3 sorted-bands)
+        most-narrow (take 2 sorted-bands)
+        most-wide (take-last 2 sorted-bands)
 
-        ;; _ (log/info "each-list: " bollinger-band)
-        ;; _ (log/info "Most narrow / wide: " most-narrow most-wide)
+        partitioned-list (->> (partition 2 1 tick-list)
+                              (take-last market-trend-by-ticks))
 
-        partitioned-list (partition 2 1 bollinger-band)
+        any-market? true
+        up-market? (common/up-market? partitioned-list)
+        down-market? (common/down-market? partitioned-list)
+        sideways-market? (not (and up-market? down-market?))
 
-        upM? (common/up-market? 10 partitioned-list)
-        downM? (common/down-market? 10 partitioned-list)
+        latest-diff (- (-> bollinger-band last :upper-band)
+                       (-> bollinger-band last :lower-band))
 
-        ;; _ (log/info "upM? / downM?" upM? downM?)
+        bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
 
-        ;; TODO - determine how far back to look (defaults to 10 ticks) to decide on an UP or DOWN market
-        ;; TODO - does tick price fluctuate abouve and below the MA
-        ;; TODO - B iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
-        #_side-market? #_(if (and (not upM?) (not downM?))
-                           true false)
-
-        ;; find last 3 peaks and valleys
+        ;; Find last 3 peaks and valleys
         peaks-valleys (common/find-peaks-valleys nil tick-list)
         peaks (:peak (group-by :signal peaks-valleys))
-        valleys (:valley (group-by :signal peaks-valleys))]
+        valleys (:valley (group-by :signal peaks-valleys))
+        payload (assoc item :result [])
 
-    (if (or upM? downM?)
+        consolidate-signals (fn [bitem]
+                              (let [result-list (:result bitem)
+                                    latest-bband (-> bitem :bollinger-band last)
+                                    conditionally-bind-signals #(if (not-empty %)
+                                                                  (assoc latest-bband :signals %)
+                                                                  latest-bband)]
+                                (->> (map :signals result-list)
+                                     (apply concat)
+                                     conditionally-bind-signals)))]
 
-      ;; A.
-      (let [latest-diff (- (-> bollinger-band last :upper-band)
-                           (-> bollinger-band last :lower-band))
-            less-than-any-narrow? (some #(< latest-diff (:difference %)) most-narrow)]
-
-        (if less-than-any-narrow?
-
-          ;; entry signal -> close is outside of band, and previous swing high/low is inside the band
-          (if upM?
-
-            (if (and (< (-> bollinger-band last :last-trade-price)
-                        (-> bollinger-band last :lower-band))
-
-                     ;; TODO we probably want to bound the range backwards, by 5 - 7 ticks
-                     (> (-> valleys last :last-trade-price)
-                        (:lower-band (first (some #(= (:last-trade-time %)
-                                                      (-> valleys last :last-trade-time))
-                                                  bollinger-band)))))
-
-              (-> bollinger-band
-                  last
-                  (assoc :signals [{:signal :down
-                                    :why :bollinger-close-abouve
-                                    :arguments [bollinger-band valleys]}]))
-
-              (-> bollinger-band last))
-
-            (if (and (> (-> bollinger-band last :last-trade-price)
-                        (-> bollinger-band last :upper-band))
-                     (< (-> peaks last :last-trade-price)
-                        (:upper-band (first (some #(= (:last-trade-time %)
-                                                      (-> peaks last :last-trade-time)))
-                                            bollinger-band))))
-
-              (-> bollinger-band
-                  last
-                  (assoc :signals [{:signal :up
-                                    :why :bollinger-close-below
-                                    :arguments [bollinger-band peaks]}]))
-
-              (-> bollinger-band last)))))
-
-      ;; B.
-      (-> bollinger-band last)
-      #_(let [latest-diff (- (-> bollinger-band last :upper-band)
-                           (-> bollinger-band last :lower-band))
-            more-than-any-wide? (some (fn [inp] (> latest-diff (:difference inp))) most-wide)]
-
-        (if more-than-any-wide?
-
-          ;; B iii RSI Divergence
-          (let [OVER_BOUGHT 80
-                OVER_SOLD 20
-
-                rsi-list (confirming/relative-strength-index 14 tick-list)
-
-
-                ;; i. price makes a higher high and
-                ;; TODO
-                ;; bollinger band with is wider than the previous wide AND
-                ;; price makes a: higher high price AND
-                ;; rsi makes a: lower high (abouve teh overbought line) AND
-                ;; bar should close underneath the prior 3 bars
-                higher-highPRICE? (if (empty? peaks)
-                                    false
-                                    (> (-> bollinger-band last :last-trade-price)
-                                       (-> peaks last :last-trade-price)))
-
-                _ (info "peaks /" peaks)
-                _ (info "rsi-list /" rsi-list)
-                _ (info "lhs /" (-> rsi-list last :rsi))
-                _ (info "rhs /" (->> rsi-list
-                                     (filter #(= (:last-trade-time %)
-                                                 (-> peaks last :last-trade-time)))))
-
-
-                ;; ii. rsi devergence makes a lower high
-                lower-highRSI? (if (or (empty? peaks)
-                                       (some #(nil? (:last-trade-time %)) rsi-list))
-                                 false
-                                 (let [matching-rsi (->> rsi-list
-                                                         (filter #(= (:last-trade-time %)
-                                                                     (-> peaks last :last-trade-time)))
-                                                         first
-                                                         :rsi)]
-                                   (and matching-rsi
-                                        (< (-> rsi-list last :rsi)
-                                           matching-rsi))))
-
-                ;; iii. and divergence should happen abouve the overbought line
-                divergence-overbought? (> (-> rsi-list last :rsi)
-                                          OVER_BOUGHT)
-
-
-                ;; i. price makes a lower low
-                lower-highPRICE? (if (or (empty? valleys)
-                                         (some #(nil? (:last-trade-time %)) rsi-list))
-                                   false
-                                   (< (-> bollinger-band last :last-trade-price)
-                                      (-> valleys last :last-trade-price)))
-
-                higher-highRSI? (if (or (empty? valleys)
-                                        (empty? rsi-list))
-                                  false
-                                  (let [matching-rsi (->> rsi-list
-                                                          (filter #(= (:last-trade-time %)
-                                                                      (:last-trade-time (first valleys))))
-                                                          first
-                                                          :rsi)]
-
-                                    (and matching-rsi
-                                         (> (-> rsi-list last :rsi)
-                                            matching-rsi))))
-
-                divergence-oversold? (< (-> rsi-list last :rsi)
-                                        OVER_SOLD)]
-
-            (if (and higher-highPRICE? lower-highRSI? divergence-overbought?)
-
-              (-> bollinger-band
-                  last
-                  (assoc :signals [{:signal :down
-                                    :why :bollinger-divergence-overbought
-                                    :arguments [peaks bollinger-band rsi-list]}]))
-
-              (if (and lower-highPRICE? higher-highRSI? divergence-oversold?)
-
-                (-> bollinger-band
-                    last
-                    (assoc :signals [{:signal :up
-                                      :why :bollinger-divergence-oversold
-                                      :arguments [valleys bollinger-band rsi-list]}]))
-
-                (-> bollinger-band last))))
-
-          (-> bollinger-band last))))
-
-    (-> bollinger-band last)))
+    (cond-> payload
+      ;; any-market? (analysis-rsi-divergence most-wide peaks-valleys)
+      sideways-market? (analysis-overbought-oversold peaks-valleys)
+      (and up-market? bollinger-band-squeeze?) (analysis-up-market+bollinger-band-squeeze valleys)
+      (and down-market? bollinger-band-squeeze?) (analysis-down-market+bollinger-band-squeeze peaks)
+      :always (consolidate-signals))))

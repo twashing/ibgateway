@@ -5,19 +5,19 @@
 
 
 (defn macd-cross-abouve?
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [lst snd]
   (and (> (:last-trade-macd lst) (:ema-signal snd))
        (< (:last-trade-macd snd) (:ema-signal snd))))
 
 (defn macd-cross-below?
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [lst snd]
   (and (< (:last-trade-macd lst) (:ema-signal lst))
        (> (:last-trade-macd snd) (:ema-signal snd))))
 
 (defn macd-signal-crossover
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [macd-list]
 
   (let [partitioned-list (partition 2 1 macd-list)]
@@ -48,7 +48,7 @@
             partitioned-list)))
 
 (defn macd-divergence
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [view-window macd-list]
 
   (let [partitioned-macd (partition view-window 1 macd-list)
@@ -124,7 +124,7 @@
       EXIT:
          measure last up-move and project target (difference from last high, from low); stop below the current low.
 
-   ** This function assumes the latest tick is on the right**"
+   ** This function assumes the latest tick is on the right"
   [macd-list]
 
   ;; TODO guard original lengths after partitioning
@@ -144,7 +144,7 @@
 (defn is-overbought? [level ech] (> (:K ech) level))
 (defn is-oversold? [level ech] (< (:K ech) level))
 (defn stochastic-level
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [stochastic-list]
   (reduce (fn [rslt ech]
 
@@ -171,17 +171,17 @@
           stochastic-list))
 
 (defn k-crosses-abouve?
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [lst snd]
   (and (> (:K lst) (:D lst))
        (< (:K snd) (:D snd))))
 (defn k-crosses-below?
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [lst snd]
   (and (< (:K lst) (:D lst))
        (> (:K snd) (:D snd))))
 (defn stochastic-crossover
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [partitioned-stochastic]
 
   (reduce (fn [rslt ech]
@@ -212,7 +212,7 @@
           partitioned-stochastic))
 
 (defn stochastic-divergence
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [view-window stochastic-list]
 
   (let [partitioned-stochastic (partition view-window 1 stochastic-list)
@@ -255,7 +255,7 @@
    B. Look for %K Stochastic line to cross over the %D trigger line
    C. Look for Divergence, where i. price makes a higher high AND %K Stochastic makes a lower low.
 
-   ** This function assumes the latest tick is on the right**"
+   ** This function assumes the latest tick is on the right"
 
   [stochastic-list]
 

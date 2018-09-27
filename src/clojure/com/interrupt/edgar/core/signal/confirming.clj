@@ -8,7 +8,7 @@
 
    A. OBV Divergence from price.
 
-   ** This function assumes the latest tick is on the right**"
+   ** This function assumes the latest tick is on the right"
 
   [obv-list]
 

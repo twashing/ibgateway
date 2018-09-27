@@ -12,7 +12,7 @@
    :output - output key function will emit (defaults to :last-trade-price-average)
    :etal - other keys to emit in each result map
 
-   ** This function assumes the latest tick is on the right**"
+   ** This function assumes the latest tick is on the right"
   [options ticks]
   {:pre [(not-empty ticks)
          (time-increases-left-to-right? ticks)]}
@@ -63,7 +63,7 @@
    :output - output key function will emit (defaults to :last-trade-price-exponential)
    :etal - other keys to emit in each result map
 
-   ** This function assumes the latest tick is on the right**"
+   ** This function assumes the latest tick is on the right"
 
   [options tick-window sma-list]
   {:pre [(time-increases-left-to-right? sma-list)]}
@@ -148,7 +148,7 @@
    Returns a list, equal in length to the tick-list, but only with slots filled,
    where preceding tick-list allows.
 
-   ** This function assumes the latest tick is on the right**"
+   ** This function assumes the latest tick is on the right"
   [tick-window sma-list]
   {:pre [(time-increases-left-to-right? sma-list)]}
 
