@@ -396,11 +396,10 @@
     (pipeline-signals-moving-average concurrency lagging-signals-moving-averages-ch
                                      signal-moving-averages-ch)
 
-    ;; TODO bollinger-band signals should be fleshout out more
+    ;; TODO bollinger-band signals should be fleshed out more
     (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
                                      signal-bollinger-band-ch)
 
-    ;; TODO stochastic oscillator isn't yielding any signals
     (pipeline-signals-leading concurrency moving-average-window
                               signal-macd-ch macd->macd-signal
                               signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal)
@@ -419,7 +418,7 @@
       (when r
         (recur (inc c) (<! signal-bollinger-band-ch))))
 
-    (go-loop [c 0 r (<! signal-macd-ch)]
+    #_(go-loop [c 0 r (<! signal-macd-ch)]
       (info "count: " c " / MACD signals: " r)
       (when r
         (recur (inc c) (<! signal-macd-ch))))
@@ -434,7 +433,7 @@
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))
 
-    #_(go-loop [c 0 r (<! signal-on-balance-volume-ch)]
+    (go-loop [c 0 r (<! signal-on-balance-volume-ch)]
         (info "count: " c " / r: " r)
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))

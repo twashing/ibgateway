@@ -1,5 +1,6 @@
 (ns com.interrupt.edgar.core.signal.leading
   (:require [clojure.tools.logging :refer [debug info warn error]]
+            [clojure.tools.trace :refer [trace]]
             [com.interrupt.edgar.core.analysis.leading :as lead-analysis]
             [com.interrupt.edgar.core.analysis.lagging :as lag-analysis]
             [com.interrupt.edgar.core.signal.common :as common]))
@@ -170,31 +171,33 @@
 
 (defn stochastic-crossover
   "** This function assumes the latest tick is on the right"
-  [partitioned-stochastic]
+  [stochastic-list]
 
-  (reduce (fn [rslt ech]
+  (let [partitioned-stochastic (partition 2 1 stochastic-list)]
 
-            (let [lst (last ech)
-                  snd (-> ech butlast last)
+    (reduce (fn [rslt ech]
 
-                  both-exist? (and (-> lst nil? not)
-                                   (-> snd nil? not))
+              (let [lst (last ech)
+                    snd (-> ech butlast last)
 
-                  kA? (and both-exist? (k-crosses-abouve? lst snd))
-                  kB? (and both-exist? (k-crosses-below? lst snd))]
+                    both-exist? (and (-> lst nil? not)
+                                     (-> snd nil? not))
 
-              (if (or kA? kB?)
-                (if kA?
-                  (concat rslt (-> lst
-                                   (assoc :signals [{:signal :down
-                                                     :why :stochastic-crossover}])
-                                   list))
-                  (concat rslt (-> lst
-                                   (assoc :signals [{:signal :up
-                                                     :why :stochastic-crossover}])
-                                   list)))
-                (concat rslt (list lst))))) []
-          partitioned-stochastic))
+                    kA? (and both-exist? (k-crosses-abouve? lst snd))
+                    kB? (and both-exist? (k-crosses-below? lst snd))]
+
+                (if (or kA? kB?)
+                  (if kA?
+                    (concat rslt (-> lst
+                                     (assoc :signals [{:signal :down
+                                                       :why :stochastic-crossover}])
+                                     list))
+                    (concat rslt (-> lst
+                                     (assoc :signals [{:signal :up
+                                                       :why :stochastic-crossover}])
+                                     list)))
+                  (concat rslt (list lst))))) []
+            partitioned-stochastic)))
 
 (defn stochastic-divergence
   "** This function assumes the latest tick is on the right"
@@ -238,33 +241,30 @@
    C. Look for Divergence, where i. price makes a higher high AND %K Stochastic makes a lower low.
 
    ** This function assumes the latest tick is on the right"
-
   [stochastic-list]
 
   ;; (println "stochastic-list" stochastic-list)
   ;; (println "stochastic-list count" (count stochastic-list))
 
-  ;; TODO why is stochastic-oscillator returning empty results
   (let [;; A. is %K abouve or below the overbought or oversold levels
-        stochastic-A (stochastic-level stochastic-list)
+        stochastic-lv (last (stochastic-level stochastic-list))
 
 
         ;; B. Does %K Stochastic line cross over the %D trigger line
-        stochastic-B (stochastic-crossover (partition 2 1 stochastic-list))
+        stochastic-cr (last (stochastic-crossover stochastic-list))
 
 
         ;; C. Look for Divergence, where i. price makes a higher high AND %K Stochastic makes a lower low
-        stochastic-C (stochastic-divergence 10 stochastic-list)]
+        stochastic-dv (last (stochastic-divergence 10 stochastic-list))
 
+        item (last stochastic-list)
+        conditionally-bind-signals (fn [a]
+                                     (if (not-empty a)
+                                       (assoc item :signals a)
+                                       item))]
 
-    ;; joining the results of all the signals
-    (map (fn [e1 e2 e3]
-
-           (if (some #(not (nil? (:signals %))) [e1 e2 e3])
-             (assoc e1 :signals (concat (:signals e1)
-                                        (:signals e2)
-                                        (:signals e3)))
-             e1))
-         stochastic-A
-         stochastic-B
-         stochastic-C)))
+    (->> [stochastic-lv stochastic-cr stochastic-dv]
+         (map :signals)
+         (apply concat)
+         (remove nil?)
+         conditionally-bind-signals)))
