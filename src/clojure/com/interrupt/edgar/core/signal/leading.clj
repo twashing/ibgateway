@@ -1,6 +1,5 @@
 (ns com.interrupt.edgar.core.signal.leading
   (:require [clojure.tools.logging :refer [debug info warn error]]
-            [clojure.tools.trace :refer [trace]]
             [com.interrupt.edgar.core.analysis.leading :as lead-analysis]
             [com.interrupt.edgar.core.analysis.lagging :as lag-analysis]
             [com.interrupt.edgar.core.signal.common :as common]))
@@ -84,6 +83,7 @@
 
 (defn macd
   "This functions searches for signals to overlay on top of a regular MACD time series. It uses the following strategies
+    How The Pro's Trade Using MACD Technical Analysis https://www.youtube.com/watch?v=UfQtU4Vl4JQ
 
    A. MACD / signal crossover
       when i. MACD line crosses over the ii. signal line
@@ -124,9 +124,9 @@
 
     (let [m (last macd-list)]
       (cond
-        (and macd-sc macd-d) (assoc m :signals [macd-sc macd-d])
-        macd-sc (assoc m :signals [macd-sc])
-        macd-d (assoc m :signals [macd-d])
+        (and macd-sc macd-d) (assoc m :signals (concat macd-sc macd-d))
+        macd-sc (assoc m :signals macd-sc)
+        macd-d (assoc m :signals macd-d)
         :else m))))
 
 (defn is-overbought? [level ech] (> (:K ech) level))

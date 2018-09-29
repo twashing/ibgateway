@@ -37,7 +37,6 @@
 
     ** The first OBV value is the first period's positive/negative volume.
     ** This function assumes the latest tick is on the right"
-  #_[latest-tick tick-list]
   [tick-list]
   {:pre [(time-increases-left-to-right? tick-list)]}
 

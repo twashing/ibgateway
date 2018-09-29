@@ -404,8 +404,8 @@
                               signal-macd-ch macd->macd-signal
                               signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal)
 
-    ;; TODO on-balance-volume isn't yielding any signals
-    (pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
+    ;; TODO on balance volume signals are all down (not up)
+    #_(pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
               on-balance-volume->on-balance-volume-ch)
 
     #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
@@ -418,7 +418,7 @@
       (when r
         (recur (inc c) (<! signal-bollinger-band-ch))))
 
-    #_(go-loop [c 0 r (<! signal-macd-ch)]
+    (go-loop [c 0 r (<! signal-macd-ch)]
       (info "count: " c " / MACD signals: " r)
       (when r
         (recur (inc c) (<! signal-macd-ch))))
@@ -433,7 +433,7 @@
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))
 
-    (go-loop [c 0 r (<! signal-on-balance-volume-ch)]
+    #_(go-loop [c 0 r (<! signal-on-balance-volume-ch)]
         (info "count: " c " / r: " r)
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))
