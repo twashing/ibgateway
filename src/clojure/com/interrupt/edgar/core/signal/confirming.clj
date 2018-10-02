@@ -26,3 +26,6 @@
       dUP? (assoc lst :signals [{:signal :up :why :obv-divergence}])
       dDOWN? (assoc lst :signals [{:signal :down :why :obv-divergence}])
       :else lst)))
+
+;; TODO Trading with the (RSI) Relative Strength Index
+;; https://www.youtube.com/watch?v=I_bumwyOxlg

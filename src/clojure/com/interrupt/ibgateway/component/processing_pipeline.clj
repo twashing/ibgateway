@@ -170,12 +170,7 @@
     (pipeline concurrency partitioned-ch (map identity) connector-ch)
     (pipeline concurrency bollinger-band-exists-ch (map identity) partitioned-ch)
     (pipeline concurrency partitioned-joined-ch (map identity) bollinger-band-exists-ch)
-    (pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) partitioned-joined-ch)
-
-    #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
-      (info "count: " c " r / " r)
-      (when r
-        (recur (inc c) (<! signal-bollinger-band-ch))))))
+    (pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) partitioned-joined-ch)))
 
 (defn pipeline-signals-leading [concurrency moving-average-window
                                 signal-macd-ch macd->macd-signal
@@ -236,6 +231,22 @@
      :signal-bollinger-band (chan (sliding-buffer 100) (filter :joined))
      :signal-bollinger-band-ch (chan (sliding-buffer 100))}))
 
+(defn signal-join-mults []
+  {:tick-list->SIGNAL (chan (sliding-buffer 100) (map last))
+   :sma-list->SIGNAL (chan (sliding-buffer 100) (map last))
+   :ema-list->SIGNAL (chan (sliding-buffer 100) (map last))
+   :bollinger-band->SIGNAL (chan (sliding-buffer 100) (map last))
+   :macd->SIGNAL (chan (sliding-buffer 100) (map last))
+   :stochastic-oscillator->SIGNAL (chan (sliding-buffer 100) (map last))
+   :on-balance-volume->SIGNAL (chan (sliding-buffer 100) (map last))
+   :relative-strength->SIGNAL (chan (sliding-buffer 100) (map last))
+
+   :signal-moving-averages->SIGNAL (chan (sliding-buffer 100))
+   :signal-bollinger-band->SIGNAL (chan (sliding-buffer 100))
+   :signal-macd->SIGNAL (chan (sliding-buffer 100))
+   :signal-stochastic-oscillator->SIGNAL (chan (sliding-buffer 100))
+   :signal-on-balance-volume->SIGNAL (chan (sliding-buffer 100))})
+
 (defn channel->stream [& channels]
   (map #(->> %
              stream/->source
@@ -264,22 +275,35 @@
     (stream/connect @result bollinger-band-connector-ch)
     bollinger-band-connector-ch))
 
-#_(defn join-analytics [tick-list->JOIN sma-list->JOIN ema-list->JOIN bollinger-band->JOIN
-                      macd->JOIN stochastic-oscillator->JOIN
-                      on-balance-volume->JOIN relative-strength->JOIN]
+(defn join-analytics [tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+                      macd->SIGNAL stochastic-oscillator->SIGNAL
+                      on-balance-volume->SIGNAL relative-strength->SIGNAL
 
-  (let [[tick-list->CROSS sma-list->CROSS
-         ema-list->CROSS bollinger-band->CROSS
-         macd->CROSS
-         stochastic-oscillator->CROSS
-         on-balance-volume->CROSS
-         relative-strength->CROSS]
+                      signal-moving-averages->SIGNAL
+                      signal-bollinger-band->SIGNAL
+                      signal-macd->SIGNAL
+                      signal-stochastic-oscillator->SIGNAL
+                      signal-on-balance-volume->SIGNAL]
 
-        (channel->stream tick-list->JOIN sma-list->JOIN ema-list->JOIN bollinger-band->JOIN
-                         macd->JOIN
-                         stochastic-oscillator->JOIN
-                         on-balance-volume->JOIN
-                         relative-strength->JOIN)
+  (let [[tick-list->CROSS sma-list->CROSS ema-list->CROSS bollinger-band->CROSS
+         macd->CROSS stochastic-oscillator->CROSS
+         on-balance-volume->CROSS relative-strength->CROSS
+
+         signal-moving-averages->CROSS
+         signal-bollinger-band->CROSS
+         signal-macd->CROSS
+         signal-stochastic-oscillator->CROSS
+         signal-on-balance-volume->CROSS]
+
+        (channel->stream tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+                         macd->SIGNAL stochastic-oscillator->SIGNAL
+                         on-balance-volume->SIGNAL relative-strength->SIGNAL
+
+                         signal-moving-averages->SIGNAL
+                         signal-bollinger-band->SIGNAL
+                         signal-macd->SIGNAL
+                         signal-stochastic-oscillator->SIGNAL
+                         signal-on-balance-volume->SIGNAL)
 
         analytic-connector-ch (chan (sliding-buffer 100))
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
@@ -296,7 +320,15 @@
 
                                                                ;; confirming
                                                                :on-balance-volume on-balance-volume->CROSS
-                                                               :relative-strength relative-strength->CROSS}})]
+                                                               :relative-strength relative-strength->CROSS
+
+                                                               ;; signals
+                                                               :signal-moving-averages signal-moving-averages->CROSS
+                                                               :signal-bollinger-band signal-bollinger-band->CROSS
+                                                               :signal-macd signal-macd->CROSS
+                                                               :signal-stochastic-oscillator signal-stochastic-oscillator->CROSS
+                                                               :signal-on-balance-volume signal-on-balance-volume->CROSS
+                                                               }})]
 
     (stream/connect @result analytic-connector-ch)
     analytic-connector-ch))
@@ -329,12 +361,13 @@
         ;; Channel JOIN Mults
         {:keys [sma-list->JOIN ema-list->JOIN
                 tick-list->JOIN bollinger-band->JOIN
-                macd->JOIN stochastic-oscillator->JOIN
-                on-balance-volume->JOIN relative-strength->JOIN]}
+                ;; macd->JOIN stochastic-oscillator->JOIN
+                ;; on-balance-volume->JOIN relative-strength->JOIN
+                ]}
         (channel-join-mults)
 
 
-        ;; Signal: Bollinger Band
+        ;; Signal Bollinger Band
         {:keys [tick-list->bollinger-band-signal sma-list->bollinger-band-signal
                 signal-bollinger-band signal-bollinger-band-ch]}
         (channel-signal-bollinger-band)
@@ -350,26 +383,51 @@
         lagging-signals-moving-averages-ch (join-analytics->moving-averages sma-list->JOIN ema-list->JOIN)
         lagging-signals-bollinger-band-connector-ch (join-analytics->bollinger-band tick-list->JOIN bollinger-band->JOIN)
 
-        #_analytic-connector-ch #_(join-analytics tick-list->JOIN sma-list->JOIN ema-list->JOIN bollinger-band->JOIN
-                                              macd->JOIN stochastic-oscillator->JOIN
-                                              on-balance-volume->JOIN relative-strength->JOIN)]
 
+        ;; Signal JOIN Mults
+        {:keys [sma-list->SIGNAL ema-list->SIGNAL
+                tick-list->SIGNAL bollinger-band->SIGNAL
+                macd->SIGNAL stochastic-oscillator->SIGNAL
+                on-balance-volume->SIGNAL relative-strength->SIGNAL
+
+                signal-moving-averages->SIGNAL
+                signal-bollinger-band->SIGNAL
+                signal-macd->SIGNAL
+                signal-stochastic-oscillator->SIGNAL
+                signal-on-balance-volume->SIGNAL]}
+        (signal-join-mults)
+
+        analytic-connector-ch (join-analytics tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+                                              macd->SIGNAL stochastic-oscillator->SIGNAL
+                                              on-balance-volume->SIGNAL relative-strength->SIGNAL
+
+                                              signal-moving-averages->SIGNAL
+                                              signal-bollinger-band->SIGNAL
+                                              signal-macd->SIGNAL
+                                              signal-stochastic-oscillator->SIGNAL
+                                              signal-on-balance-volume->SIGNAL)]
 
     (doseq [source+mults [[source-list-ch tick-list-ch]
                           [tick-list-ch tick-list->sma-ch tick-list->macd-ch
                            tick-list->stochastic-osc-ch tick-list->obv-ch
-                           tick-list->relative-strength-ch tick-list->JOIN]
+                           tick-list->relative-strength-ch tick-list->JOIN tick-list->SIGNAL]
                           [sma-list-ch sma-list->ema-ch sma-list->bollinger-band-ch
-                           sma-list->macd-ch sma-list->JOIN]
+                           sma-list->macd-ch sma-list->JOIN sma-list->SIGNAL]
                           [ema-list-ch ema-list->moving-averages-signal
-                           ema-list->JOIN]
-                          [bollinger-band-ch bollinger-band->JOIN]
-                          [macd-ch macd->macd-signal macd->JOIN]
+                           ema-list->JOIN ema-list->SIGNAL]
+                          [bollinger-band-ch bollinger-band->JOIN bollinger-band->SIGNAL]
+                          [macd-ch macd->macd-signal macd->SIGNAL]
                           [stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal
-                           stochastic-oscillator->JOIN]
+                           stochastic-oscillator->SIGNAL]
                           [on-balance-volume-ch on-balance-volume->on-balance-volume-ch
-                           on-balance-volume->JOIN]
-                          [relative-strength-ch relative-strength->JOIN]]]
+                           on-balance-volume->SIGNAL]
+                          [relative-strength-ch relative-strength->SIGNAL]
+
+                          [signal-moving-averages-ch signal-moving-averages->SIGNAL]
+                          [signal-bollinger-band-ch signal-bollinger-band->SIGNAL]
+                          [signal-macd-ch signal-macd->SIGNAL]
+                          [signal-stochastic-oscillator-ch signal-stochastic-oscillator->SIGNAL]
+                          [signal-on-balance-volume-ch signal-on-balance-volume->SIGNAL]]]
 
       (apply bind-channels->mult source+mults))
 
@@ -405,8 +463,14 @@
                               signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal)
 
     ;; TODO on balance volume signals are all down (not up)
-    #_(pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
+    (pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
               on-balance-volume->on-balance-volume-ch)
+
+
+    #_(go-loop [c 0 r (<! lagging-signals-moving-averages-ch)]
+      (info "count: " c " / lagging-signals-moving-averages INPUT " r)
+      (when r
+        (recur (inc c) (<! lagging-signals-moving-averages-ch))))
 
     #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
       (info "count: " c " / MA signals: " r)
@@ -418,7 +482,7 @@
       (when r
         (recur (inc c) (<! signal-bollinger-band-ch))))
 
-    (go-loop [c 0 r (<! signal-macd-ch)]
+    #_(go-loop [c 0 r (<! signal-macd-ch)]
       (info "count: " c " / MACD signals: " r)
       (when r
         (recur (inc c) (<! signal-macd-ch))))
@@ -433,10 +497,10 @@
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))
 
-    #_(go-loop [c 0 r (<! signal-on-balance-volume-ch)]
+    (go-loop [c 0 r (<! analytic-connector-ch)]
         (info "count: " c " / r: " r)
       (when r
-        (recur (inc c) (<! signal-on-balance-volume-ch))))
+        (recur (inc c) (<! analytic-connector-ch))))
 
     {:joined-channel (chan) #_analytic-connector-ch}))
 

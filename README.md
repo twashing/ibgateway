@@ -58,7 +58,9 @@ lein run -m com.interrupt.ibgateway.core/-main
 
 ## NOTES
 
-EMA looks slower than the SMA
+Stock Market Strategy is a good resource
+https://www.stock-market-strategy.com/
+https://www.youtube.com/user/StockMarketStrategy/videos
 
 
 ## Change Log

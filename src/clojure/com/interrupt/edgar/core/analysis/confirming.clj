@@ -102,7 +102,9 @@
   [tick-window tick-list]
   {:pre [(time-increases-left-to-right? tick-list)]}
 
-  (let [twindow (if tick-window tick-window 14)
+  (let [twindow (if tick-window
+                  tick-window 7 ; 14 35% of 40
+                  )
         window-list (partition twindow 1 tick-list)]
 
     (reduce (fn [rslt ech]
