@@ -21,6 +21,7 @@
             [mount.core :refer [defstate] :as mount])
   (:import [com.ib.client EClient ExecutionFilter Order]))
 
+
 (comment
   (def account "DU16007")
 
@@ -36,6 +37,7 @@
   @acct-updates/accounts-info
 
   @portfolio/portfolio-info)
+
 
 (comment
   (def client (:client ew/ewrapper))
@@ -75,6 +77,7 @@
                  (.totalQuantity 50)
                  (.account account))))
 
+
 (comment
 
   (-main nil)
@@ -88,10 +91,12 @@
   (mount/stop)
   (mount/find-all-states))
 
+
 (comment
 
   (mount/start #'com.interrupt.ibgateway.component.vase/server)
   (mount/stop #'com.interrupt.ibgateway.component.vase/server))
+
 
 (comment
 
@@ -130,7 +135,7 @@
 
 
   (sw/stop-stream-workbench)
-  (reset)
+
 
   ;; 1. START
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
@@ -145,10 +150,6 @@
                #'com.interrupt.ibgateway.core/state)
 
   ;; 2. Point your browser to http://localhost:8080
-
-  (require '[clojure.core.async.impl.protocols :refer [closed?]])
-  (closed? sw/control-channel)
-  (closed? (:joined-channel pp/processing-pipeline))
 
 
   ;; 3. Start streaming
@@ -319,8 +320,8 @@
                   :inv/size size
                   :inv/type type})
                (map-indexed
-                (fn [idx map]
-                  (assoc map :inv/sku (str "SKU-" idx))))
+                 (fn [idx map]
+                   (assoc map :inv/sku (str "SKU-" idx))))
                vec))
 
 
@@ -732,9 +733,9 @@
 
 
   (def xf (comp (filter rtvolume-time-and-sales?)
-             (map parse-tick-string)
-             (x/partition moving-average-window moving-average-increment (x/into []))
-             (map (partial simple-moving-average-format options))))
+                (map parse-tick-string)
+                (x/partition moving-average-window moving-average-increment (x/into []))
+                (map (partial simple-moving-average-format options))))
 
 
   (def result (-> xf
@@ -760,8 +761,8 @@
                               :ticker-id-filter 0}})
 
   (def sma-list (-> (comp handler-xform
-                       (x/partition moving-average-window moving-average-increment (x/into []))
-                       (map (partial al/simple-moving-average {})))
+                          (x/partition moving-average-window moving-average-increment (x/into []))
+                          (map (partial al/simple-moving-average {})))
                     (sequence (take 1000 input-source))))
 
   (def ema-list (al/exponential-moving-average {} moving-average-window sma-list))
@@ -796,9 +797,9 @@
   #_(def ss3 (prpr/event-source->sorted-stream :id cs3))
 
   #_(def result (prpr/set-streams-union {:default-key-fn :id
-                                       :skey-streams {:ss1 ss1
-                                                      :ss2 ss2
-                                                      :ss3 ss3}}))
+                                         :skey-streams {:ss1 ss1
+                                                        :ss2 ss2
+                                                        :ss3 ss3}}))
 
   #_(s/take! result)
 
@@ -821,8 +822,8 @@
         kss {:0 s0 :1 s1}
 
         os @(prpr/full-outer-join-streams
-             {:default-key-fn :foo
-              :skey-streams kss})
+              {:default-key-fn :foo
+               :skey-streams kss})
         ovs @(s/reduce conj [] os)
         ]
 
@@ -830,10 +831,10 @@
     (println "Bar: " ovs)
 
     #_(is (= [{:0 {:foo 1 :bar 10} :1 {:foo 1 :baz 100}}
-            {:1 {:foo 2 :baz 200}}
-            {:0 {:foo 3 :bar 30} :1 {:foo 3 :baz 300}}
-            {:0 {:foo 4 :bar 40}}]
-           ovs))))
+              {:1 {:foo 2 :baz 200}}
+              {:0 {:foo 3 :bar 30} :1 {:foo 3 :baz 300}}
+              {:0 {:foo 4 :bar 40}}]
+             ovs))))
 
 
 (comment  ;; SUCCESS with promisespromises
@@ -857,47 +858,47 @@
 
 
     #_(let [result (stream.cross/set-streams-union {:default-key-fn :id
-                                                  :skey-streams {:ss1 ss1
-                                                                 :ss2 ss2
-                                                                 :ss3 ss3}})]
+                                                    :skey-streams {:ss1 ss1
+                                                                   :ss2 ss2
+                                                                   :ss3 ss3}})]
         @(stream/take! @result))
 
     (ddo [u-s (stream.cross/set-streams-union {:default-key-fn :id
-                                                 :skey-streams {:ss1 ss1
-                                                                :ss2 ss2
-                                                                :ss3 ss3}})]
-           (->> u-s
-                (stream/map
-                 (fn [r]
-                   (prn r)
-                   r))
-                (prpr.stream/count-all-throw
-                 "count results")))
+                                               :skey-streams {:ss1 ss1
+                                                              :ss2 ss2
+                                                              :ss3 ss3}})]
+         (->> u-s
+              (stream/map
+                (fn [r]
+                  (prn r)
+                  r))
+              (prpr.stream/count-all-throw
+                "count results")))
 
     #_(stream.cross/set-streams-union {:default-key-fn :id
-                                     :skey-streams {:ss1 ss1
-                                                    :ss2 ss2
-                                                    :ss3 ss3}})
+                                       :skey-streams {:ss1 ss1
+                                                      :ss2 ss2
+                                                      :ss3 ss3}})
 
     #_(let [oc (chan 1 (map vals))
-          result (stream.cross/set-streams-union {:default-key-fn :id
-                                                  :skey-streams {:ss1 ss1
-                                                                 :ss2 ss2
-                                                                 :ss3 ss3}})]
-      (stream/connect @result oc)
-      (go-loop [r (<! oc)]
-        (println "record: " r)
-        (println "record merged: " (apply merge r))
-        (println "")
-        (if-not r
-          r
-          (recur (<! oc)))))))
+            result (stream.cross/set-streams-union {:default-key-fn :id
+                                                    :skey-streams {:ss1 ss1
+                                                                   :ss2 ss2
+                                                                   :ss3 ss3}})]
+        (stream/connect @result oc)
+        (go-loop [r (<! oc)]
+          (println "record: " r)
+          (println "record merged: " (apply merge r))
+          (println "")
+          (if-not r
+            r
+            (recur (<! oc)))))))
 
 
 #_(comment  ;; SUCCESS with promisespromises
 
 
-      #_(let [c1 (to-chan [{:id 2 :a "a"} {:id 3} {:id 4}])
+    #_(let [c1 (to-chan [{:id 2 :a "a"} {:id 3} {:id 4}])
             c2 (to-chan [{:id 1} {:id 2 :b "b"} {:id 3}])
             c3 (to-chan [{:id 0} {:id 1} {:id 2 :c "c"}])
             cs1 (stream/->source c1)
@@ -925,42 +926,65 @@
 
 #_(comment
 
-  (let [ema-list [{:uuid "1" :last-trade-price-exponential 10}
-                  {:uuid "2" :last-trade-price-exponential 11}
-                  {:uuid "3" :last-trade-price-exponential 12}]
+    (defn join-averages
+      ([state input] (join-averages state #{:tick-list :sma-list :ema-list} input))
+      ([state completion-set input]
 
-        sma-list [{:uuid "1" :last-trade-price-average 10.1}
-                  {:uuid "2" :last-trade-price-average 10.2}
-                  {:uuid "3" :last-trade-price-average 10.3}]
+       (let [inputF (last input)
+             uuid (:uuid inputF)
+             entry (cond
+                     (:last-trade-price-exponential inputF) {:ema-list input}
+                     (:last-trade-price-average inputF) {:sma-list input}
+                     (:last-trade-price inputF) {:tick-list input})]
 
-        tick-list [{:uuid "1" :last-trade-price 11.1}
-                   {:uuid "2" :last-trade-price 11.2}
-                   {:uuid "3" :last-trade-price 11.3}]
+         (if-let [current (get @state uuid)]
 
-        ec (chan (sliding-buffer 100))
-        sc (chan (sliding-buffer 100))
-        tc (chan (sliding-buffer 100))
+           (let [_ (swap! state update-in [uuid] merge entry)
+                 c' (get @state uuid)]
 
-        _ (onto-chan ec ema-list)
-        _ (onto-chan sc sma-list)
-        _ (onto-chan tc tick-list)
+             (if (has-all-lists? c' completion-set)
+               (update-state-and-complete state uuid c')
+               input))
 
-        merged-ch (async/merge [tc sc ec])
-        #_output-ch #_(chan (sliding-buffer 100) (join-averages (fn [ac e]
-                                                                  (log/info "ac" ac)
-                                                                  (log/info "e" e)
-                                                                  (concat ac (list e)))))
+           (do (swap! state merge {uuid entry})
+               input)))))
 
-        output-ch (chan (sliding-buffer 100) (filter :joined))]
+    (let [ema-list [{:uuid "1" :last-trade-price-exponential 10}
+                    {:uuid "2" :last-trade-price-exponential 11}
+                    {:uuid "3" :last-trade-price-exponential 12}]
 
-    #_(async/pipe merged-ch output-ch)
-    #_(go-loop [r (<! output-ch)]
-        (when-not (nil? r)
-          (log/info "record" r)
-          (recur (<! output-ch))))
+          sma-list [{:uuid "1" :last-trade-price-average 10.1}
+                    {:uuid "2" :last-trade-price-average 10.2}
+                    {:uuid "3" :last-trade-price-average 10.3}]
 
-    (pipeline 1 output-ch (map (partial join-averages (atom {}))) merged-ch)
-    (go-loop [r (<! output-ch)]
+          tick-list [{:uuid "1" :last-trade-price 11.1}
+                     {:uuid "2" :last-trade-price 11.2}
+                     {:uuid "3" :last-trade-price 11.3}]
+
+          ec (chan (sliding-buffer 100))
+          sc (chan (sliding-buffer 100))
+          tc (chan (sliding-buffer 100))
+
+          _ (onto-chan ec ema-list)
+          _ (onto-chan sc sma-list)
+          _ (onto-chan tc tick-list)
+
+          merged-ch (async/merge [tc sc ec])
+          #_output-ch #_(chan (sliding-buffer 100) (join-averages (fn [ac e]
+                                                                    (log/info "ac" ac)
+                                                                    (log/info "e" e)
+                                                                    (concat ac (list e)))))
+
+          output-ch (chan (sliding-buffer 100) (filter :joined))]
+
+      #_(async/pipe merged-ch output-ch)
+      #_(go-loop [r (<! output-ch)]
+          (when-not (nil? r)
+            (log/info "record" r)
+            (recur (<! output-ch))))
+
+      (pipeline 1 output-ch (map (partial join-averages (atom {}))) merged-ch)
+      (go-loop [r (<! output-ch)]
         (when-not (nil? r)
           (log/info "record" r)
           (recur (<! output-ch))))))

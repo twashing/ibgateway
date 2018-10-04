@@ -46,9 +46,10 @@
   (let [{macd-fast :macd-window-fast
          macd-slow :macd-window-slow
          signal-window :signal-window
-         :or {macd-fast 12
-              macd-slow 26
-              signal-window 9}} options
+         :or {macd-fast 6 ; 12 30%
+              macd-slow 13 ; 26 65%
+              signal-window 4 ; 9 22.5%
+              }} options
 
         ;; 1. compute 12 EMA
         ema-short (lagging/exponential-moving-average nil macd-fast sma-list)
@@ -58,10 +59,9 @@
 
         ;; 3. for each tick, compute difference between 12 and 26 EMA
         ;; EMA lists will have a structure like:
-        #_({:last-trade-price 203.98,
-            :last-trade-time 1368215573010,
-            :last-trade-price-exponential 204.00119130504845})
-
+        ;; ({:last-trade-price 203.98,
+        ;;   :last-trade-time 1368215573010,
+        ;;   :last-trade-price-exponential 204.00119130504845})
         macd (map (fn [e1 e2]
 
                     (if (and (-> e1 nil? not)
@@ -74,7 +74,9 @@
                   ema-long)
 
         ;; Compute 9 EMA of the MACD
-        ema-signal (lagging/exponential-moving-average {:input :last-trade-macd :output :ema-signal :etal [:last-trade-price :last-trade-time]} signal-window macd)]
+        ema-signal (lagging/exponential-moving-average
+                     {:input :last-trade-macd :output :ema-signal :etal [:last-trade-price :last-trade-time]}
+                     signal-window macd)]
 
     ;; compute the difference, or divergence
     (map (fn [e-macd e-ema]

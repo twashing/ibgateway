@@ -1,8 +1,12 @@
-(ns com.interrupt.edgar.core.signal.common)
+(ns com.interrupt.edgar.core.signal.common
+  (:require [clojure.tools.trace :refer [trace]]))
 
+
+(defn seq-all-exists? [s]
+  ((comp not empty? (partial remove nil?)) s))
 
 (defn find-peaks-valleys
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [options tick-list]
 
   (let [{input-key :input
@@ -33,81 +37,70 @@
             (partition 3 1 tick-list))))
 
 (defn up-market?
-  "** This function assumes the latest tick is on the right**"
-  [period partitioned-list]
+  "** This function assumes the latest tick is on the right"
+  [partitioned-list]
   (every? (fn [inp]
             (< (:last-trade-price (first inp))
                (:last-trade-price (second inp))))
-          (take period partitioned-list)))
+          partitioned-list))
 
 (defn down-market?
-  "** This function assumes the latest tick is on the right**"
-  [period partitioned-list]
+  "** This function assumes the latest tick is on the right"
+  [partitioned-list]
   (every? (fn [inp]
             (> (:last-trade-price (first inp))
                (:last-trade-price (second inp))))
-          (take period partitioned-list)))
+          partitioned-list))
 
 (defn divergence-up?
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [options ech-list price-peaks-valleys macd-peaks-valleys]
 
-  (let [last-ech (last ech-list)
-        last-price (last price-peaks-valleys)
-        last-macd (last macd-peaks-valleys)
+  (if (not-every? seq-all-exists? [price-peaks-valleys ech-list macd-peaks-valleys])
+    false
+    (let [{input-top :input-top
+           input-bottom :input-bottom
+           :or {input-top :last-trade-price
+                input-bottom :last-trade-macd}} options
 
-        {input-top :input-top
-         input-bottom :input-bottom
-         :or {input-top :last-trade-price
-              input-bottom :last-trade-macd}} options
+          price-peaks (:peak (group-by :signal price-peaks-valleys))
+          macd-peaks (:peak (group-by :signal macd-peaks-valleys))
 
+          last-tick (last ech-list)
+          last-price-peak (last price-peaks)
+          last-macd-peak (last macd-peaks)
 
-        both-exist-price? (and (not (empty? (remove nil? ech-list)))
-                               (not (empty? (remove nil? price-peaks-valleys))))
-        price-higher-high? (and (-> (input-top last-ech) nil? not)
-                                (-> (input-top last-price) nil? not)
+          price-higher-high? (and last-tick last-price-peak
+                                  (> (input-top last-tick) (input-top last-price-peak)))
+          macd-lower-high? (and last-tick last-macd-peak
+                                (< (input-bottom last-tick) (input-bottom last-macd-peak)))]
 
-                                both-exist-price?
-                                (> (input-top last-ech) (input-top last-price)))
-
-        both-exist-macd? (and (not (empty? (remove nil? ech-list)))
-                              (not (empty? (remove nil? macd-peaks-valleys))))
-        macd-lower-high? (and (-> (input-bottom last-ech) nil? not)
-                              (-> (input-bottom last-macd) nil? not)
-
-                              both-exist-macd?
-                              (< (input-bottom last-ech) (input-bottom last-macd)))]
-
-    (and price-higher-high? macd-lower-high?)))
+      (and price-higher-high? macd-lower-high?))))
 
 (defn divergence-down?
-  "** This function assumes the latest tick is on the right**"
+  "** This function assumes the latest tick is on the right"
   [options ech-list price-peaks-valleys macd-peaks-valleys]
 
-  (let [last-ech (last ech-list)
-        last-price (last price-peaks-valleys)
-        last-macd (last macd-peaks-valleys)
+  (if (not-every? seq-all-exists? [price-peaks-valleys ech-list macd-peaks-valleys])
+    false
+    (let [{input-top :input-top
+           input-bottom :input-bottom
+           :or {input-top :last-trade-price
+                input-bottom :last-trade-macd}} options
 
-        {input-top :input-top
-         input-bottom :input-bottom
-         :or {input-top :last-trade-price
-              input-bottom :last-trade-macd}} options
+          price-peaks (:peak (group-by :signal price-peaks-valleys))
+          macd-peaks (:peak (group-by :signal macd-peaks-valleys))
 
+          ;; TODO also ensure that the last-tick is on a downward trend
+          ;; TODO also ensure that macd crosses over the trigger line
+          ;; TODO macd histogram i. making a lower high, and ii. goes negative (a down indicator)
+          last-tick (last ech-list)
+          last-price-peak (last price-peaks)
+          last-macd-peak (last macd-peaks)
 
-        both-exist-price? (and (not (empty? (remove nil? ech-list)))
-                               (not (empty? (remove nil? price-peaks-valleys))))
-        price-lower-high? (and (-> (input-top last-ech) nil? not)
-                               (-> (input-top last-price) nil? not)
+          price-lower-high? (and last-tick last-price-peak
+                                 (< (input-top last-tick) (input-top last-price-peak)))
+          macd-higher-high? (and last-tick last-macd-peak
+                                 (> (input-bottom last-tick) (input-bottom last-macd-peak)))]
 
-                               both-exist-price?
-                               (< (input-top last-ech) (input-top last-price)))
-
-        both-exist-macd? (and (not (empty? (remove nil? ech-list)))
-                              (not (empty? (remove nil? macd-peaks-valleys))))
-        macd-higher-high? (and (-> (input-top last-ech) nil? not)
-                               (-> (input-top last-price) nil? not)
-
-                               both-exist-macd?
-                               (> (input-bottom last-ech) (input-bottom last-macd)))]
-
-    (and price-lower-high? macd-higher-high?)))
+      (and price-lower-high? macd-higher-high?))))

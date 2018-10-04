@@ -42,36 +42,25 @@ lein run -m com.interrupt.ibgateway.core/-main
 
 ## TODO
 
-- Troubleshoot EMA; why is it slower than SMA
-  - Test with SINE Wave
+- Test with 40 + 20 period windows
 - Signals (SMA, EMA, BB)
   ? When there's been a price change of more than $1, what crossovers happened, in the last 5 ticks
 
-
-- Remaining Analytics
-- Remaining Signals
 - Strategies
-- Scan market for most volatile stocks
 
-
-- Code Cleanup
 - Trading Engine
 - Position Book
 
 ? Will Bid / Ask give us more price signals 
-! Have to Plan + Reason about + Solve Problems, while developing the platform
 
 - Artifactory for i) custom jars and ii) as a docker registry
-- S3 Bucket sync'ing
-  - https://rclone.org
-  - http://duplicity.nongnu.org/features.html
-  - https://s3tools.org/s3cmd-sync
-  - https://www.tarsnap.com/index.html
 
 
 ## NOTES
 
-EMA looks slower than the SMA
+Stock Market Strategy is a good resource
+https://www.stock-market-strategy.com/
+https://www.youtube.com/user/StockMarketStrategy/videos
 
 
 ## Change Log

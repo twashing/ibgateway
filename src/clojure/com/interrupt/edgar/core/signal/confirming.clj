@@ -8,12 +8,8 @@
 
    A. OBV Divergence from price.
 
-   ** This function assumes the latest tick is on the right**"
-
-  [view-window obv-list]
-
-  ;; (println "obv-list" obv-list)
-  ;; (println "obv-list count" (count obv-list))
+   ** This function assumes the latest tick is on the right"
+  [obv-list]
 
   (let [lst (last obv-list)
 
@@ -26,15 +22,10 @@
         dDOWN? (common/divergence-down?
                  {:input-top :last-trade-price :input-bottom :obv} obv-list price-peaks-valleys obv-peaks-valleys)]
 
-    (if (or dUP? dDOWN?)
+    (cond
+      dUP? (assoc lst :signals [{:signal :up :why :obv-divergence}])
+      dDOWN? (assoc lst :signals [{:signal :down :why :obv-divergence}])
+      :else lst)))
 
-      (if dUP?
-
-        (assoc lst :signals [{:signal :up
-                          :why :obv-divergence
-                          :arguments [obv-list price-peaks-valleys obv-peaks-valleys]}])
-
-        (assoc lst :signals [{:signal :down
-                              :why :obv-divergence
-                              :arguments [obv-list price-peaks-valleys obv-peaks-valleys]}]))
-      (last obv-list))))
+;; TODO Trading with the (RSI) Relative Strength Index
+;; https://www.youtube.com/watch?v=I_bumwyOxlg

@@ -10,7 +10,6 @@
             [clojure.test :refer :all]
             [clojure.test.check :refer :all]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.tools.trace :refer [trace]]
             [com.gfredericks.test.chuck.clojure-test :refer [checking]]
             [com.interrupt.edgar.core.analysis.lagging :as sut]
             [com.interrupt.edgar.core.utils :refer [sine]]

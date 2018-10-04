@@ -64,36 +64,10 @@
        ;; NOTE For now, ignore empty lots
        (remove empty-last-trade-price?)))
 
-
 (defn bind-channels->mult [source-list-ch & channels]
   (let [source-list->sink-mult (mult source-list-ch)]
     (doseq [c channels]
       (tap source-list->sink-mult c))))
-
-#_(let [c1 (to-chan [{:id 2 :a "a"} {:id 3} {:id 4}])
-        c2 (to-chan [{:id 1} {:id 2 :b "b"} {:id 3}])
-        c3 (to-chan [{:id 0} {:id 1} {:id 2 :c "c"}])
-        cs1 (stream/->source c1)
-        cs2 (stream/->source c2)
-        cs3 (stream/->source c3)
-        ss1 (stream.cross/event-source->sorted-stream :id cs1)
-        ss2 (stream.cross/event-source->sorted-stream :id cs2)
-        ss3 (stream.cross/event-source->sorted-stream :id cs3)]
-
-
-    (let [oc (chan 1 (map vals))
-          result (stream.cross/set-streams-union {:default-key-fn :id
-                                                  :skey-streams {:ss1 ss1
-                                                                 :ss2 ss2
-                                                                 :ss3 ss3}})]
-      (stream/connect @result oc)
-      (go-loop [r (<! oc)]
-        (info "record: " r)
-        (info "record merged: " (apply merge r))
-        (info "")
-        (if-not r
-          r
-          (recur (<! oc))))))
 
 (defn pipeline-stochastic-oscillator [n stochastic-oscillator-ch tick-list->stochastic-osc-ch]
   (let [stochastic-tick-window 14
@@ -113,33 +87,6 @@
 (defn update-state-and-complete [state uuid c]
   (swap! state dissoc uuid)
   (assoc c :joined true))
-
-(defn join-averages
-  ([state input] (join-averages state #{:tick-list :sma-list :ema-list} input))
-  ([state completion-set input]
-
-   ;; (println input)
-   (let [inputF (last input)
-         uuid (:uuid inputF)
-         entry (cond
-                 (:last-trade-price-exponential inputF) {:ema-list input}
-                 (:last-trade-price-average inputF) {:sma-list input}
-                 (:last-trade-price inputF) {:tick-list input})]
-
-     ;; (log/info "")
-     ;; (log/info "state" (with-out-str (clojure.pprint/pprint @state)))
-
-     (if-let [current (get @state uuid)]
-
-       (let [_ (swap! state update-in [uuid] merge entry)
-             c' (get @state uuid)]
-
-         (if (has-all-lists? c' completion-set)
-           (update-state-and-complete state uuid c')
-           input))
-
-       (do (swap! state merge {uuid entry})
-           input)))))
 
 (defn pipeline-analysis-lagging [concurrency options
                                  sma-list-ch tick-list->sma-ch
@@ -163,56 +110,67 @@
   (pipeline concurrency on-balance-volume-ch (map aconf/on-balance-volume) tick-list->obv-ch)
   (pipeline-relative-strength-index concurrency relative-strength-ch tick-list->relative-strength-ch))
 
-(defn pipeline-signals-lagging [concurrency moving-average-window
-                                connector-ch signal-moving-averages-ch signal-bollinger-band-ch]
+(defn pipeline-signals-moving-average [concurrency connector-ch signal-moving-averages-ch]
 
-  (let [m (mult connector-ch)
+  (let [moving-average-signal-window 2
+        m (mult connector-ch)
 
-        ;; TODO Taking each analytic, and regathering a sliding partitioned
-        ;; ** There has to be a better way to do this
+        string-check (fn [k i]
+                       (if (string? (k i))
+                         (assoc i k (read-string (k i)))
+                         i))
+
+        strings->numbers (fn [item]
+                           (->> item
+                                (string-check :last-trade-price-exponential)
+                                (string-check :last-trade-price-average)))
+
         remove-population-xf (map #(update-in % [:sma-list] dissoc :population))
-        partition-xf (x/partition moving-average-window moving-average-increment (x/into []))
-        join-xf (map #(let [tick-list (map (fn [{:keys [tick-list]}] tick-list) %)
-                            sma-list (map (fn [{:keys [sma-list]}] sma-list) %)
-                            ema-list (map (fn [{:keys [ema-list]}] ema-list) %)
-                            bollinger-band (map (fn [{:keys [bollinger-band]}] bollinger-band) %)
-                            macd (map (fn [{:keys [macd]}] macd) %)
-                            stochastic-oscillator (map (fn [{:keys [stochastic-oscillator]}]
-                                                         stochastic-oscillator) %)
-                            on-balance-volume (map (fn [{:keys [on-balance-volume]}] on-balance-volume) %)
-                            relative-strength (map (fn [{:keys [relative-strength]}] relative-strength) %)]
-
-                        {:tick-list tick-list
-                         :sma-list sma-list
-                         :ema-list ema-list
-                         :bollinger-band bollinger-band
-                         :macd macd
-                         :stochastic-oscillator stochastic-oscillator
-                         :on-balance-volume on-balance-volume
-                         :relative-strength relative-strength}))
+        partition-xf (x/partition moving-average-signal-window moving-average-increment (x/into []))
+        join-xf (map (fn [e]
+                       (let [ks [:sma-list :ema-list]]
+                         (->> e
+                              (map #(merge ((first ks) %) ((second ks) %)))
+                              (map strings->numbers)))))
 
         remove-population-ch (chan (sliding-buffer 100) remove-population-xf)
         partitioned-ch (chan (sliding-buffer 100) partition-xf)
         partitioned-joined-ch (chan (sliding-buffer 100) join-xf)
 
         mult-moving-averages (mult partitioned-joined-ch)
-        tap->moving-averages (chan (sliding-buffer 100))
-        tap->bollinger-band (chan (sliding-buffer 100) (filter #(->> (:bollinger-band %)
-                                                                     (remove nil?)
-                                                                     count
-                                                                     (= moving-average-window))))]
+        tap->moving-averages (chan (sliding-buffer 100))]
 
     (tap m remove-population-ch)
     (tap mult-moving-averages tap->moving-averages)
-    (tap mult-moving-averages tap->bollinger-band)
 
     (pipeline concurrency partitioned-ch (map identity) remove-population-ch)
     (pipeline concurrency partitioned-joined-ch (map identity) partitioned-ch)
+    (pipeline concurrency signal-moving-averages-ch (map slag/moving-averages) tap->moving-averages)))
 
-    (pipeline concurrency signal-moving-averages-ch (map (partial slag/moving-averages moving-average-window)) tap->moving-averages)
+(defn pipeline-signals-bollinger-band [concurrency connector-ch signal-bollinger-band-ch]
 
-    ;; TODO bollinger band isn't yielding any signals
-    (pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) tap->bollinger-band)))
+  (let [bollinger-band-signal-window 24
+        bollinger-band-increment 1
+
+        partition-xf (x/partition bollinger-band-signal-window bollinger-band-increment (x/into []))
+        matches-window-size? #(= bollinger-band-signal-window
+                                 (count %))
+        bollinger-band-exists-xf (filter #(->> (filter :bollinger-band %)
+                                               matches-window-size?))
+        join-xf (map (fn [e]
+                       (let [ks [:tick-list :bollinger-band]]
+                         (->> e
+                              ((juxt #(map (first ks) %) #(map (second ks) %)))
+                              (zipmap ks)))))
+
+        partitioned-ch (chan (sliding-buffer 100) partition-xf)
+        bollinger-band-exists-ch (chan (sliding-buffer 100) bollinger-band-exists-xf)
+        partitioned-joined-ch (chan (sliding-buffer 100) join-xf)]
+
+    (pipeline concurrency partitioned-ch (map identity) connector-ch)
+    (pipeline concurrency bollinger-band-exists-ch (map identity) partitioned-ch)
+    (pipeline concurrency partitioned-joined-ch (map identity) bollinger-band-exists-ch)
+    (pipeline concurrency signal-bollinger-band-ch (map (partial slag/bollinger-band moving-average-window)) partitioned-joined-ch)))
 
 (defn pipeline-signals-leading [concurrency moving-average-window
                                 signal-macd-ch macd->macd-signal
@@ -220,7 +178,6 @@
 
   (pipeline concurrency signal-macd-ch (map slead/macd) macd->macd-signal)
 
-  ;; TODO stochastic oscillator isn't yielding any signals
   (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
             stochastic-oscillator->stochastic-oscillator-signal))
 
@@ -271,78 +228,110 @@
         sma-list->bollinger-band-signal (chan (sliding-buffer 100))]
     {:tick-list->bollinger-band-signal tick-list->bollinger-band-signal
      :sma-list->bollinger-band-signal sma-list->bollinger-band-signal
-     :merged-bollinger-band (async/merge [tick-list->bollinger-band-signal
-                                          sma-list->bollinger-band-signal])
      :signal-bollinger-band (chan (sliding-buffer 100) (filter :joined))
      :signal-bollinger-band-ch (chan (sliding-buffer 100))}))
 
-(defn channel->tracer [& channels]
-  (for [ch channels
-        :let [tracer-ch (chan (sliding-buffer 100))]]
-    (do
-      (bind-channels->mult ch tracer-ch)
-      tracer-ch)))
+(defn signal-join-mults []
+  {:tick-list->SIGNAL (chan (sliding-buffer 100) (map last))
+   :sma-list->SIGNAL (chan (sliding-buffer 100) (map last))
+   :ema-list->SIGNAL (chan (sliding-buffer 100) (map last))
+   :bollinger-band->SIGNAL (chan (sliding-buffer 100) (map last))
+   :macd->SIGNAL (chan (sliding-buffer 100) (map last))
+   :stochastic-oscillator->SIGNAL (chan (sliding-buffer 100) (map last))
+   :on-balance-volume->SIGNAL (chan (sliding-buffer 100) (map last))
+   :relative-strength->SIGNAL (chan (sliding-buffer 100) (map last))
 
-(defn channel-tracer [source-list-ch tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch macd-ch stochastic-oscillator-ch
-                      on-balance-volume-ch relative-strength-ch merged-averages signal-merged-averages signal-moving-averages-ch
-                      signal-bollinger-band-ch signal-macd-ch signal-stochastic-oscillator-ch signal-on-balance-volume-ch]
-
-  (let [source-list-ch->tracer (chan (sliding-buffer 100))
-        tick-list-ch->tracer (chan (sliding-buffer 100))
-        sma-list-ch->tracer (chan (sliding-buffer 100))
-        ema-list-ch->tracer (chan (sliding-buffer 100))
-        bollinger-band-ch->tracer (chan (sliding-buffer 100))
-        macd-ch->tracer (chan (sliding-buffer 100))
-        stochastic-oscillator-ch->tracer (chan (sliding-buffer 100))
-        on-balance-volume-ch->tracer (chan (sliding-buffer 100))
-        relative-strength-ch->tracer (chan (sliding-buffer 100))
-        merged-averages->tracer (chan (sliding-buffer 100))
-        signal-merged-averages->tracer (chan (sliding-buffer 100))
-        signal-moving-averages-ch->tracer (chan (sliding-buffer 100))
-        signal-bollinger-band-ch->tracer (chan (sliding-buffer 100))
-        signal-macd-ch->tracer (chan (sliding-buffer 100))
-        signal-stochastic-oscillator-ch->tracer (chan (sliding-buffer 100))
-        signal-on-balance-volume-ch->tracer (chan (sliding-buffer 100))]
-
-    (bind-channels->mult source-list-ch source-list-ch->tracer)
-    (bind-channels->mult tick-list-ch tick-list-ch->tracer)
-    (bind-channels->mult sma-list-ch sma-list-ch->tracer)
-    (bind-channels->mult ema-list-ch ema-list-ch->tracer)
-    (bind-channels->mult bollinger-band-ch bollinger-band-ch->tracer)
-    (bind-channels->mult macd-ch macd-ch->tracer)
-    (bind-channels->mult stochastic-oscillator-ch stochastic-oscillator-ch->tracer)
-    (bind-channels->mult on-balance-volume-ch on-balance-volume-ch->tracer)
-    (bind-channels->mult relative-strength-ch relative-strength-ch->tracer)
-    (bind-channels->mult merged-averages merged-averages->tracer)
-    (bind-channels->mult signal-merged-averages signal-merged-averages->tracer)
-    (bind-channels->mult signal-moving-averages-ch signal-moving-averages-ch->tracer)
-    (bind-channels->mult signal-bollinger-band-ch signal-bollinger-band-ch->tracer)
-    (bind-channels->mult signal-macd-ch signal-macd-ch->tracer)
-    (bind-channels->mult signal-stochastic-oscillator-ch signal-stochastic-oscillator-ch->tracer)
-    (bind-channels->mult signal-on-balance-volume-ch signal-on-balance-volume-ch->tracer)
-
-    {:source-list-ch->tracer source-list-ch->tracer
-     :tick-list-ch->tracer tick-list-ch->tracer
-     :sma-list-ch->tracer sma-list-ch->tracer
-     :ema-list-ch->tracer ema-list-ch->tracer
-     :bollinger-band-ch->tracer bollinger-band-ch->tracer
-     :macd-ch->tracer macd-ch->tracer
-     :stochastic-oscillator-ch->tracer stochastic-oscillator-ch->tracer
-     :on-balance-volume-ch->tracer on-balance-volume-ch->tracer
-     :relative-strength-ch->tracer relative-strength-ch->tracer
-     :merged-averages->tracer merged-averages->tracer
-     :signal-merged-averages->tracer signal-merged-averages->tracer
-     :signal-moving-averages-ch->tracer signal-moving-averages-ch->tracer
-     :signal-bollinger-band-ch->tracer signal-bollinger-band-ch->tracer
-     :signal-macd-ch->tracer signal-macd-ch->tracer
-     :signal-stochastic-oscillator-ch->tracer signal-stochastic-oscillator-ch->tracer
-     :signal-on-balance-volume-ch->tracer signal-on-balance-volume-ch->tracer}))
+   :signal-moving-averages->SIGNAL (chan (sliding-buffer 100))
+   :signal-bollinger-band->SIGNAL (chan (sliding-buffer 100))
+   :signal-macd->SIGNAL (chan (sliding-buffer 100))
+   :signal-stochastic-oscillator->SIGNAL (chan (sliding-buffer 100))
+   :signal-on-balance-volume->SIGNAL (chan (sliding-buffer 100))})
 
 (defn channel->stream [& channels]
   (map #(->> %
              stream/->source
              (stream.cross/event-source->sorted-stream :last-trade-time))
        channels))
+
+(defn join-analytics->moving-averages [sma-list->JOIN ema-list->JOIN]
+
+  (let [[sma-list->CROSS ema-list->CROSS] (channel->stream sma-list->JOIN ema-list->JOIN)
+        moving-averages-connector-ch (chan (sliding-buffer 100))
+        result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
+                                                :skey-streams {:sma-list sma-list->CROSS
+                                                               :ema-list ema-list->CROSS}})]
+
+    (stream/connect @result moving-averages-connector-ch)
+    moving-averages-connector-ch))
+
+(defn join-analytics->bollinger-band [tick-list->JOIN bollinger-band->JOIN]
+
+  (let [[tick-list->CROSS bollinger-band->CROSS] (channel->stream tick-list->JOIN bollinger-band->JOIN)
+        bollinger-band-connector-ch (chan (sliding-buffer 100))
+        result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
+                                                :skey-streams {:tick-list tick-list->CROSS
+                                                               :bollinger-band bollinger-band->CROSS}})]
+
+    (stream/connect @result bollinger-band-connector-ch)
+    bollinger-band-connector-ch))
+
+(defn join-analytics [tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+                      macd->SIGNAL stochastic-oscillator->SIGNAL
+                      on-balance-volume->SIGNAL relative-strength->SIGNAL
+
+                      signal-moving-averages->SIGNAL
+                      signal-bollinger-band->SIGNAL
+                      signal-macd->SIGNAL
+                      signal-stochastic-oscillator->SIGNAL
+                      signal-on-balance-volume->SIGNAL]
+
+  (let [[tick-list->CROSS sma-list->CROSS ema-list->CROSS bollinger-band->CROSS
+         macd->CROSS stochastic-oscillator->CROSS
+         on-balance-volume->CROSS relative-strength->CROSS
+
+         signal-moving-averages->CROSS
+         signal-bollinger-band->CROSS
+         signal-macd->CROSS
+         signal-stochastic-oscillator->CROSS
+         signal-on-balance-volume->CROSS]
+
+        (channel->stream tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+                         macd->SIGNAL stochastic-oscillator->SIGNAL
+                         on-balance-volume->SIGNAL relative-strength->SIGNAL
+
+                         signal-moving-averages->SIGNAL
+                         signal-bollinger-band->SIGNAL
+                         signal-macd->SIGNAL
+                         signal-stochastic-oscillator->SIGNAL
+                         signal-on-balance-volume->SIGNAL)
+
+        analytic-connector-ch (chan (sliding-buffer 100))
+        result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
+                                                :skey-streams {:tick-list tick-list->CROSS
+
+                                                               ;; lagging
+                                                               :sma-list sma-list->CROSS
+                                                               :ema-list ema-list->CROSS
+                                                               :bollinger-band bollinger-band->CROSS
+
+                                                               ;; leading
+                                                               :macd macd->CROSS
+                                                               :stochastic-oscillator stochastic-oscillator->CROSS
+
+                                                               ;; confirming
+                                                               :on-balance-volume on-balance-volume->CROSS
+                                                               :relative-strength relative-strength->CROSS
+
+                                                               ;; signals
+                                                               :signal-moving-averages signal-moving-averages->CROSS
+                                                               :signal-bollinger-band signal-bollinger-band->CROSS
+                                                               :signal-macd signal-macd->CROSS
+                                                               :signal-stochastic-oscillator signal-stochastic-oscillator->CROSS
+                                                               :signal-on-balance-volume signal-on-balance-volume->CROSS
+                                                               }})]
+
+    (stream/connect @result analytic-connector-ch)
+    analytic-connector-ch))
 
 (defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
 
@@ -363,93 +352,84 @@
         (channel-analytics-mults)
 
 
-        ;; Channel JOIN Mults
-        {:keys [tick-list->JOIN sma-list->JOIN ema-list->JOIN bollinger-band->JOIN
-                macd->JOIN stochastic-oscillator->JOIN
-                on-balance-volume->JOIN relative-strength->JOIN]}
-        (channel-join-mults)
-
-
         ;; Channels Signal: Moving Averages
         {:keys [tick-list->moving-averages-signal sma-list->moving-averages-signal ema-list->moving-averages-signal
                 merged-averages signal-merged-averages signal-moving-averages-ch]}
         (channel-signal-moving-averages)
 
 
-        ;; Signal: Bollinger Band
+        ;; Channel JOIN Mults
+        {:keys [sma-list->JOIN ema-list->JOIN
+                tick-list->JOIN bollinger-band->JOIN
+                ;; macd->JOIN stochastic-oscillator->JOIN
+                ;; on-balance-volume->JOIN relative-strength->JOIN
+                ]}
+        (channel-join-mults)
+
+
+        ;; Signal Bollinger Band
         {:keys [tick-list->bollinger-band-signal sma-list->bollinger-band-signal
-                merged-bollinger-band signal-bollinger-band signal-bollinger-band-ch]}
+                signal-bollinger-band signal-bollinger-band-ch]}
         (channel-signal-bollinger-band)
 
 
         macd->macd-signal (chan (sliding-buffer 100))
-        ;; macd->on-balance-volume-signal (chan (sliding-buffer 100))
         stochastic-oscillator->stochastic-oscillator-signal (chan (sliding-buffer 100))
         on-balance-volume->on-balance-volume-ch (chan (sliding-buffer 100))
         signal-macd-ch (chan (sliding-buffer 100))
         signal-stochastic-oscillator-ch (chan (sliding-buffer 100))
         signal-on-balance-volume-ch (chan (sliding-buffer 100))
 
+        lagging-signals-moving-averages-ch (join-analytics->moving-averages sma-list->JOIN ema-list->JOIN)
+        lagging-signals-bollinger-band-connector-ch (join-analytics->bollinger-band tick-list->JOIN bollinger-band->JOIN)
 
-        [tick-list->CROSS sma-list->CROSS
-         ema-list->CROSS bollinger-band->CROSS
-         macd->CROSS
-         stochastic-oscillator->CROSS
-         on-balance-volume->CROSS
-         relative-strength->CROSS]
 
-        (channel->stream tick-list->JOIN sma-list->JOIN ema-list->JOIN bollinger-band->JOIN
-                         macd->JOIN
-                         stochastic-oscillator->JOIN
-                         on-balance-volume->JOIN
-                         relative-strength->JOIN)
+        ;; Signal JOIN Mults
+        {:keys [sma-list->SIGNAL ema-list->SIGNAL
+                tick-list->SIGNAL bollinger-band->SIGNAL
+                macd->SIGNAL stochastic-oscillator->SIGNAL
+                on-balance-volume->SIGNAL relative-strength->SIGNAL
 
-        result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
-                                                :skey-streams {:tick-list tick-list->CROSS
+                signal-moving-averages->SIGNAL
+                signal-bollinger-band->SIGNAL
+                signal-macd->SIGNAL
+                signal-stochastic-oscillator->SIGNAL
+                signal-on-balance-volume->SIGNAL]}
+        (signal-join-mults)
 
-                                                               ;; lagging
-                                                               :sma-list sma-list->CROSS
-                                                               :ema-list ema-list->CROSS
-                                                               :bollinger-band bollinger-band->CROSS
+        analytic-connector-ch (join-analytics tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+                                              macd->SIGNAL stochastic-oscillator->SIGNAL
+                                              on-balance-volume->SIGNAL relative-strength->SIGNAL
 
-                                                               ;; leading
-                                                               :macd macd->CROSS
-                                                               :stochastic-oscillator stochastic-oscillator->CROSS
-
-                                                               ;; confirming
-                                                               :on-balance-volume on-balance-volume->CROSS
-                                                               :relative-strength relative-strength->CROSS
-
-                                                               ;; signal-macd-ch
-                                                               ;; signal-stochastic-oscillator-ch
-                                                               ;; signal-on-balance-volume-ch
-
-                                                               }})
-
-        connector-ch (chan (sliding-buffer 100))]
-
-    ;; (bind-channels->mult macd-ch macd->JOIN)
+                                              signal-moving-averages->SIGNAL
+                                              signal-bollinger-band->SIGNAL
+                                              signal-macd->SIGNAL
+                                              signal-stochastic-oscillator->SIGNAL
+                                              signal-on-balance-volume->SIGNAL)]
 
     (doseq [source+mults [[source-list-ch tick-list-ch]
                           [tick-list-ch tick-list->sma-ch tick-list->macd-ch
                            tick-list->stochastic-osc-ch tick-list->obv-ch
-                           tick-list->relative-strength-ch tick-list->JOIN]
+                           tick-list->relative-strength-ch tick-list->JOIN tick-list->SIGNAL]
                           [sma-list-ch sma-list->ema-ch sma-list->bollinger-band-ch
-                           sma-list->macd-ch sma-list->JOIN]
+                           sma-list->macd-ch sma-list->JOIN sma-list->SIGNAL]
                           [ema-list-ch ema-list->moving-averages-signal
-                           ema-list->JOIN]
-                          [bollinger-band-ch bollinger-band->JOIN]
-                          [macd-ch macd->macd-signal macd->JOIN]
+                           ema-list->JOIN ema-list->SIGNAL]
+                          [bollinger-band-ch bollinger-band->JOIN bollinger-band->SIGNAL]
+                          [macd-ch macd->macd-signal macd->SIGNAL]
                           [stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal
-                           stochastic-oscillator->JOIN]
+                           stochastic-oscillator->SIGNAL]
                           [on-balance-volume-ch on-balance-volume->on-balance-volume-ch
-                           on-balance-volume->JOIN]
-                          [relative-strength-ch relative-strength->JOIN]]]
+                           on-balance-volume->SIGNAL]
+                          [relative-strength-ch relative-strength->SIGNAL]
+
+                          [signal-moving-averages-ch signal-moving-averages->SIGNAL]
+                          [signal-bollinger-band-ch signal-bollinger-band->SIGNAL]
+                          [signal-macd-ch signal-macd->SIGNAL]
+                          [signal-stochastic-oscillator-ch signal-stochastic-oscillator->SIGNAL]
+                          [signal-on-balance-volume-ch signal-on-balance-volume->SIGNAL]]]
 
       (apply bind-channels->mult source+mults))
-
-
-    (stream/connect @result connector-ch)
 
 
     ;; TICK LIST
@@ -471,197 +451,58 @@
 
 
     ;; SIGNALS
-    (pipeline-signals-lagging concurrency moving-average-window
-                              connector-ch signal-moving-averages-ch signal-bollinger-band-ch)
+    (pipeline-signals-moving-average concurrency lagging-signals-moving-averages-ch
+                                     signal-moving-averages-ch)
+
+    ;; TODO bollinger-band signals should be fleshed out more
+    (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
+                                     signal-bollinger-band-ch)
 
     (pipeline-signals-leading concurrency moving-average-window
                               signal-macd-ch macd->macd-signal
                               signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal)
 
-    ;; TODO on-balance-volume isn't yielding any signals
-    (pipeline concurrency signal-on-balance-volume-ch (map (partial sconf/on-balance-volume moving-average-window))
+    ;; TODO on balance volume signals are all down (not up)
+    (pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
               on-balance-volume->on-balance-volume-ch)
 
-    (go-loop [c 0 r (<! signal-moving-averages-ch)]
+
+    #_(go-loop [c 0 r (<! lagging-signals-moving-averages-ch)]
+      (info "count: " c " / lagging-signals-moving-averages INPUT " r)
+      (when r
+        (recur (inc c) (<! lagging-signals-moving-averages-ch))))
+
+    #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
       (info "count: " c " / MA signals: " r)
       (when r
         (recur (inc c) (<! signal-moving-averages-ch))))
 
-    (go-loop [c 0 r (<! signal-bollinger-band-ch)]
+    #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
       (info "count: " c " / BB signals: " r)
       (when r
         (recur (inc c) (<! signal-bollinger-band-ch))))
 
-    (go-loop [c 0 r (<! signal-macd-ch)]
+    #_(go-loop [c 0 r (<! signal-macd-ch)]
       (info "count: " c " / MACD signals: " r)
       (when r
         (recur (inc c) (<! signal-macd-ch))))
 
-    (go-loop [c 0 r (<! signal-stochastic-oscillator-ch)]
+    #_(go-loop [c 0 r (<! signal-stochastic-oscillator-ch)]
       (info "count: " c " / SO signals: " r)
       (when r
         (recur (inc c) (<! signal-stochastic-oscillator-ch))))
 
-    (go-loop [c 0 r (<! signal-on-balance-volume-ch)]
-      (info "count: " c " / OBV signal result: " r)
-      (when r
-        (recur (inc c) (<! signal-on-balance-volume-ch))))
-
     #_(go-loop [c 0 r (<! signal-on-balance-volume-ch)]
-      (info "count: " c " / result: " r)
+      (info "count: " c " / OBV signal: " r)
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))
 
-    {:joined-channel connector-ch}))
+    (go-loop [c 0 r (<! analytic-connector-ch)]
+        (info "count: " c " / r: " r)
+      (when r
+        (recur (inc c) (<! analytic-connector-ch))))
 
-#_(defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
-
-  (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
-
-        ;; Channels Analytics
-        {:keys [source-list-ch tick-list-ch sma-list-ch ema-list-ch
-                bollinger-band-ch macd-ch stochastic-oscillator-ch
-                on-balance-volume-ch relative-strength-ch]}
-        (channel-analytics)
-
-        ;; Channels Analytics Mults
-        {:keys [tick-list->sma-ch tick-list->macd-ch sma-list->ema-ch sma-list->bollinger-band-ch sma-list->macd-ch
-                tick-list->stochastic-osc-ch tick-list->obv-ch tick-list->relative-strength-ch]}
-        (channel-analytics-mults)
-
-        ;; Channels Signal: Moving Averages
-        {:keys [tick-list->moving-averages-signal sma-list->moving-averages-signal ema-list->moving-averages-signal
-                merged-averages signal-merged-averages signal-moving-averages-ch]}
-        (channel-signal-moving-averages)
-
-
-        ;; Signal: Bollinger Band
-        {:keys [tick-list->bollinger-band-signal sma-list->bollinger-band-signal
-                merged-bollinger-band signal-bollinger-band signal-bollinger-band-ch]}
-        (channel-signal-bollinger-band)
-
-
-        macd->macd-signal (chan (sliding-buffer 100))
-        macd->on-balance-volume-signal (chan (sliding-buffer 100))
-        stochastic-oscillator->stochastic-oscillator-signal (chan (sliding-buffer 100))
-        on-balance-volume->on-balance-volume-ch (chan (sliding-buffer 100))
-        signal-macd-ch (chan (sliding-buffer 100))
-        signal-stochastic-oscillator-ch (chan (sliding-buffer 100))
-        signal-on-balance-volume-ch (chan (sliding-buffer 100))]
-
-    (bind-channels->mult source-list-ch
-                         tick-list-ch)
-
-    (bind-channels->mult tick-list-ch
-                         tick-list->sma-ch
-                         tick-list->macd-ch
-                         tick-list->stochastic-osc-ch
-                         tick-list->obv-ch
-                         tick-list->relative-strength-ch
-                         tick-list->moving-averages-signal
-                         tick-list->bollinger-band-signal)
-
-    (bind-channels->mult sma-list-ch
-                         sma-list->ema-ch
-                         sma-list->bollinger-band-ch
-                         sma-list->macd-ch
-                         sma-list->moving-averages-signal
-                         sma-list->bollinger-band-signal)
-
-    (bind-channels->mult ema-list-ch
-                         ema-list->moving-averages-signal)
-
-    (bind-channels->mult macd-ch
-                         macd->macd-signal
-                         macd->on-balance-volume-signal)
-
-    (bind-channels->mult stochastic-oscillator-ch
-                         stochastic-oscillator->stochastic-oscillator-signal)
-
-    (bind-channels->mult on-balance-volume-ch
-                         on-balance-volume->on-balance-volume-ch)
-
-
-    ;; TICK LIST
-    (pipeline concurrency source-list-ch handler-xform (ew/ewrapper :publisher))
-    ;; (pipeline concurrency tick-list-ch handler-xform source-list-ch)
-
-
-    ;; ANALYSIS
-    (pipeline-analysis-lagging concurrency options sma-list-ch tick-list->sma-ch ema-list-ch sma-list->ema-ch
-                               bollinger-band-ch sma-list->bollinger-band-ch)
-
-    (pipeline-analysis-leading concurrency options moving-average-window macd-ch sma-list->macd-ch
-                               stochastic-oscillator-ch tick-list->stochastic-osc-ch)
-
-    (pipeline-analysis-confirming concurrency on-balance-volume-ch tick-list->obv-ch
-                                  relative-strength-ch tick-list->relative-strength-ch)
-
-    ;; SIGNALS
-    (pipeline-signals-lagging concurrency moving-average-window
-                              signal-merged-averages merged-averages signal-moving-averages-ch
-                              signal-bollinger-band merged-bollinger-band signal-bollinger-band-ch)
-
-    (pipeline-signals-leading concurrency moving-average-window signal-macd-ch macd->macd-signal
-                              signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal
-                              signal-on-balance-volume-ch on-balance-volume->on-balance-volume-ch)
-
-    (let [{:keys [source-list-ch->tracer tick-list-ch->tracer sma-list-ch->tracer ema-list-ch->tracer bollinger-band-ch->tracer
-                  macd-ch->tracer stochastic-oscillator-ch->tracer on-balance-volume-ch->tracer relative-strength-ch->tracer
-                  merged-averages->tracer signal-merged-averages->tracer signal-moving-averages-ch->tracer
-                  signal-bollinger-band-ch->tracer signal-macd-ch->tracer signal-stochastic-oscillator-ch->tracer signal-on-balance-volume-ch->tracer]}
-          (channel-tracer source-list-ch tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch macd-ch stochastic-oscillator-ch
-                          on-balance-volume-ch relative-strength-ch merged-averages signal-merged-averages signal-moving-averages-ch signal-bollinger-band-ch
-                          signal-macd-ch signal-stochastic-oscillator-ch signal-on-balance-volume-ch)]
-
-      #_(async/go
-          (let [result (async/<!
-                         (async/reduce #(concat %1 (list %2))
-                                       []
-                                       (async/take 100 source-list-ch->tracer)))]
-            (log/info result)
-            (spit "foo.edn" (apply str result))))
-
-      #_(go-loop [c 0
-                r (<! source-list-ch->tracer)]
-        (info "count: " c " / result: " r)
-        (spit "")
-        (when r
-          (recur (inc c) (<! source-list-ch->tracer))))
-
-      {:source-list-ch->tracer source-list-ch->tracer
-       :tick-list-ch->tracer tick-list-ch->tracer
-       :sma-list-ch->tracer sma-list-ch->tracer
-
-       ;; :tick-list-ch tick-list-ch
-       :sma-list-ch sma-list-ch
-       :ema-list-ch ema-list-ch
-       :bollinger-band-ch bollinger-band-ch
-       :macd-ch macd-ch
-       :stochastic-oscillator-ch stochastic-oscillator-ch
-       :on-balance-volume-ch on-balance-volume-ch
-       :relative-strength-ch relative-strength-ch
-       :tick-list->sma-ch tick-list->sma-ch
-       :sma-list->ema-ch sma-list->ema-ch
-       :sma-list->bollinger-band-ch sma-list->bollinger-band-ch
-       :sma-list->macd-ch sma-list->macd-ch
-       ;; :tick-list->macd-ch tick-list->macd-ch
-       :tick-list->stochastic-osc-ch tick-list->stochastic-osc-ch
-       :tick-list->obv-ch tick-list->obv-ch
-       :tick-list->relative-strength-ch tick-list->relative-strength-ch
-       :macd->macd-signal macd->macd-signal
-       :macd->on-balance-volume-signal macd->on-balance-volume-signal
-       :stochastic-oscillator->stochastic-oscillator-signal stochastic-oscillator->stochastic-oscillator-signal
-       :on-balance-volume->on-balance-volume-ch on-balance-volume->on-balance-volume-ch
-       ;; :signal-moving-averages signal-moving-averages
-       ;; :signal-bollinger-band signal-bollinger-band
-       :signal-macd-ch signal-macd-ch
-       :signal-stochastic-oscillator-ch signal-stochastic-oscillator-ch
-       :signal-on-balance-volume-ch signal-on-balance-volume-ch
-
-       :merged-averages->tracer merged-averages->tracer
-       :signal-merged-averages->tracer signal-merged-averages->tracer
-       :signal-moving-averages-ch->tracer signal-moving-averages-ch->tracer})))
+    {:joined-channel (chan) #_analytic-connector-ch}))
 
 (defn teardown-publisher-channel [processing-pipeline]
   (doseq [vl (vals processing-pipeline)]
