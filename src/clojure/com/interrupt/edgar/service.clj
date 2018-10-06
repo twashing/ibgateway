@@ -30,14 +30,12 @@
             [ring.util.response :as ring-resp]))
 
 
-
 ;; HOME Page
 (defhandler home-page
   [request]
 
   (-> (ring-resp/response (slurp (io/resource "include/index.html")))
       (ring-resp/content-type "text/html")))
-
 
 
 ;; LIST Filtered Stocks
@@ -48,7 +46,6 @@
   (let [conn (edatomic/database-connect nil)
         result (live/load-filtered-results 20 conn)]
     (ring-resp/response result)))
-
 
 
 ;; HISTORICAL Data
@@ -168,7 +165,6 @@
                 []
                 tick-list))])))
 
-
 #_(defbefore get-historical-data
     "Get historical data for a particular stock"
     [{request :request :as context}]
@@ -176,7 +172,6 @@
     (iimpl/with-pause [paused-context context]
       (async-historical
        (assoc paused-context :resume-fn (partial resume-historical paused-context)))))
-
 
 
 ;; LIVE Data
@@ -203,7 +198,6 @@
     (catch java.io.IOException ioe
       (stop-streaming-stock-data))))
 
-
 #_(defn get-streaming-stock-data [request]
 
   (let [client (:interactive-brokers-client edgar/*interactive-brokers-workbench*)
@@ -212,7 +206,6 @@
 
     (edgar/play-live client stock-selection [(partial tlive/tee-fn stream-live stock-name)])
     { :status 204 }))
-
 
 (definterceptor session-interceptor
   (middlewares/session {:store (rcookie/cookie-store)} ))

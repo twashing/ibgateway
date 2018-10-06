@@ -120,7 +120,6 @@
 
     (and some-ups? no-downs?)))
 
-
 (defn obv-increasing? [signals-obv]
 
   (let [fst (first signals-obv)
@@ -145,7 +144,6 @@
 
     (and (< (:K nstochastic) (:D nstochastic))
          (> (:K fstochastic ) (:D fstochastic)))))
-
 
 (defn strategy-A
   "This strategy is a composition of the below signals. It works only for the first tick.
@@ -206,7 +204,6 @@
                                            :bollinger-was-narrower :macd-histogram-squeeze :obv-increasing :stochastic-oversold]}])
                       list))))))
 
-
 (defn list-subset [key-list input-list]
 
   (->> (filter (fn [inp]
@@ -217,7 +214,6 @@
                            (nil? (:last-trade-time inp))) input-list))
 
        (sort-by :last-trade-time)))
-
 
 (defn strategy-fill-A
   "Applies strategy-A filters, for the entire length of the tick-list"
@@ -254,7 +250,6 @@
                (partition 10 1 tick-list))
 
        (remove nil?)))
-
 
 (defn strategy-B
   "This strategy is a composition of the below signals. It works only for the first tick.
@@ -348,7 +343,6 @@
 
        (remove nil?)))
 
-
 (defn price-rising? [tick-list]
 
   (let [fst (first tick-list)
@@ -382,7 +376,6 @@
 
     (and (> (:obv fst) (:obv snd))
          (> (:obv snd) (:obv thd)))))
-
 
 (defn strategy-C
   "I want to be able to catch a run.

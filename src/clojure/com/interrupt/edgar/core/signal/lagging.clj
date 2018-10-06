@@ -207,7 +207,6 @@
         ((partial bind-result item)))
     (-> bollinger-band last ((partial bind-result item)))))
 
-
 (defn bollinger-band
   "Implementing signals for analysis/bollinger-band. Taken from these videos:
      i. http://www.youtube.com/watch?v=tkwUOUZQZ3s

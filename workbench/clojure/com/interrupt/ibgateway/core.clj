@@ -112,7 +112,7 @@
   (get-file s3 bucket-name file-name))
 
 
-(comment ;; A processing-pipelinen workbench
+(comment ;; A processing-pipeline workbench
 
 
   (def one (flatten (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")))
@@ -156,18 +156,16 @@
   (sw/kickoff-stream-workbench)
 
 
-  ;; 4. Capture output channels and sent to browser
+  ;; 4. Capture output channels and send to browser
   (let [{joined-channel :joined-channel} pp/processing-pipeline]
 
-    (go-loop [r (<! joined-channel)]
-
-      (info  r)
-
-      ;; TODO remove :population
-      (send-message-to-all! r)
+    (go-loop [c 0 r (<! joined-channel)]
       (if-not r
         r
-        (recur (<! joined-channel))))))
+        (let [sr (update-in r [:sma-list] dissoc :population)]
+          (info "count: " c " / sr: " r)
+          (send-message-to-all! sr)
+          (recur (inc c) (<! joined-channel)))))))
 
 
 (comment ;; from com.interrupt.ibgateway.component.processing-pipeline

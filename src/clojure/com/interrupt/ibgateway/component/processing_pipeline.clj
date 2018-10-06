@@ -497,7 +497,7 @@
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))
 
-    (go-loop [c 0 r (<! analytic-connector-ch)]
+    #_(go-loop [c 0 r (<! analytic-connector-ch)]
         (info "count: " c " / r: " r)
       (when r
         (recur (inc c) (<! analytic-connector-ch))))

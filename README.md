@@ -42,6 +42,11 @@ lein run -m com.interrupt.ibgateway.core/-main
 
 ## TODO
 
+- UI Performance
+https://www.highcharts.com/docs/advanced-chart-features/boost-module
+https://api.highcharts.com/highstock/boost
+
+
 - Test with 40 + 20 period windows
 - Signals (SMA, EMA, BB)
   ? When there's been a price change of more than $1, what crossovers happened, in the last 5 ticks
@@ -54,6 +59,9 @@ lein run -m com.interrupt.ibgateway.core/-main
 ? Will Bid / Ask give us more price signals 
 
 - Artifactory for i) custom jars and ii) as a docker registry
+
+- Research Candlesticks
+  https://www.youtube.com/watch?v=NEwixpz7Bow
 
 
 ## NOTES

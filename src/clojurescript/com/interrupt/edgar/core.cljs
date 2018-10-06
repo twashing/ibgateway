@@ -213,6 +213,15 @@
         ;; relative-strength [last-trade-time]
         ]
 
+    ;; TODO
+    ;; DataLabels
+    ;;   https://api.highcharts.com/highstock/series.ad.dataLabels
+    ;;   https://stackoverflow.com/questions/17053158/howto-combine-highstock-highcharts-addpoint-function-with-flags
+    ;; Annotations (incl Plot bands)
+    ;;   http://jsfiddle.net/gh/get/library/pure/highcharts/highcharts/tree/master/samples/highcharts/annotations/basic
+    ;;   https://www.highcharts.com/blog/products/cloud/docs/annotating-your-charts
+
+
     ;; (.log js/console (js/eval (clj->js message)))
     ;; (.log js/console "----")
     ;; (.log js/console (str "macd-price-series / " (js/eval (clj->js macd-price ))))
