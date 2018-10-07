@@ -1,7 +1,7 @@
-(ns com.interrupt.edgar.account.updates
+(ns com.interrupt.ibgateway.component.account.updates
   (:require [clojure.core.async :as async :refer [<! go-loop]]
             [clojure.string :as str]
-            [com.interrupt.edgar.account.portfolio :as portfolio]
+            [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.edgar.subscription :as sub]))
 
 (def accounts-info (atom nil))

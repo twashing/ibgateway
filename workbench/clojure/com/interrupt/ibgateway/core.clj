@@ -3,9 +3,9 @@
              :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
                      sliding-buffer mult tap pipeline] :as async]
             [clojure.tools.logging :refer [debug info warn error]]
-            [com.interrupt.edgar.account.portfolio :as portfolio]
-            [com.interrupt.edgar.account.summary :as acct-summary]
-            [com.interrupt.edgar.account.updates :as acct-updates]
+            [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
+            [com.interrupt.ibgateway.component.account.summary :as acct-summary]
+            [com.interrupt.ibgateway.component.account.updates :as acct-updates]
             [com.interrupt.edgar.contract :as contract]
             [com.interrupt.edgar.scanner :as scanner]
             [com.interrupt.ibgateway.cloud.storage]
@@ -40,6 +40,13 @@
 
 
 (comment
+
+  (def account "DU16007")
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+
   (def client (:client ew/ewrapper))
 
   (acct-summary/start client 1)
@@ -47,6 +54,10 @@
   (acct-summary/stop client 1)
 
   @acct-summary/account-summary
+
+  acct-summary/account-summary-ch
+
+  (.cancelOrder client @ei/valid-order-id)
 
   (.placeOrder client
                @ei/valid-order-id

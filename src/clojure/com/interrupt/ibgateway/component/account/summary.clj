@@ -1,4 +1,4 @@
-(ns com.interrupt.edgar.account.summary
+(ns com.interrupt.ibgateway.component.account.summary
   (:require [clojure.core.async :as async :refer [<! go-loop]]
             [clojure.string :as str]
             [com.interrupt.edgar.subscription :as sub]

@@ -55,19 +55,19 @@
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[org.clojure/tools.trace "0.7.9"]
+                                  [org.clojure/tools.nrepl "0.2.13"]
                                   [org.clojure/test.check "0.10.0-alpha2"]
                                   [com.gfredericks/test.chuck "0.2.9"]
                                   [im.chit/lucid.core.inject "1.3.13"]
                                   [http-kit.fake "0.2.2"]
                                   [cider/piggieback "0.3.6"]
-                                  [figwheel-sidecar "0.5.16"]
-                                  [com.bhauman/rebel-readline "0.1.2"]]
+                                  [figwheel-sidecar "0.5.16"]]
 
                    :source-paths ["src/clojure" "workbench/clojure" "test/clojure"]
                    :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
 
                    :resource-paths ["dev-resources" "test/resources"]
-                   :injections [(use 'lucid.core.inject)
+                   #_:injections #_[(use 'lucid.core.inject)
                                 (inject '[clojure.core
                                           [clojure.repl dir]
                                           [clojure.pprint pprint]
@@ -80,7 +80,7 @@
                              [lein-cljsbuild "1.1.7"]
                              [lein-environ "1.1.0"]
                              [lein-figwheel "0.5.16"]
-                             #_[lein-virgil "0.1.8"]]
+                             [com.billpiel/sayid "0.0.17"]]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}}
 

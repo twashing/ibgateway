@@ -1,6 +1,6 @@
-(ns com.interrupt.edgar.contract-test
+(ns com.interrupt.ibgateway.component.account.contract-test
   (:require [clojure.test :refer :all]
-            [com.interrupt.edgar.contract :as sut]
+            [com.interrupt.ibgateway.component.account.contract :as sut]
             [com.interrupt.edgar.obj-convert :as obj-convert])
   (:import [com.ib.client DeltaNeutralContract]))
 
