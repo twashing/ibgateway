@@ -4,14 +4,14 @@
             [clojure.tools.logging :refer [debug info warn error]]
             [clojure.core.async :as async]
             [clojure.tools.logging :as log]
-            [com.interrupt.ibgateway.component.account.summary :as acct-summary]
-            [com.interrupt.ibgateway.component.account.updates :as acct-updates]
+            ;; [com.interrupt.ibgateway.component.account.summary :as acct-summary]
+            ;; [com.interrupt.ibgateway.component.account.updates :as acct-updates]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
-            [com.interrupt.edgar.contract :as contract]
+            [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.edgar.obj-convert :as obj-convert]
             [com.interrupt.edgar.scanner :as scanner])
   (:import [com.ib.client Contract EReader]
-           com.interrupt.ibgateway.EWrapperImpl))
+           [com.interrupt.ibgateway EWrapperImpl]))
 
 (def valid-order-id (atom -1))
 
@@ -118,7 +118,7 @@
       (let [val {:req-id req-id
                  :account account
                  :tag tag
-                 :value (acct-summary/parse-tag-value tag value)
+                 :value value #_(acct-summary/parse-tag-value tag value)
                  :currency currency}]
         (info "accountSummary / val / " val)
         (async/put! account-summary-ch val)))
@@ -154,14 +154,16 @@
         (async/put! portfolio-updates-ch val)))
 
     (accountDownloadEnd [^String account]
-      (async/put! account-updates-ch ::acct-updates/download-end))))
+      ;; (async/put! account-updates-ch ::acct-updates/download-end)
+      )))
 
 (defn default-exception-handler
   [^Exception e]
   (println "Exception:" (.getMessage e)))
 
 (defn default-chs-map []
-  {:publisher (-> 1000 async/sliding-buffer async/chan)
+  {:publisher (-> 1000 async/sliding-buffer async/chan)}
+  #_{:publisher (-> 1000 async/sliding-buffer async/chan)
    :account-summary-ch acct-summary/account-summary-ch
    :account-updates-ch acct-updates/account-updates-ch
    :portfolio-updates-ch portfolio/portfolio-updates-ch})

@@ -45,9 +45,9 @@
                :scan-value {}
                :tag :price}]})
 
-#_(s/def ::reqid pos-int?)
-#_(s/def ::subscription-element (s/keys :req [::reqid]))
-#_(s/def ::subscriptions (s/coll-of ::subscription-element))
+(s/def ::reqid pos-int?)
+(s/def ::subscription-element (s/keys :req [::reqid]))
+(s/def ::subscriptions (s/coll-of ::subscription-element))
 
 (defn scannerid-availableid-pairs [scanner-subscriptions]
   (let [scannerids (sort (map ::reqid scanner-subscriptions))
@@ -86,7 +86,7 @@
                    (+ 1 (last scannerids))))))
 
 
-#_(s/fdef next-reqid
+(s/fdef next-reqid
         :args (s/cat :subscriptions ::subscriptions)
         :ret number?
         :fn (s/and

@@ -6,15 +6,16 @@
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.ibgateway.component.account.summary :as acct-summary]
             [com.interrupt.ibgateway.component.account.updates :as acct-updates]
-            [com.interrupt.edgar.contract :as contract]
             [com.interrupt.edgar.scanner :as scanner]
             [com.interrupt.ibgateway.cloud.storage]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
             [com.interrupt.ibgateway.component.figwheel.figwheel]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
+            [com.interrupt.ibgateway.component.execution-engine :as ee]
             [com.interrupt.ibgateway.component.switchboard :as sw]
             [com.interrupt.ibgateway.component.switchboard.store]
+            [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.vase]
             [com.interrupt.ibgateway.component.vase.service
              :refer [send-message-to-all!]]
@@ -41,26 +42,30 @@
 
 (comment
 
-  (def account "DU16007")
-
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-
-
   (def client (:client ew/ewrapper))
+  (def account "DU16007")
+  (def valid-order-id 1)
 
   (acct-summary/start client 1)
-
   (acct-summary/stop client 1)
 
-  @acct-summary/account-summary
 
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account.summary/summary
+              #'com.interrupt.ibgateway.component.account.updates/updates)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.account.summary/summary
+               #'com.interrupt.ibgateway.component.account.updates/updates)
+
+
+  @acct-summary/account-summary
   acct-summary/account-summary-ch
 
-  (.cancelOrder client @ei/valid-order-id)
+  (.cancelOrder client valid-order-id)
 
   (.placeOrder client
-               @ei/valid-order-id
+               valid-order-id
                (contract/create "AAPL")
                (doto (Order.)
                  (.action "BUY")
@@ -71,7 +76,7 @@
   (.reqIds client -1)
 
   (.placeOrder client
-               @ei/valid-order-id
+               valid-order-id
                (contract/create "AMZN")
                (doto (Order.)
                  (.action "BUY")
@@ -80,7 +85,7 @@
                  (.account account)))
 
   (.placeOrder client
-               @ei/valid-order-id
+               valid-order-id
                (contract/create "AAPL")
                (doto (Order.)
                  (.action "BUY")
@@ -123,7 +128,7 @@
   (get-file s3 bucket-name file-name))
 
 
-(comment ;; A processing-pipeline workbench
+(comment ;; processing-pipeline workbench
 
 
   (def one (flatten (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")))
@@ -177,6 +182,29 @@
           (info "count: " c " / sr: " r)
           (send-message-to-all! sr)
           (recur (inc c) (<! joined-channel)))))))
+
+
+(comment ;; execution-engine workbench
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.switchboard/control-channel
+              #'com.interrupt.ibgateway.component.switchboard.store/conn
+              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+              #'com.interrupt.ibgateway.component.execution-engine/execution-engine
+              #'com.interrupt.ibgateway.component.vase/server
+              #'com.interrupt.ibgateway.core/state)
+
+  (sw/stop-stream-workbench)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.switchboard/control-channel
+               #'com.interrupt.ibgateway.component.switchboard.store/conn
+               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+               #'com.interrupt.ibgateway.component.execution-engine/execution-engine
+               #'com.interrupt.ibgateway.component.vase/server
+               #'com.interrupt.ibgateway.core/state)
+
+  (sw/kickoff-stream-workbench))
 
 
 (comment ;; from com.interrupt.ibgateway.component.processing-pipeline

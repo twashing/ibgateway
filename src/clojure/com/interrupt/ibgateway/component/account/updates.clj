@@ -1,9 +1,12 @@
 (ns com.interrupt.ibgateway.component.account.updates
   (:require [clojure.core.async :as async :refer [<! go-loop]]
             [clojure.string :as str]
+            [mount.core :refer [defstate] :as mount]
+            [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.edgar.subscription :as sub]))
 
+(def default-account-code "DU16007")
 (def accounts-info (atom nil))
 
 (defn remove-not-ready
@@ -62,3 +65,8 @@
 (defn stop
   [client acct-code]
   (.reqAccountUpdates client false acct-code))
+
+
+(defstate updates
+  :start (start (:client ew/ewrapper) default-account-code)
+  :stop (stop (:client ew/ewrapper) default-account-code))

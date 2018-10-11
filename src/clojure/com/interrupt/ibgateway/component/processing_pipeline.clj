@@ -502,7 +502,7 @@
       (when r
         (recur (inc c) (<! analytic-connector-ch))))
 
-    {:joined-channel (chan) #_analytic-connector-ch}))
+    {:joined-channel analytic-connector-ch}))
 
 (defn teardown-publisher-channel [processing-pipeline]
   (doseq [vl (vals processing-pipeline)]

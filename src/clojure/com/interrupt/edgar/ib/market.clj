@@ -5,7 +5,7 @@
             [clj-time.local :as time]
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [clojure.core.strint :refer :all]
-            [com.interrupt.edgar.contract :as contract]
+            [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper-impl]))
 
 
