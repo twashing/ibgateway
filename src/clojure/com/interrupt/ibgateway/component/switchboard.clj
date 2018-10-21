@@ -9,9 +9,9 @@
             [com.interrupt.edgar.subscription :as sub]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
-            [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
+            [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
             [com.interrupt.ibgateway.component.switchboard.store :as store]
             [mount.core :refer [defstate] :as mount]
@@ -1257,6 +1257,8 @@
   (market/cancel-market-data client 0))
 
 
+;; ==========
+;; RECORD LIVE DATA (n symbols)
 (def stock-scans
   [{:index 0 :symbol "SPY" :sec-type "STK"}
    {:index 1 :symbol "ARI PRC" :sec-type "STK"}
@@ -1271,20 +1273,36 @@
 
 (def live-subscriptions (atom []))
 
+(defn record-live-to-file [{wrapper :wrapper} publisher ticker-id fname]
 
-(defn record-live-data [client stock-scans]
+  (go-loop [{tid :ticker-id topic :topic :as tick-record} (<! publisher)]
+
+    (when [(= ticker-id tid)]
+      (spit fname tick-record :append true))
+    (recur (<! publisher))))
+
+(defn record-live-data [{client :client
+                         wrapper :wrapper
+                         :as ewrapper} stock-scans publisher]
 
   (doseq [{ticker-id :index symbol :symbol} stock-scans
-          ch (chan (sliding-buffer 100))
-          contract (contract/create symbol)
-          generic-tick-list "225, 233, 236, 256, 258"
-          snapshot? false
-          options nil
-          :let [live-subscription (sub/->LiveSubscription client ch ticker-id contract
+          :let [ch nil
+                contract (contract/create symbol)
+                generic-tick-list "225, 233, 236"
+                snapshot? false
+                options nil
+                fname (str "live-recordings/" symbol ".edn")
+                live-subscription (sub/->LiveSubscription client ch ticker-id contract
                                                           generic-tick-list snapshot? options)]]
 
     (sub/subscribe live-subscription)
-    (swap! live-subscriptions conj live-subscription)))
+    (swap! live-subscriptions conj live-subscription)
+    (record-live-to-file ewrapper publisher ticker-id fname)))
+
+(defn record-live-data-stop [client live-subscriptions]
+  (doseq [{ticker-id :ticker-id :as live-subscription} @live-subscriptions]
+    (sub/unsubscribe live-subscription)
+    (swap! live-subscriptions remove #(= ticker-id (:ticker-id %)))))
 
 
 (comment  ;; A scanner workbench
@@ -1297,9 +1315,12 @@
   (do
 
     (def client (:client ew/ewrapper))
-    (record-live-data client stock-scans)
+    (let [publisher (:publisher ew/default-chs-map)
+          publisher-dupl (chan (sliding-buffer 100))]
 
-    ))
+      (bind-channels->mult publisher publisher-dupl)
+      (record-live-data ew/ewrapper stock-scans publisher-dupl))
+    #_(record-live-data-stop client live-subscriptions)))
 
 
 ;; ==========

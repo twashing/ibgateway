@@ -8,6 +8,7 @@
             [clojure.string :as cs]
             [cljs-uuid.core :as uuid]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
+            [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
             [com.interrupt.edgar.ib.market :as mkt]
             [com.interrupt.edgar.core.analysis.lagging :as alag]
             [com.interrupt.edgar.core.analysis.leading :as alead]
@@ -63,11 +64,6 @@
 
        ;; NOTE For now, ignore empty lots
        (remove empty-last-trade-price?)))
-
-(defn bind-channels->mult [source-list-ch & channels]
-  (let [source-list->sink-mult (mult source-list-ch)]
-    (doseq [c channels]
-      (tap source-list->sink-mult c))))
 
 (defn pipeline-stochastic-oscillator [n stochastic-oscillator-ch tick-list->stochastic-osc-ch]
   (let [stochastic-tick-window 14
