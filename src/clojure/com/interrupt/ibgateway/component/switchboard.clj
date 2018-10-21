@@ -7,6 +7,7 @@
             [clojure.tools.trace :refer [trace]]
             [com.interrupt.edgar.ib.market :as market]
             [com.interrupt.edgar.subscription :as sub]
+            [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
@@ -14,7 +15,8 @@
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
             [com.interrupt.ibgateway.component.switchboard.store :as store]
             [mount.core :refer [defstate] :as mount]
-            [mount.core :refer [defstate] :as mount]))
+            [mount.core :refer [defstate] :as mount])
+  (:import [com.ib.client Contract]))
 
 
 #_(def topic-scanner-command "scanner-command")
@@ -1255,6 +1257,53 @@
   (market/cancel-market-data client 0))
 
 
+(def stock-scans
+  [{:index 0 :symbol "SPY" :sec-type "STK"}
+   {:index 1 :symbol "ARI PRC" :sec-type "STK"}
+   {:index 2 :symbol "AAPL" :sec-type "STK"}
+   {:index 3 :symbol "NCTY" :sec-type "STK"}
+   {:index 4 :symbol "QQQ" :sec-type "STK"}
+   {:index 5 :symbol "AMD" :sec-type "STK"}
+   {:index 6 :symbol "MER PRK" :sec-type "STK"}
+   {:index 7 :symbol "IWM" :sec-type "STK"}
+   {:index 8 :symbol "SREV" :sec-type "STK"}
+   {:index 9 :symbol "OZK" :sec-type "STK"}])
+
+(def live-subscriptions (atom []))
+
+
+(defn record-live-data [client stock-scans]
+
+  (doseq [{ticker-id :index symbol :symbol} stock-scans
+          ch (chan (sliding-buffer 100))
+          contract (contract/create symbol)
+          generic-tick-list "225, 233, 236, 256, 258"
+          snapshot? false
+          options nil
+          :let [live-subscription (sub/->LiveSubscription client ch ticker-id contract
+                                                          generic-tick-list snapshot? options)]]
+
+    (sub/subscribe live-subscription)
+    (swap! live-subscriptions conj live-subscription)))
+
+
+(comment  ;; A scanner workbench
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+              #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+               #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (do
+
+    (def client (:client ew/ewrapper))
+    (record-live-data client stock-scans)
+
+    ))
+
+
+;; ==========
+;; STEAM WORKBENCH
 (defstate control-channel
   :start (chan)
   :stop (close! control-channel))
@@ -1272,7 +1321,6 @@
           (sub/unsubscribe sub)
           (let [{:keys [topic]} v]
 
-            ;; (info "kickoff-stream-workbench / value / " v)
             (Thread/sleep 10)
             (let [f (case topic
                       :tick-string #(.tickString wrapper %1 %2 %3)

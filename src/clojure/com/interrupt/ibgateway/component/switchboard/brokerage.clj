@@ -6,7 +6,7 @@
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]))
 
-;; TODO - replace with DB
+
 (def config
   {:stocks {:default-instrument "STK"
             :default-location "STK.US.MAJOR"}

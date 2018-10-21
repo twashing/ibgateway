@@ -70,7 +70,16 @@
                (doto (Order.)
                  (.action "BUY")
                  (.orderType "MKT")
-                 (.totalQuantity 3)
+                 (.totalQuantity 10)
+                 (.account account)))
+
+  (.placeOrder client
+               valid-order-id
+               (contract/create "AAPL")
+               (doto (Order.)
+                 (.action "SELL")
+                 (.orderType "MKT")
+                 (.totalQuantity 10)
                  (.account account)))
 
   (.reqIds client -1)
@@ -444,8 +453,10 @@
 
 (comment  ;; A scanner workbench
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+              #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+               #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
   (do
     (def client (:client ew/ewrapper))
@@ -1025,7 +1036,6 @@
         (when-not (nil? r)
           (log/info "record" r)
           (recur (<! output-ch))))))
-
 
 (comment  ;; Track strategies / Manage orders
 
