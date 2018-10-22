@@ -42,15 +42,20 @@
 
   (.cancelOrder client valid-order-id)
 
+  ;; ** capture .placeOrder callback from ewrapper_impl
+
+  ;; ** Protocolize
+  ;;   stock level (which stock, how much)
+  ;;   cash level (how much)
+
   ;; buy triggers (in execution engine)
   ;;   - conditionally if we haven't already bought
+
 
   ;; buy types
   ;; sell types
   ;;   sell callback (for limit orders)
 
-  ;; stock level
-  ;; cash level
 
 
   ;; MKT
