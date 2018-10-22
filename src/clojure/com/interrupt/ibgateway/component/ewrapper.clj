@@ -42,8 +42,6 @@
 
   (.cancelOrder client valid-order-id)
 
-  ;; ** record more stocks
-
   ;; buy triggers (in execution engine)
   ;;   - conditionally if we haven't already bought
 
