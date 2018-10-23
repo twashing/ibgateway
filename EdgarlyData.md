@@ -32,6 +32,12 @@ sudo launchctl load /Users/timothyw/Library/LaunchAgents/edgarlyData.plist && \
 sudo launchctl start local.edgarlydata && \
 launchctl list | grep local.edgarlydata
 
+# Restart
+sudo launchctl stop local.edgarlydata && \
+sudo launchctl unload /Users/timothyw/Library/LaunchAgents/edgarlyData.plist && \
+sudo launchctl load /Users/timothyw/Library/LaunchAgents/edgarlyData.plist && \
+launchctl list | grep local.edgarlydata
+
 
 ## Troubleshooting
 > launchctl "Path had bad ownership/permissions"
