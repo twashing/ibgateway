@@ -42,9 +42,9 @@
 
 (comment
 
-  (def client (:client ew/ewrapper))
-  (def account "DU16007")
-  (def valid-order-id 1)
+  (do (def client (:client ew/ewrapper))
+      (def account "DU16007")
+      (def valid-order-id 1))
 
   (acct-summary/start client 1)
   (acct-summary/stop client 1)

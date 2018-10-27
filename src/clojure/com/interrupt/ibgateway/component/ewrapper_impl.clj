@@ -220,6 +220,7 @@
                  :contract contract
                  :pos pos
                  :avg-cost avgCost}]
+
         (info "position / "
               " Account / " account
               " Symbol / " (.symbol contract)
@@ -234,13 +235,22 @@
         (info "PositionEnd \n")
         (async/put! account-updates val)))
 
+
     ;; ========
     ;; ORDER UPDATES
     (openOrder [^Integer orderId
                 ^Contract contract
                 ^Order order
                 ^OrderState orderState]
-      (info "openOrder / " (.openOrder EWrapperMsgGenerator orderId contract order orderState)))
+
+      (info "openOrder / orderId " orderId
+            " Contract::symbol / " (.symbol contract)
+            " Contract::secType / " (.secType contract)
+            " Contract::exchange / " (.exchange contract)
+            " Order::action / " (.action order)
+            " Order::orderType / " (.orderType order)
+            " Order::totalQuantity / " (.totalQuantity order)
+            " OrderState::status / " (.status orderState)))
 
     (orderStatus [^Integer orderId
                   ^String status
@@ -251,8 +261,7 @@
                   ^Integer parentId
                   ^Double lastFillPrice
                   ^Integer clientId
-                  ^String whyHeld
-                  ^Double mktCapPrice]
+                  ^String whyHeld]
 
       (info "orderStatus /"
             " Id / " orderId
@@ -264,8 +273,7 @@
             " ParentId / " parentId
             " LastFillPrice / " lastFillPrice
             " ClientId / " clientId
-            " WhyHeld / " whyHeld
-            " MktCapPrice / " mktCapPrice))
+            " WhyHeld / " whyHeld))
 
     (openOrderEnd [] (info "OpenOrderEnd"))
 
@@ -277,14 +285,13 @@
                   ^Execution execution]
 
       (info "execDetails / "
-            " ReqId / " reqId
-            " Symbol / [" (.symbol contract)
-            " Security Type / " (.secType contract)
-            " Currency / " (.currency contract)
-            " Execution Id / " (.execId execution)
-            " Execution Order Id / " (.orderId execution)
-            " Execution Shares / " (.shares execution)
-            " Execution Last Liquidity / " (.lastLiquidity execution)))
+            " reqId / " reqId
+            " symbol / " (.symbol contract)
+            " secType / " (.secType contract)
+            " currency / " (.currency contract)
+            " execId / " (.execId execution)
+            " orderId / " (.orderId execution)
+            " shares / " (.shares execution)))
 
     (commissionReport [^CommissionReport commissionReport]
 

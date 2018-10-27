@@ -123,7 +123,7 @@
   ;;  Add :buy :sell annotations to stream
 
 
-  (let [{joined-channel :joined-channel} pp/processing-pipeline
+  #_(let [{joined-channel :joined-channel} pp/processing-pipeline
         joined-channel-tapped (chan (sliding-buffer 100))]
 
     (pp/bind-channels->mult joined-channel joined-channel-tapped)

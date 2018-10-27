@@ -43,6 +43,12 @@ launchctl list | grep local.edgarlydata
 > launchctl "Path had bad ownership/permissions"
 https://stackoverflow.com/questions/28063598/error-while-executing-plist-file-path-had-bad-ownership-permissions
 
+> Docker clear containers, volumes, networks
+docker rm -f $(docker ps -a -q) && \
+docker volume rm $(docker volume ls -q) && \
+docker network rm $(docker network ls | tail -n+2 | awk '{if($2 !~ /bridge|none|host/){ print $1 }}') && \
+docker-compose down
+
 
 ## Notes
 NYSE Market Opening: Monday through Friday, 9:30 a.m. to 4:00 p.m. EST
