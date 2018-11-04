@@ -26,6 +26,214 @@
           (reset! client-id -1)))
 
 
+
+(comment
+
+
+  ;; (openOrder [^Integer orderId
+  ;;             ^Contract contract
+  ;;             ^Order order
+  ;;             ^OrderState orderState]
+  ;;
+  ;;            (info "openOrder / orderId " orderId
+  ;;                  " Contract::symbol / " (.symbol contract)
+  ;;                  " Contract::secType / " (.secType contract)
+  ;;                  " Contract::exchange / " (.exchange contract)
+  ;;                  " Order::action / " (.action order)
+  ;;                  " Order::orderType / " (.orderType order)
+  ;;                  " Order::totalQuantity / " (.totalQuantity order)
+  ;;                  " OrderState::status / " (.status orderState)))
+  ;;
+  ;; (orderStatus [^Integer orderId
+  ;;                 ^String status
+  ;;                 ^Double filled
+  ;;                 ^Double remaining
+  ;;                 ^Double avgFillPrice
+  ;;                 ^Integer permId
+  ;;                 ^Integer parentId
+  ;;                 ^Double lastFillPrice
+  ;;                 ^Integer clientId
+  ;;                 ^String whyHeld]
+  ;;
+  ;;     (info "orderStatus /"
+  ;;           " Id / " orderId
+  ;;           " Status / " status
+  ;;           " Filled" filled
+  ;;           " Remaining / " remaining
+  ;;           " AvgFillPrice / " avgFillPrice
+  ;;           " PermId / " permId
+  ;;           " ParentId / " parentId
+  ;;           " LastFillPrice / " lastFillPrice
+  ;;           " ClientId / " clientId
+  ;;           " WhyHeld / " whyHeld))
+  ;;
+  ;; (execDetails [^Integer reqId
+  ;;               ^Contract contract
+  ;;               ^Execution execution]
+  ;;
+  ;;              (info "execDetails / "
+  ;;                    " reqId / " reqId
+  ;;                    " symbol / " (.symbol contract)
+  ;;                    " secType / " (.secType contract)
+  ;;                    " currency / " (.currency contract)
+  ;;                    " execId / " (.execId execution)
+  ;;                    " orderId / " (.orderId execution)
+  ;;                    " shares / " (.shares execution)))
+  ;;
+  ;; (commissionReport [^CommissionReport commissionReport]
+  ;;
+  ;;                   (info "commissionReport / "
+  ;;                         " execId / " (.-m_execId commissionReport)
+  ;;                         " commission / " (.-m_commission commissionReport)
+  ;;                         " currency / " (.-m_currency commissionReport)
+  ;;                         " realizedPNL / " (.-m_realizedPNL commissionReport)))
+
+
+  ;; MKT order data tracking
+  ;; OrderId
+  ;; Shares
+  ;; OrderType (MKT)
+  ;; Symbol
+  ;; SecurityType
+  ;; Action (BUY|SELL)
+  ;; Quantity (<BUY>)
+  ;; Status (PreSubmitted -> Filled)
+  ;; LastFillPrice (<SELL>)
+  ;; AvgFillPrice (<SELL>)
+  ;; Filled (<SELL>)
+  ;; Remaining (<SELL>)
+  ;; Currency
+  ;; Commission (<All Filled>)
+  ;; realizedPNL (<All Filled>)
+
+  :order-id
+  :shares
+  :order-type
+  :symbol
+  :security-type
+  :action
+  :quantity
+  :status
+  :last-fill-price
+  :avg-fill-price
+  :filled
+  :remaining
+  :currency
+  :commission
+  :realized-pnl
+
+
+  ;; LMT order data tracking
+  ;; OrderId
+  ;; Symbol
+  ;; SecurityType
+  ;; Currency
+  ;; AverageCost
+  ;; OrderType (LMT)
+  ;; Action (BUY|SELL)
+  ;; TotalQuantity
+  ;; Status (PreSubmitted -> Filled)
+  ;; LastFillPrice (<SELL>)
+  ;; AvgFillPrice (<SELL>)
+  ;; Filled (<SELL>)
+  ;; Remaining
+  ;; Currency
+  ;; Commission (<All Filled>)
+  ;; realizedPNL (<All Filled>)
+
+  :order-id
+  :symbol
+  :security-type
+  :currency
+  :average-cost
+  :order-type
+  :action
+  :total-quantity
+  :status
+  :last-fill-price
+  :avg-fill-price
+  :filled
+  :remaining
+  :commission
+  :realized-pnl
+
+
+  ;; STP order data tracking
+  :order-id
+  :symbol
+  :security-type
+  :currency
+  :average-cost
+  :order-type
+  :action
+  :total-quantity
+  :status ;; (PreSubmitted -> Submitted -> Filled)
+  :last-fill-price
+  :avg-fill-price
+  :filled
+  :remaining
+  :position
+  :commission
+  :realized-pnl
+
+
+
+
+  ;; STP LMT order data tracking
+  :order-id
+  :shares
+  :order-type
+  :symbol
+  :security-type
+  :action
+  :quantity
+  :status
+  :last-fill-price
+  :avg-fill-price
+  :filled
+  :remaining
+  :currency
+  :commission
+  :realized-pnl
+
+
+  ;; TRAIL order data tracking
+  :order-id
+  :symbol
+  :security-type
+  :currency
+  :average-cost
+  :order-type
+  :action
+  :total-quantity
+  :status
+  :last-fill-price
+  :avg-fill-price
+  :filled
+  :remaining
+  :commission
+  :realized-pnl
+
+
+  ;; TRAIL LIMIT order data tracking
+  :order-id
+  :symbol
+  :security-type
+  :currency
+  :average-cost
+  :order-type
+  :action
+  :total-quantity
+  :status
+  :last-fill-price
+  :avg-fill-price
+  :filled
+  :remaining
+  :commission
+  :realized-pnl
+
+  )
+
 (comment
 
   ;; ** capture .placeOrder callback from ewrapper_impl
