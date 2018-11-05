@@ -43,6 +43,8 @@ services:
       - tws
     working_dir: /usr/app
     shm_size: 1G
+    environment:
+      - DISPLAY=:0.0
     ports:
       - 5554:5554
       - 8080:8080
