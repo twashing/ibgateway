@@ -14,6 +14,7 @@
             [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
             [com.interrupt.ibgateway.component.switchboard.brokerage :as brok]
             [com.interrupt.ibgateway.component.switchboard.store :as store]
+            [com.interrupt.ibgateway.component.switchboard.mock :refer :all]
             [mount.core :refer [defstate] :as mount]
             [mount.core :refer [defstate] :as mount])
   (:import [com.ib.client Contract]))
@@ -1323,6 +1324,7 @@
     #_(record-live-data-stop client live-subscriptions)))
 
 
+
 ;; ==========
 ;; STEAM WORKBENCH
 (defstate control-channel
@@ -1351,3 +1353,146 @@
                    vals
                    (apply f)))
             (recur)))))))
+
+
+
+(comment ;; Mock callbacks for orders
+
+  ;; (->openOrder [symbol account orderId wrapper action quantity status])
+  ;; (->orderStatus [orderId status filled remaining avgFillPrice lastFillPrice])
+  ;; (->execDetails [symbol shares price avgPrice reqId])
+  ;; (->commissionReport [commission currency realizedPNL])
+  ;; (->position [symbol account pos avgCost])
+
+
+  ;; TRAIL LIMIT - buy (https://www.interactivebrokers.com/en/index.php?f=606)
+  ;; (let [action "BUY"
+  ;;       quantity 10
+  ;;       lmtPriceOffset 0.1
+  ;;       trailingAmount 0.2
+  ;;       trailStopPrice 218.49])
+
+
+  ;; callbacks
+  ;; wrapper
+
+
+  ;; 1
+  (let [symbol "AAPL"
+        account "DU542121"
+        orderId 5
+        action "BUY"
+        orderType "TRAIL LIMIT"
+        quantity 10.0
+        status "PreSubmitted"]
+    (->openOrder wrapper symbol account orderId action orderType quantity status))
+
+  (let [orderId 5
+        status "PreSubmitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+
+
+  ;; 2
+  (let [symbol "AAPL"
+        account "DU542121"
+        orderId 5
+        action "BUY"
+        quantity 10.0
+        status "PreSubmitted"]
+    (->openOrder wrapper symbol account orderId action quantity status))
+
+  (let [orderId 5
+        status "PreSubmitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus orderId status filled remaining avgFillPrice lastFillPrice))
+
+
+
+  ;; 3
+  (let [symbol "AAPL"
+        account "DU542121"
+        orderId 5
+        action "BUY"
+        quantity 10.0
+        status "Submitted"]
+    (->openOrder wrapper symbol account orderId action quantity status))
+
+  (let [orderId 5
+        status "Submitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [symbol "AAPL"
+        orderId 5
+        shares 10.0
+        price 0.0
+        avgPrice 0.0
+        reqId 1]
+    (->execDetails symbol orderId shares price avgPrice reqId))
+
+
+
+  ;; 4
+  (let [symbol "AAPL"
+        account "DU542121"
+        orderId 5
+        action "BUY"
+        quantity 10.0
+        status "Filled"]
+    (->openOrder wrapper symbol account orderId action quantity status))
+
+  (let [orderId 5
+        status "Filled"
+        filled 10.0
+        remaining 0.0
+        avgFillPrice 218.49
+        lastFillPrice 218.49]
+    (->orderStatus orderId status filled remaining avgFillPrice lastFillPrice))
+
+
+
+  ;; 5
+  (let [symbol "AAPL"
+        account "DU542121"
+        orderId 5
+        action "BUY"
+        quantity 10.0
+        status "Filled"]
+    (->openOrder wrapper symbol account orderId action quantity status))
+
+  (let [orderId 5
+        status "Filled"
+        filled 10.0
+        remaining 0.0
+        avgFillPrice 218.49
+        lastFillPrice 218.49]
+    (->orderStatus orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [commission 0.352257
+        currency "USD"
+        realizedPNL 1.7976931348623157E308]
+    (->commissionReport commission currency realizedPNL))
+
+
+
+
+  ;; TRAIL
+
+  ;; STP LMT
+  ;; STP
+
+  ;; LMT
+  ;; MKT
+
+  )
