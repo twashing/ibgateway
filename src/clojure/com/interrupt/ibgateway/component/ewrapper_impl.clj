@@ -58,10 +58,10 @@
 ;; client.reqPositions();
 ;; client.cancelPositions();
 
-
 (defn ewrapper-impl
   [{ch :publisher
-    account-updates :account-updates}]
+    account-updates :account-updates
+    order-updates :order-updates}]
 
   (proxy [EWrapperImpl] []
     (nextValidId [^Integer order-id]
@@ -243,14 +243,27 @@
                 ^Order order
                 ^OrderState orderState]
 
-      (info "openOrder / orderId " orderId
-            " Contract::symbol / " (.symbol contract)
-            " Contract::secType / " (.secType contract)
-            " Contract::exchange / " (.exchange contract)
-            " Order::action / " (.action order)
-            " Order::orderType / " (.orderType order)
-            " Order::totalQuantity / " (.totalQuantity order)
-            " OrderState::status / " (.status orderState)))
+      (let [{:keys [orderId symbol secType exchange action
+                    orderType totalQuantity status] :as val}
+            {:topic :open-order
+             :orderId orderId
+             :symbol (.symbol contract)
+             :secType (.secType contract)
+             :exchange (.exchange contract)
+             :action (.action order)
+             :orderType (.orderType order)
+             :totalQuantity (.totalQuantity order)
+             :status (.status orderState)}]
+
+        (info "openOrder / orderId " orderId
+              " Contract::symbol / " symbol
+              " Contract::secType / " secType
+              " Contract::exchange / " exchange
+              " Order::action / " action
+              " Order::orderType / " orderType
+              " Order::totalQuantity / " totalQuantity
+              " OrderState::status / " status)
+        (async/put! order-updates val)))
 
     (orderStatus [^Integer orderId
                   ^String status
@@ -263,17 +276,32 @@
                   ^Integer clientId
                   ^String whyHeld]
 
-      (info "orderStatus /"
-            " Id / " orderId
-            " Status / " status
-            " Filled" filled
-            " Remaining / " remaining
-            " AvgFillPrice / " avgFillPrice
-            " PermId / " permId
-            " ParentId / " parentId
-            " LastFillPrice / " lastFillPrice
-            " ClientId / " clientId
-            " WhyHeld / " whyHeld))
+      (let [{:keys [orderId status filled remaining avgFillPrice permId
+                    parentId lastFillPrice clientId whorderIdyHeld] :as val}
+            {:topic :order-status
+             :orderId orderId
+             :status status
+             :filled filled
+             :remaining remaining
+             :avgFillPrice avgFillPrice
+             :permId permId
+             :parentId parentId
+             :lastFillPrice lastFillPrice
+             :clientId clientId
+             :whorderIdyHeld whyHeld}]
+
+        (info "orderStatus /"
+              " Id / " orderId
+              " Status / " status
+              " Filled" filled
+              " Remaining / " remaining
+              " AvgFillPrice / " avgFillPrice
+              " PermId / " permId
+              " ParentId / " parentId
+              " LastFillPrice / " lastFillPrice
+              " ClientId / " clientId
+              " WhyHeld / " whyHeld)
+        (async/put! order-updates val)))
 
     (openOrderEnd [] (info "OpenOrderEnd"))
 
@@ -284,26 +312,44 @@
                   ^Contract contract
                   ^Execution execution]
 
-      (info "execDetails / "
-            " reqId / " reqId
-            " symbol / " (.symbol contract)
-            " secType / " (.secType contract)
-            " currency / " (.currency contract)
-            " execId / " (.execId execution)
-            " orderId / " (.orderId execution)
-            " shares / " (.shares execution)))
+      (let [{:keys [reqId symbol secType currency
+                    execId orderId shares ] :as val}
+            {:topic :exec-details
+             :reqId reqId
+             :symbol (.symbol contract)
+             :secType (.secType contract)
+             :currency (.currency contract)
+             :execId (.execId execution)
+             :orderId (.orderId execution)
+             :shares (.shares execution)}]
+        (info "execDetails / "
+              " reqId /" reqId
+              " symbol /" symbol
+              " secType /" secType
+              " currency /" currency
+              " execId /" execId
+              " orderId /" orderId
+              " shares /" shares)
+        (async/put! order-updates val)))
 
     (commissionReport [^CommissionReport commissionReport]
 
-      (info "commissionReport / "
-            " execId / " (.-m_execId commissionReport)
-            " commission / " (.-m_commission commissionReport)
-            " currency / " (.-m_currency commissionReport)
-            " realizedPNL / " (.-m_realizedPNL commissionReport)))
+      (let [{:keys [execId commission
+                    currency realizedPNL] :as val}
+            {:topic :commission-report
+             :execId (.-m_execId commissionReport)
+             :commission (.-m_commission commissionReport)
+             :currency (.-m_currency commissionReport)
+             :realizedPNL (.-m_realizedPNL commissionReport)}]
+        (info "commissionReport /"
+              " execId /" execId
+              " commission /" commission
+              " currency /" currency
+              " realizedPNL /" realizedPNL)
+        (async/put! order-updates val)))
 
     (execDetailsEnd [^Integer reqId]
       (info "execDetailsEnd / reqId / " reqId))))
-
 
 (defn default-exception-handler
   [^Exception e]

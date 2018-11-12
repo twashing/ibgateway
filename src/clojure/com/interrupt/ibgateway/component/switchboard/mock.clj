@@ -47,7 +47,7 @@
 
     (.orderStatus wrapper orderId status filled remaining avgFillPrice permId parentId lastFillPrice clientId whyHeld)))
 
-(defn ->execDetails [symbol orderId shares price avgPrice reqId]
+(defn ->execDetails [wrapper symbol orderId shares price avgPrice reqId]
 
   (let [;; symbol "AAPL"
 
@@ -77,12 +77,12 @@
         contract (contract/create symbol)
         execution (Execution. p_orderId p_client p_execId p_time
                               p_acctNumber p_exchange p_side p_shares
-                              p_price p_permId p_liquidation p_cumQty
-                              p_avgPrice p_orderRef p_evRule p_evMultiplier extra_undocumented_arguemnt)]
+                              price p_permId p_liquidation p_cumQty
+                              avgPrice p_orderRef p_evRule p_evMultiplier extra_undocumented_arguemnt)]
 
     (.execDetails wrapper reqId contract execution)))
 
-(defn ->commissionReport [commission currency realizedPNL]
+(defn ->commissionReport [wrapper commission currency realizedPNL]
 
   (let [commissionReport (CommissionReport.)]
 
@@ -96,7 +96,7 @@
 
     (.commissionReport wrapper commissionReport)))
 
-(defn ->position [symbol account pos avgCost]
+(defn ->position [wrapper symbol account pos avgCost]
 
   (let [;; symbol "AAPL"
         ;; account "DU542121"

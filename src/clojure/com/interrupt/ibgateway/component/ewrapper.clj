@@ -1,7 +1,8 @@
 (ns com.interrupt.ibgateway.component.ewrapper
-  (:require [environ.core :refer [env]]
+  (:require [clojure.tools.logging :refer [info] :as log]
+            [clojure.core.async :as async :refer [<! close!]]
+            [environ.core :refer [env]]
             [mount.core :as mount :refer [defstate]]
-            [clojure.core.async :as async :refer [close!]]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ewi]
             [com.interrupt.ibgateway.component.account.common :refer [next-reqid! release-reqid!]])
@@ -14,7 +15,8 @@
 
 (defstate default-chs-map
   :start {:publisher (-> 1000 async/sliding-buffer async/chan)
-          :account-updates (-> 1000 async/sliding-buffer async/chan)}
+          :account-updates (-> 1000 async/sliding-buffer async/chan)
+          :order-updates (-> 1000 async/sliding-buffer async/chan)}
   :stop (->> default-chs-map vals (map close!)))
 
 (defstate ewrapper
@@ -58,32 +60,20 @@
 (comment
 
 
+  (require '[automat.core :as a]
+           '[automat.compiler.core :as cc]
+           '[automat.viz :refer (view)])
 
-  ;; (require '[automat.core :as a]
-  ;;          '[automat.compiler.core :as cc]
-  ;;          '[automat.viz :refer (view)])
-  ;; (def fsm (a/compile [:pre-submitted :submitted :filled]))
-  ;;
-  ;; (a/advance fsm nil :pre-submitted)
-  ;;
-  ;; (view fsm)
+  (def fsm (a/compile [:pre-submitted :submitted :filled]))
+  (def result (a/advance fsm nil :pre-submitted))
 
 
 
+  (require '[automata.core :as u])
 
-  ;; (require '[fsm-clj.core :refer :all])
-  ;;
-  ;; (defsm traffic-light
-  ;;   [[:green -> :yellow when :to-yellow]
-  ;;    [:yellow -> :red when :to-red]
-  ;;    [:red -> :green when :to-green]])
-  ;; (-> (traffic-light)
-  ;;     (send-event :to-yellow)
-  ;;     :state)
-  ;;
-  ;; (-> (traffic-light)
-  ;;     (send-event :to-yellow)
-  ;;     clojure.pprint/pprint)
+  (def a (u/automaton [:pre-submitted :submitted :filled]))
+  (-> a (u/advance :pre-submitted))
+  (-> a (u/advance :pre-submitted) (u/advance :b :submitted))
 
 
 
@@ -329,9 +319,7 @@
   :filled
   :remaining
   :commission
-  :realized-pnl
-
-  )
+  :realized-pnl)
 
 (comment
 

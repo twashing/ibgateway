@@ -1365,7 +1365,21 @@
   ;; (->position [symbol account pos avgCost])
 
 
+  ;; ** Protocolize
+  ;;   stock level (which stock, how much)
+  ;;   cash level (how much)
+
+
   ;; TRAIL LIMIT - buy (https://www.interactivebrokers.com/en/index.php?f=606)
+
+  ;; As the market price rises,
+  ;; both the i. stop price and the ii. limit price rise by the
+  ;;          i.i trail amount and  ii.i limit offset respectively,
+
+  ;; stop price > trail amount
+  ;; limit price > limit offset
+
+
   ;; (let [action "BUY"
   ;;       quantity 10
   ;;       lmtPriceOffset 0.1
@@ -1377,7 +1391,41 @@
   ;; wrapper
 
 
+  (mount/stop #'ew/default-chs-map #'ew/ewrapper)
+
+  (do
+
+    (mount/start #'ew/default-chs-map #'ew/ewrapper)
+
+    (def wrapper (:wrapper ew/ewrapper))
+
+    (let [{:keys [order-updates]} ew/default-chs-map]
+      (go-loop [{:keys [topic] :as val} (<! order-updates)]
+        (info "go-loop / order-updates / topic /" val)
+        (recur (<! order-updates)))))
+
+
   ;; 1
+  (let [symbol "AAPL"
+        account "DU542121"
+        orderId 5
+        action "BUY"
+        orderType "TRAIL LIMIT"
+        quantity 10.0
+        status "PreSubmitted"]
+      (->openOrder wrapper symbol account orderId action orderType quantity status))
+
+  (let [orderId 5
+        status "PreSubmitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+
+
+  ;; 2
   (let [symbol "AAPL"
         account "DU542121"
         orderId 5
@@ -1397,33 +1445,15 @@
 
 
 
-  ;; 2
-  (let [symbol "AAPL"
-        account "DU542121"
-        orderId 5
-        action "BUY"
-        quantity 10.0
-        status "PreSubmitted"]
-    (->openOrder wrapper symbol account orderId action quantity status))
-
-  (let [orderId 5
-        status "PreSubmitted"
-        filled 0.0
-        remaining 10.0
-        avgFillPrice 0.0
-        lastFillPrice 0.0]
-    (->orderStatus orderId status filled remaining avgFillPrice lastFillPrice))
-
-
-
   ;; 3
   (let [symbol "AAPL"
         account "DU542121"
         orderId 5
         action "BUY"
+        orderType "TRAIL LIMIT"
         quantity 10.0
         status "Submitted"]
-    (->openOrder wrapper symbol account orderId action quantity status))
+    (->openOrder wrapper symbol account orderId action orderType quantity status))
 
   (let [orderId 5
         status "Submitted"
@@ -1431,7 +1461,7 @@
         remaining 10.0
         avgFillPrice 0.0
         lastFillPrice 0.0]
-    (->orderStatus orderId status filled remaining avgFillPrice lastFillPrice))
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
 
   (let [symbol "AAPL"
         orderId 5
@@ -1439,7 +1469,7 @@
         price 0.0
         avgPrice 0.0
         reqId 1]
-    (->execDetails symbol orderId shares price avgPrice reqId))
+    (->execDetails wrapper symbol orderId shares price avgPrice reqId))
 
 
 
@@ -1448,9 +1478,10 @@
         account "DU542121"
         orderId 5
         action "BUY"
+        orderType "TRAIL LIMIT"
         quantity 10.0
         status "Filled"]
-    (->openOrder wrapper symbol account orderId action quantity status))
+    (->openOrder wrapper symbol account orderId action orderType quantity status))
 
   (let [orderId 5
         status "Filled"
@@ -1458,7 +1489,7 @@
         remaining 0.0
         avgFillPrice 218.49
         lastFillPrice 218.49]
-    (->orderStatus orderId status filled remaining avgFillPrice lastFillPrice))
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
 
 
 
@@ -1467,9 +1498,10 @@
         account "DU542121"
         orderId 5
         action "BUY"
+        orderType "TRAIL LIMIT"
         quantity 10.0
         status "Filled"]
-    (->openOrder wrapper symbol account orderId action quantity status))
+    (->openOrder wrapper symbol account orderId action orderType quantity status))
 
   (let [orderId 5
         status "Filled"
@@ -1477,17 +1509,16 @@
         remaining 0.0
         avgFillPrice 218.49
         lastFillPrice 218.49]
-    (->orderStatus orderId status filled remaining avgFillPrice lastFillPrice))
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
 
   (let [commission 0.352257
         currency "USD"
         realizedPNL 1.7976931348623157E308]
-    (->commissionReport commission currency realizedPNL))
+    (->commissionReport wrapper commission currency realizedPNL))
 
 
 
-
-  ;; TRAIL
+  ;; TRAIL - buy (https://www.interactivebrokers.com/en/index.php?f=605)
 
   ;; STP LMT
   ;; STP
