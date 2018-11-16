@@ -1,6 +1,10 @@
 (ns com.interrupt.ibgateway.component.account
   (:require [mount.core :refer [defstate] :as mount]
-            [automata.core :as u]))
+            [clojure.tools.logging :refer [info] :as log]
+            [clojure.core.async :as async :refer [go-loop <!]]
+            [automata.core :as u]
+            [com.interrupt.ibgateway.component.ewrapper :as ew]
+            [com.interrupt.ibgateway.component.switchboard.mock :refer :all]))
 
 
 (def state (atom nil))
@@ -214,7 +218,6 @@
   (do
 
     (mount/start #'ew/default-chs-map #'ew/ewrapper)
-
     (def wrapper (:wrapper ew/ewrapper))
 
     (let [{:keys [order-updates]} ew/default-chs-map]
@@ -496,7 +499,108 @@
 
 (comment  ;; MKT (buy)
 
-  )
+
+  (mount/stop #'ew/default-chs-map #'ew/ewrapper)
+  (do
+    (mount/start #'ew/default-chs-map #'ew/ewrapper)
+    (def wrapper (:wrapper ew/ewrapper))
+    (def account "DU542121")
+
+    (let [{:keys [order-updates]} ew/default-chs-map]
+      (go-loop [{:keys [topic] :as val} (<! order-updates)]
+        (info "go-loop / order-updates / topic /" val)
+        (recur (<! order-updates)))))
+
+  ;; ** Protocolize
+  ;;   stock level (which stock, how much)
+  ;;   cash level (how much)
+
+  ;; After we've submitted a MKT (buy)
+
+  ;; TODO
+  ;; ** track by order Id
+  ;; track state transitions
+  ;; track stock level
+
+  ;; TODO
+  ;; when an order is filled, an equal and opposite corresponding TRAIL (sell)
+
+  ;; 1
+  (let [symbol "AAPL"
+        orderId 3
+        orderType "MKT"
+        action "BUY"
+        quantity 10.0
+        status "PreSubmitted"]
+    (->openOrder wrapper symbol account orderId orderType action quantity status))
+
+
+  ;; 2
+  (let [orderId 3
+        status "PreSubmitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+
+  ;; 3
+  (let [symbol "AAPL"
+        orderId 3
+        shares 10.0
+        price 0.0
+        avgPrice 0.0
+        reqId 1]
+    (->execDetails wrapper symbol orderId shares price avgPrice reqId))
+
+
+  ;; 4
+  (let [symbol "AAPL"
+        orderId 3
+        orderType "MKT"
+        action "BUY"
+        quantity 10.0
+        status "Filled"]
+    (->openOrder wrapper symbol account orderId orderType action quantity status))
+
+
+  ;; 5
+  (let [orderId 3
+        status "Filled"
+        filled 10.0
+        remaining 0.0
+        avgFillPrice 218.96
+        lastFillPrice 218.96]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+
+  ;; 6
+  (let [symbol "AAPL"
+        orderId 3
+        orderType "MKT"
+        action "BUY"
+        quantity 10.0
+        status "Filled"]
+    (->openOrder wrapper symbol account orderId orderType action quantity status))
+
+
+  ;; 7
+  (let [orderId 3
+        status "Filled"
+        filled 10.0
+        remaining 0.0
+        avgFillPrice 218.96
+        lastFillPrice 218.96]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+
+  ;; 8
+  (let [commission 0.382257
+        currency "USD"
+        realizedPNL 1.7976931348623157E308]
+    (->commissionReport wrapper commission currency realizedPNL)))
+
 
 (comment  ;; TRAIL LIMIT (sell)
 
