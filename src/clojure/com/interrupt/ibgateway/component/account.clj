@@ -42,6 +42,19 @@
                                  :state {:states ({:matcher :pre-submitted} {:matcher :submitted} {:matcher :filled})
                                          :run ({:matcher :pre-submitted} {:matcher :submitted} {:matcher :filled})
                                          :state nil
+                                         :history [nil]}}]}
+
+                      {:symbol "TSLA"
+                       :amount 10
+                       :avgFillPrice 218.97
+                       :orders [{:orderId 4
+                                 :orderType "MKT"
+                                 :action "BUY"
+                                 :quantity 10.0
+                                 :price 218.95
+                                 :state {:states ({:matcher :pre-submitted} {:matcher :submitted} {:matcher :filled})
+                                         :run ({:matcher :pre-submitted} {:matcher :submitted} {:matcher :filled})
+                                         :state nil
                                          :history [nil]}}]}]
               :cash 1000000})
 
@@ -77,14 +90,16 @@
 
     (reset! account (s/transform navigator #(au/advance % to-state) @account))))
 
-(defmulti handle-order (fn [{:keys [topic action orderType]}]
-                         [topic (str action) (str orderType)]))
 
-(defmethod handle-order [:open-order "BUY" "MKT"]
+;; OPEN ORDER
+(defmulti handle-open-order (fn [{:keys [action orderType]}]
+                              [(str action) (str orderType)]))
+
+(defmethod handle-open-order ["BUY" "MKT"]
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
-  (println "handle-order / " val)
+  (println "handle-open-order / " val)
 
   (s/select [s/ALL] example)
   (s/select-one [:stock s/ALL #(= "AAPL" (:symbol %))] example)
@@ -99,6 +114,31 @@
 
     (println (get order-status-map status))
     (transition-order! symbol orderId status-kw account)))
+
+
+(defn order-id->stock [order-id account]
+  (s/select [:stock s/ALL s/VAL :orders s/ALL #(= order-id (:orderId %))] @account))
+
+
+;; ORDER STATUS
+(defn handle-order-status [{:keys [orderId status filled remaining avgFillPrice permId
+                                   parentId lastFillPrice clientId whorderIdyHeld] :as val}
+                           account]
+
+  (let [status-kw (get order-status-map status)
+        [stock order] (order-id->stock orderId account)
+        same-status? (= status-kw (-> order :state :state :matcher))]
+
+    (def foo (order-id->stock orderId account))
+    (when-not same-status?
+
+      ;; TODO transition to new state
+      ;; noop if status the same?
+      )))
+
+;; TODO
+;; EXEC DETAILS
+;; COMMISSION REPORT
 
 
 (comment
@@ -611,7 +651,9 @@
       (go-loop [{:keys [topic] :as val} (<! order-updates)]
         (info "go-loop / order-updates / topic /" val)
 
-        (handle-order val)
+        (case topic
+          :open-order (handle-open-order val)
+          :order-status (handle-order-status val account))
 
         ;; TODO
         ;; ** track by order Id
@@ -627,6 +669,13 @@
         ;;   perform an equal and opposite corresponding TRAIL (sell)
 
         (recur (<! order-updates)))))
+
+  (s/select [:stock s/ALL :orders s/ALL #(= 3 (:orderId %))] example)
+
+  (s/select [:stock (s/collect s/ALL) s/FIRST] example)
+  (s/select [:stock (s/collect s/ALL) :orders] example)
+  (s/select [:stock (s/collect s/ALL) :orders #(= 3 (:orderId %))] example)
+
 
 
   ;; 1
