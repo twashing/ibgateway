@@ -5,6 +5,7 @@
             [clojure.tools.logging :refer [info]]
             [clojure.tools.trace :refer [trace]]
             [clojure.set :as s]
+            [com.rpl.specter :refer :all]
             [mount.core :refer [defstate] :as mount]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]))
 

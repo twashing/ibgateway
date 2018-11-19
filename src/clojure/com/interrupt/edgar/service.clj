@@ -10,7 +10,7 @@
             [com.interrupt.edgar.core.strategy.strategy :as strategy]
             [com.interrupt.edgar.core.strategy.target :as target]
             [com.interrupt.edgar.core.signal.common :as common]
-            [com.interrupt.edgar.core.tee.live :as tlive]
+            ;; [com.interrupt.edgar.core.tee.live :as tlive]
             [com.interrupt.edgar.server.handler :as shandler]
 
             [clojure.java.io :as io]
@@ -39,7 +39,7 @@
 
 
 ;; LIST Filtered Stocks
-(defhandler list-filtered-input
+#_(defhandler list-filtered-input
   "List high-moving stocks"
   [request]
 
@@ -214,7 +214,7 @@
   [[["/" {:get home-page}
 
      ^:interceptors [body-params/body-params, session-interceptor]
-     ["/list-filtered-input" {:get list-filtered-input}]
+     #_["/list-filtered-input" {:get list-filtered-input}]
      #_["/get-historical-data" {:get get-historical-data}]
      #_["/get-streaming-stock-data" {:get [::init-streaming-stock-data (sse/start-event-stream init-streaming-stock-data)]
                                    :post get-streaming-stock-data}]
