@@ -1,9 +1,12 @@
-FROM pandeiro/lein:latest
+FROM clojure:latest
 MAINTAINER Timothy Washington
 
-COPY project.clj /app
-RUN lein deps
-VOLUME /root/.m2
+
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+COPY project.clj /usr/src/app
+
+# RUN lein deps
 # COPY m2 /root/.m2
 # COPY !(m2) /app
 

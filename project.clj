@@ -41,8 +41,8 @@
                  [io.pedestal/pedestal.log "0.5.2"]
                  [com.cognitect/pedestal.vase "0.9.3"]
                  [org.clojure/tools.cli "0.3.7"]
-                 [automat "0.2.4"]
-                 [automata "0.1.0"]
+                 ;; [automat "0.2.4"]
+                 ;; [automata "0.1.0"]
 
                  ;; Java Libraries
                  [manifold "0.1.7-alpha6"]
@@ -54,6 +54,7 @@
                  [com.amazonaws/aws-java-sdk "1.11.401"]
                  [org.apache.commons/commons-math3 "3.6.1"]
                  [com.rpl/specter "1.1.1"]]
+
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
@@ -70,13 +71,6 @@
                    :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
 
                    :resource-paths ["dev-resources" "test/resources"]
-                   #_:injections #_[(use 'lucid.core.inject)
-                                (inject '[clojure.core
-                                          [clojure.repl dir]
-                                          [clojure.pprint pprint]
-                                          [clojure.java.javadoc javadoc]
-                                          [clojure.reflect reflect]
-                                          [clojure.repl apropos dir doc find-doc pst source]])]
 
                    :plugins [[refactor-nrepl "2.4.0"]
                              [cider/cider-nrepl "0.18.0"]

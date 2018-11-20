@@ -3,13 +3,14 @@
             [com.rpl.specter :as s]
             [clojure.tools.logging :refer [info] :as log]
             [clojure.core.async :as async :refer [go-loop <!]]
-            [automata.core :as au]
+            ;; [automata.core :as au]
+            [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.switchboard.mock :refer :all])
-  (:import [com.ib.client OrderStatus]))
+  (:import [com.ib.client Order OrderStatus]))
 
 
-;; ** Track
+;; TODO Track
 ;;   stock level (which stock, how much)
 ;;   cash level (how much)
 
@@ -19,6 +20,8 @@
   :stop (reset! account nil))
 
 
+(def account-summary-tags
+  "AccountType,NetLiquidation,TotalCashValue,SettledCash,AccruedCash,BuyingPower,EquityWithLoanValue,PreviousEquityWithLoanValue,GrossPositionValue,ReqTEquity,ReqTMargin,SMA,InitMarginReq,MaintMarginReq,AvailableFunds,ExcessLiquidity,Cushion,FullInitMarginReq,FullMaintMarginReq,FullAvailableFunds,FullExcessLiquidity,LookAheadNextChange,LookAheadInitMarginReq ,LookAheadMaintMarginReq,LookAheadAvailableFunds,LookAheadExcessLiquidity,HighestSeverity,DayTradesRemaining,Leverage")
 (def order-status-map
   {com.ib.client.OrderStatus/ApiPending :api-pending
    com.ib.client.OrderStatus/ApiCancelled :api-cancelled
@@ -63,7 +66,7 @@
   ((comp not nil?)
    (s/select-one [:stock s/ALL #(= symbol (:symbol %))] state)))
 
-(defn add-stock! [{:keys [orderId symbol secType exchange action
+#_(defn add-stock! [{:keys [orderId symbol secType exchange action
                           orderType totalQuantity status] :as val}
                   state]
 
@@ -82,13 +85,15 @@
 
     (reset! state (s/transform [:stock] #(conj % stock) @state))))
 
-
-(defn transition-order! [symbol order-id to-state account]
+#_(defn transition-order! [symbol order-id to-state account]
 
   (let [navigator [:stock s/ALL #(= symbol (:symbol %))
                    :orders s/ALL #(= order-id (:orderId %)) :state]]
 
     (reset! account (s/transform navigator #(au/advance % to-state) @account))))
+
+(defn order-id->stock [order-id account]
+  (s/select [:stock s/ALL s/VAL :orders s/ALL #(= order-id (:orderId %))] @account))
 
 
 ;; OPEN ORDER
@@ -99,25 +104,21 @@
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
-  (println "handle-open-order / " val)
-
-  (s/select [s/ALL] example)
-  (s/select-one [:stock s/ALL #(= "AAPL" (:symbol %))] example)
-  (stock-exists? "AAPL" example)
-  (stock-exists? "FOOB" example)
-
-
   (when-not (stock-exists? symbol @account)
-    (add-stock! val account))
+    #_(add-stock! val account))
 
   (let [status-kw (get order-status-map status)]
+    #_(transition-order! symbol orderId status-kw account)))
 
-    (println (get order-status-map status))
-    (transition-order! symbol orderId status-kw account)))
+(defmethod handle-open-order ["SELL" "TRAIL"]
+  [{:keys [orderId symbol secType exchange action
+           orderType totalQuantity status] :as val}]
+  )
 
-
-(defn order-id->stock [order-id account]
-  (s/select [:stock s/ALL s/VAL :orders s/ALL #(= order-id (:orderId %))] @account))
+(defmethod handle-open-order ["SELL" "TRAIL LIMIT"]
+  [{:keys [orderId symbol secType exchange action
+           orderType totalQuantity status] :as val}]
+  )
 
 
 ;; ORDER STATUS
@@ -136,9 +137,34 @@
       ;; noop if status the same?
       )))
 
+
 ;; TODO
+
 ;; EXEC DETAILS
+(defn handle-exec-details [{:keys [reqId symbol secType currency
+                                   execId orderId shares ] :as val}]
+
+  ;; {:topic :exec-details
+  ;;  :reqId reqId
+  ;;  :symbol (.symbol contract)
+  ;;  :secType (.secType contract)
+  ;;  :currency (.currency contract)
+  ;;  :execId (.execId execution)
+  ;;  :orderId (.orderId execution)
+  ;;  :shares (.shares execution)}
+  )
+
+
 ;; COMMISSION REPORT
+(defn handle-commission-report [{:keys [execId commission
+                                        currency realizedPNL] :as val}]
+
+  ;; {:topic :commission-report
+  ;;  :execId (.-m_execId commissionReport)
+  ;;  :commission (.-m_commission commissionReport)
+  ;;  :currency (.-m_currency commissionReport)
+  ;;  :realizedPNL (.-m_realizedPNL commissionReport)}
+  )
 
 
 (comment
@@ -442,17 +468,31 @@
   ;; order.totalQuantity(quantity);
 
 
-  (mount/stop #'default-chs-map #'ewrapper)
-  (mount/start #'default-chs-map #'ewrapper)
-
   (do
-    (def client (:client ewrapper))
+    (mount/stop #'ew/default-chs-map #'ew/ewrapper #'account)
+    (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
+
+    (def client (:client ew/ewrapper))
+    (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
-    (def valid-order-id (next-reqid!)))
+    (def valid-order-id (atom -1))
+
+    (let [{:keys [order-updates]} ew/default-chs-map]
+      (go-loop [{:keys [topic] :as val} (<! order-updates)]
+        (info "go-loop / order-updates / topic /" val)
+
+        (case topic
+          :open-order (handle-open-order val)
+          :order-status (handle-order-status val account)
+          :next-valid-id (let [{oid :order-id} val]
+                           (reset! valid-order-id oid)))
+
+        (recur (<! order-updates)))))
 
   (.cancelOrder client valid-order-id)
   (.cancelOrder client 3)
-  (def valid-order-id 3)
+  ;; (.reqIds client -1)
+  ;; valid-order-id
 
 
   (.reqAllOpenOrders client)
@@ -460,6 +500,7 @@
   (.reqAutoOpenOrders client true)
 
   (.reqPositions client)
+  (.reqAccountSummary client 9001 "All" account-summary-tags)
 
   ;; BUY
   (.placeOrder client
@@ -590,13 +631,13 @@
 
 
   ;; TRAIL - https://www.interactivebrokers.com/en/index.php?f=605 (greater protection for fast-moving stocks)
-  (let [action "BUY"
+  (let [action "SELL"
         quantity 10
         trailingPercent 1
-        trailStopPrice 218.44]
+        trailStopPrice 176.26]
 
     (.placeOrder client
-                 6 ;;valid-order-id
+                 @valid-order-id
                  (contract/create "AAPL")
                  (doto (Order.)
                    (.action action)
@@ -607,14 +648,14 @@
 
 
   ;; TRAIL LIMIT - https://www.interactivebrokers.com/en/index.php?f=606 (Not guaranteed an execution)
-  (let [action "BUY"
+  (let [action "SELL"
         quantity 10
         lmtPriceOffset 0.1
         trailingAmount 0.2
-        trailStopPrice 218.49]
+        trailStopPrice 177.18]
 
     (.placeOrder client
-                 5 ;;valid-order-id
+                 @valid-order-id
                  (contract/create "AAPL")
                  (doto (Order.)
                    (.action action)
@@ -642,6 +683,7 @@
     (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
+    (def valid-order-id (atom -1))
 
 
     ;; NOTE
@@ -653,7 +695,9 @@
 
         (case topic
           :open-order (handle-open-order val)
-          :order-status (handle-order-status val account))
+          :order-status (handle-order-status val account)
+          :next-valid-id (let [{oid :order-id}]
+                           (reset! valid-order-id oid)))
 
         ;; TODO
         ;; ** track by order Id
@@ -749,7 +793,7 @@
 
 (comment  ;; TRAIL LIMIT (sell)
 
-    ;; 1
+  ;; 1
   (let [symbol "AAPL"
         account-name "DU542121"
         orderId 5
@@ -757,7 +801,7 @@
         orderType "TRAIL LIMIT"
         quantity 10.0
         status "PreSubmitted"]
-      (->openOrder wrapper symbol account-name orderId action orderType quantity status))
+    (->openOrder wrapper symbol account-name orderId action orderType quantity status))
 
   (let [orderId 5
         status "PreSubmitted"

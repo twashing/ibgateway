@@ -41,7 +41,7 @@ services:
     image: edgarly/ibgateway-app:latest
     depends_on:
       - tws
-    working_dir: /usr/app
+    working_dir: /usr/src/app
     shm_size: 1G
     environment:
       - DISPLAY=:0.0
@@ -50,7 +50,7 @@ services:
       - 8080:8080
       - 3449:3449
     volumes:
-      - /Users/timothyw/Projects/edgarly/ibgateway:/usr/app
+      - /Users/timothyw/Projects/edgarly/ibgateway:/usr/src/app
     entrypoint: lein run
 
   record-live-data:

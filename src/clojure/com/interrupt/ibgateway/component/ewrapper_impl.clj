@@ -64,8 +64,13 @@
     order-updates :order-updates}]
 
   (proxy [EWrapperImpl] []
+
+
     (nextValidId [^Integer order-id]
-      (reset! valid-order-id order-id))
+      (info "nextValidId / " order-id)
+      (let [val {:topic :next-valid-id
+                 :order-id order-id}]
+        (async/put! order-updates val)))
 
 
     ;; ========

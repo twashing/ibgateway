@@ -40,6 +40,11 @@ Running the app solo
 lein run -m com.interrupt.ibgateway.core/-main
 ```
 
+Troubleshoot with
+```
+docker run -it --entrypoint /bin/bash edgarly/ibgateway-app:latest
+```
+
 ## TODO
 
 - UI Performance
