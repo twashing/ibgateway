@@ -318,7 +318,7 @@
                   ^Execution execution]
 
       (let [{:keys [reqId symbol secType currency
-                    execId orderId shares ] :as val}
+                    execId orderId shares] :as val}
             {:topic :exec-details
              :reqId reqId
              :symbol (.symbol contract)

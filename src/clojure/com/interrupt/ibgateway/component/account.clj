@@ -10,10 +10,6 @@
   (:import [com.ib.client Order OrderStatus]))
 
 
-;; TODO Track
-;;   stock level (which stock, how much)
-;;   cash level (how much)
-
 (defstate account
   :start (atom {:stock []
                 :cash 0.0})
@@ -22,6 +18,7 @@
 
 (def account-summary-tags
   "AccountType,NetLiquidation,TotalCashValue,SettledCash,AccruedCash,BuyingPower,EquityWithLoanValue,PreviousEquityWithLoanValue,GrossPositionValue,ReqTEquity,ReqTMargin,SMA,InitMarginReq,MaintMarginReq,AvailableFunds,ExcessLiquidity,Cushion,FullInitMarginReq,FullMaintMarginReq,FullAvailableFunds,FullExcessLiquidity,LookAheadNextChange,LookAheadInitMarginReq ,LookAheadMaintMarginReq,LookAheadAvailableFunds,LookAheadExcessLiquidity,HighestSeverity,DayTradesRemaining,Leverage")
+
 (def order-status-map
   {com.ib.client.OrderStatus/ApiPending :api-pending
    com.ib.client.OrderStatus/ApiCancelled :api-cancelled
@@ -113,11 +110,13 @@
 (defmethod handle-open-order ["SELL" "TRAIL"]
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
+  ;; TODO
   )
 
 (defmethod handle-open-order ["SELL" "TRAIL LIMIT"]
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
+  ;; TODO
   )
 
 
@@ -138,12 +137,11 @@
       )))
 
 
-;; TODO
-
 ;; EXEC DETAILS
 (defn handle-exec-details [{:keys [reqId symbol secType currency
                                    execId orderId shares ] :as val}]
 
+  (info "handle-exec-details / val / " val)
   ;; {:topic :exec-details
   ;;  :reqId reqId
   ;;  :symbol (.symbol contract)
@@ -159,12 +157,41 @@
 (defn handle-commission-report [{:keys [execId commission
                                         currency realizedPNL] :as val}]
 
+  (info "handle-commission-report / val / " val)
   ;; {:topic :commission-report
   ;;  :execId (.-m_execId commissionReport)
   ;;  :commission (.-m_commission commissionReport)
   ;;  :currency (.-m_currency commissionReport)
   ;;  :realizedPNL (.-m_realizedPNL commissionReport)}
   )
+
+
+(defn bind-order-updates [updates-map]
+  (let [{:keys [order-updates]} updates-map]
+    (go-loop [{:keys [topic] :as val} (<! order-updates)]
+      (info "go-loop / bind-order-updates / topic /" val)
+
+      (case topic
+        :open-order (handle-open-order val)
+        :order-status (handle-order-status val account)
+        :next-valid-id (let [{oid :order-id} val]
+                         (reset! valid-order-id oid))
+        :exec-details (handle-exec-details val)
+        :commission-report (handle-commission-report val)
+        :default)
+
+      ;; TODO
+      ;; [ok] dispatch by :topic
+      ;; [ok] update account state
+      ;;   add or update stock
+      ;;   track workflow state
+
+      ;; i) when an order is a buy, ii) when an order is filled
+      ;;   perform an equal and opposite corresponding TRAIL (sell)
+
+      ;; updates account state - update cash level
+
+      (recur (<! order-updates)))))
 
 
 (comment
@@ -406,7 +433,6 @@
   ;;   sell callback (for limit orders)
 
 
-
   ;; MKT
   ;; LMT
 
@@ -477,17 +503,8 @@
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
 
-    (let [{:keys [order-updates]} ew/default-chs-map]
-      (go-loop [{:keys [topic] :as val} (<! order-updates)]
-        (info "go-loop / order-updates / topic /" val)
+    (bind-order-updates ew/default-chs-map))
 
-        (case topic
-          :open-order (handle-open-order val)
-          :order-status (handle-order-status val account)
-          :next-valid-id (let [{oid :order-id} val]
-                           (reset! valid-order-id oid)))
-
-        (recur (<! order-updates)))))
 
   (.cancelOrder client valid-order-id)
   (.cancelOrder client 3)
@@ -689,37 +706,14 @@
     ;; NOTE
     ;; this happens after we've submitted a MKT (buy)
 
-    (let [{:keys [order-updates]} ew/default-chs-map]
-      (go-loop [{:keys [topic] :as val} (<! order-updates)]
-        (info "go-loop / order-updates / topic /" val)
+    (bind-order-updates ew/default-chs-map))
 
-        (case topic
-          :open-order (handle-open-order val)
-          :order-status (handle-order-status val account)
-          :next-valid-id (let [{oid :order-id}]
-                           (reset! valid-order-id oid)))
-
-        ;; TODO
-        ;; ** track by order Id
-        ;; track state transitions
-        ;; track stock level
-
-        ;; [ok] dispatch by :topic
-        ;; updates account state
-        ;;   add or update stock + cash levels
-        ;;   track workflow state
-
-        ;; i) when an order is a buy, ii) when an order is filled
-        ;;   perform an equal and opposite corresponding TRAIL (sell)
-
-        (recur (<! order-updates)))))
 
   (s/select [:stock s/ALL :orders s/ALL #(= 3 (:orderId %))] example)
 
   (s/select [:stock (s/collect s/ALL) s/FIRST] example)
   (s/select [:stock (s/collect s/ALL) :orders] example)
   (s/select [:stock (s/collect s/ALL) :orders #(= 3 (:orderId %))] example)
-
 
 
   ;; 1
