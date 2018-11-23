@@ -41,8 +41,7 @@
                  [io.pedestal/pedestal.log "0.5.2"]
                  [com.cognitect/pedestal.vase "0.9.3"]
                  [org.clojure/tools.cli "0.3.7"]
-                 ;; [automat "0.2.4"]
-                 ;; [automata "0.1.0"]
+                 [automata "0.2.0-SNAPSHOT"]
 
                  ;; Java Libraries
                  [manifold "0.1.7-alpha6"]

@@ -1,9 +1,10 @@
 (ns com.interrupt.ibgateway.component.account
+  (:refer-clojure :exclude [*])
   (:require [mount.core :refer [defstate] :as mount]
             [com.rpl.specter :as s]
             [clojure.tools.logging :refer [info] :as log]
             [clojure.core.async :as async :refer [go-loop <!]]
-            ;; [automata.core :as au]
+            [automata.core :as au]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.switchboard.mock :refer :all])
@@ -63,7 +64,7 @@
   ((comp not nil?)
    (s/select-one [:stock s/ALL #(= symbol (:symbol %))] state)))
 
-#_(defn add-stock! [{:keys [orderId symbol secType exchange action
+(defn add-stock! [{:keys [orderId symbol secType exchange action
                           orderType totalQuantity status] :as val}
                   state]
 
@@ -82,7 +83,7 @@
 
     (reset! state (s/transform [:stock] #(conj % stock) @state))))
 
-#_(defn transition-order! [symbol order-id to-state account]
+(defn transition-order! [symbol order-id to-state account]
 
   (let [navigator [:stock s/ALL #(= symbol (:symbol %))
                    :orders s/ALL #(= order-id (:orderId %)) :state]]
@@ -91,6 +92,25 @@
 
 (defn order-id->stock [order-id account]
   (s/select [:stock s/ALL s/VAL :orders s/ALL #(= order-id (:orderId %))] @account))
+
+(defn bind-order-id->exec-id! [order-id exec-id state]
+  (reset! state (s/transform [:stock s/ALL :orders s/ALL #(= order-id (:orderId %))]
+                             #(assoc % :exec-id exec-id)
+                             @state)))
+
+(defn bind-exec-id->commission-report! [{:keys [execId commission realizedPNL] :as val} state]
+  (reset! state (s/transform [:stock s/ALL :orders s/ALL #(= execId (:exec-id %))]
+                             #(assoc % :commission commission :realizedPNL realizedPNL)
+                             @state)))
+
+(defn bind-price->order! [{:keys [orderId status filled remaining avgFillPrice permId
+                                  parentId lastFillPrice clientId whorderIdyHeld] :as val}
+                          state]
+  (swap! state
+         (fn [s]
+           (s/transform [:stock s/ALL :orders s/ALL #(= orderId (:orderId %))]
+                        #(assoc % :avgFillPrice avgFillPrice :price lastFillPrice)
+                        s))))
 
 
 ;; OPEN ORDER
@@ -102,10 +122,10 @@
            orderType totalQuantity status] :as val}]
 
   (when-not (stock-exists? symbol @account)
-    #_(add-stock! val account))
+    (add-stock! val account))
 
   (let [status-kw (get order-status-map status)]
-    #_(transition-order! symbol orderId status-kw account)))
+    (transition-order! symbol orderId status-kw account)))
 
 (defmethod handle-open-order ["SELL" "TRAIL"]
   [{:keys [orderId symbol secType exchange action
@@ -121,52 +141,56 @@
 
 
 ;; ORDER STATUS
-(defn handle-order-status [{:keys [orderId status filled remaining avgFillPrice permId
-                                   parentId lastFillPrice clientId whorderIdyHeld] :as val}
-                           account]
+(defn order-status-base [{:keys [orderId status filled remaining avgFillPrice permId
+                                 parentId lastFillPrice clientId whorderIdyHeld] :as val}
+                         account]
 
   (let [status-kw (get order-status-map status)
-        [stock order] (order-id->stock orderId account)
+        [{symbol :symbol} order] (order-id->stock orderId account)
         same-status? (= status-kw (-> order :state :state :matcher))]
 
-    (def foo (order-id->stock orderId account))
     (when-not same-status?
+      (transition-order! symbol orderId status-kw account))))
 
-      ;; TODO transition to new state
-      ;; noop if status the same?
-      )))
+
+(defmulti handle-order-status (fn [{status :status} _] status))
+
+(defmethod handle-order-status "Filled" [val account]
+  (info "handle-order-status / :filled / " val)
+  (bind-price->order! val account)
+  (order-status-base val account))
+
+(defmethod handle-order-status :default [val account]
+  (info "handle-order-status / :default / " val)
+  (order-status-base val account))
+
 
 
 ;; EXEC DETAILS
+
+;; There are not guaranteed to be orderStatus callbacks for every change in order status.
+;; For example with market orders when the order is accepted and executes immediately,
+;; there commonly will not be any corresponding orderStatus callbacks.
+
+;; TODO what's the meaning of this callback, if an order hasn't been filled
 (defn handle-exec-details [{:keys [reqId symbol secType currency
-                                   execId orderId shares ] :as val}]
+                                   execId orderId shares] :as val}
+                           account]
 
   (info "handle-exec-details / val / " val)
-  ;; {:topic :exec-details
-  ;;  :reqId reqId
-  ;;  :symbol (.symbol contract)
-  ;;  :secType (.secType contract)
-  ;;  :currency (.currency contract)
-  ;;  :execId (.execId execution)
-  ;;  :orderId (.orderId execution)
-  ;;  :shares (.shares execution)}
-  )
+  (bind-order-id->exec-id! orderId execId account))
 
 
 ;; COMMISSION REPORT
 (defn handle-commission-report [{:keys [execId commission
-                                        currency realizedPNL] :as val}]
+                                        currency realizedPNL] :as val}
+                                account]
 
   (info "handle-commission-report / val / " val)
-  ;; {:topic :commission-report
-  ;;  :execId (.-m_execId commissionReport)
-  ;;  :commission (.-m_commission commissionReport)
-  ;;  :currency (.-m_currency commissionReport)
-  ;;  :realizedPNL (.-m_realizedPNL commissionReport)}
-  )
+  (bind-exec-id->commission-report! val account))
 
 
-(defn bind-order-updates [updates-map]
+(defn bind-order-updates [updates-map valid-order-id]
   (let [{:keys [order-updates]} updates-map]
     (go-loop [{:keys [topic] :as val} (<! order-updates)]
       (info "go-loop / bind-order-updates / topic /" val)
@@ -176,8 +200,8 @@
         :order-status (handle-order-status val account)
         :next-valid-id (let [{oid :order-id} val]
                          (reset! valid-order-id oid))
-        :exec-details (handle-exec-details val)
-        :commission-report (handle-commission-report val)
+        :exec-details (handle-exec-details val account)
+        :commission-report (handle-commission-report val account)
         :default)
 
       ;; TODO
@@ -384,7 +408,6 @@
   ;; wrapper
 
 
-
   (require '[automata.core :as au])
 
   (def a (au/automaton [:pre-submitted :submitted :filled]))
@@ -503,7 +526,7 @@
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
 
-    (bind-order-updates ew/default-chs-map))
+    (bind-order-updates ew/default-chs-map valid-order-id))
 
 
   (.cancelOrder client valid-order-id)
@@ -684,15 +707,17 @@
 
 (comment  ;; MKT (buy)
 
-
-  (require '[automata.core :as au])
   (def a (au/automaton [(au/* :api-pending) (au/* :pending-submit) (au/* :pending-cancel) (au/* :pre-submitted)
                         (au/* :submitted) (au/* :api-cancelled) (au/* :cancelled) (au/* :filled) (au/* :inactive)]))
-  (def a (au/automaton [(au/* :pre-submitted) (au/* :submitted) (au/* :filled)]))
+
+  (-> a (au/advance :pre-submitted) (au/advance :submitted))
+  (-> a (au/advance :pre-submitted) (au/advance :submitted) (au/advance :filled))
 
 
-  (-> a (au/advance :pre-submitted) (u/advance :submitted))
-  (-> a (au/advance :pre-submitted) (u/advance :submitted) (u/advance :filled))
+  (s/select [:stock s/ALL :orders s/ALL #(= 3 (:orderId %))] example)
+  (s/select [:stock (s/collect s/ALL) s/FIRST] example)
+  (s/select [:stock (s/collect s/ALL) :orders] example)
+  (s/select [:stock (s/collect s/ALL) :orders #(= 3 (:orderId %))] example)
 
 
   (do
@@ -705,85 +730,79 @@
 
     ;; NOTE
     ;; this happens after we've submitted a MKT (buy)
-
-    (bind-order-updates ew/default-chs-map))
-
-
-  (s/select [:stock s/ALL :orders s/ALL #(= 3 (:orderId %))] example)
-
-  (s/select [:stock (s/collect s/ALL) s/FIRST] example)
-  (s/select [:stock (s/collect s/ALL) :orders] example)
-  (s/select [:stock (s/collect s/ALL) :orders #(= 3 (:orderId %))] example)
+    (bind-order-updates ew/default-chs-map valid-order-id))
 
 
-  ;; 1
-  (let [symbol "AAPL"
-        orderId 3
-        orderType "MKT"
-        action "BUY"
-        quantity 10.0
-        status "PreSubmitted"]
-    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+  (do
 
-  ;; 2
-  (let [orderId 3
-        status "PreSubmitted"
-        filled 0.0
-        remaining 10.0
-        avgFillPrice 0.0
-        lastFillPrice 0.0]
-    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+    ;; 1
+    (let [symbol "AAPL"
+          orderId 3
+          orderType "MKT"
+          action "BUY"
+          quantity 10.0
+          status "PreSubmitted"]
+      (->openOrder wrapper symbol account-name orderId orderType action quantity status))
 
-  ;; 3
-  (let [symbol "AAPL"
-        orderId 3
-        shares 10.0
-        price 0.0
-        avgPrice 0.0
-        reqId 1]
-    (->execDetails wrapper symbol orderId shares price avgPrice reqId))
+    ;; 2
+    (let [orderId 3
+          status "PreSubmitted"
+          filled 0.0
+          remaining 10.0
+          avgFillPrice 0.0
+          lastFillPrice 0.0]
+      (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
 
-  ;; 4
-  (let [symbol "AAPL"
-        orderId 3
-        orderType "MKT"
-        action "BUY"
-        quantity 10.0
-        status "Filled"]
-    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+    ;; 3
+    (let [symbol "AAPL"
+          orderId 3
+          shares 10.0
+          price 0.0
+          avgPrice 0.0
+          reqId 1]
+      (->execDetails wrapper symbol orderId shares price avgPrice reqId))
 
-  ;; 5
-  (let [orderId 3
-        status "Filled"
-        filled 10.0
-        remaining 0.0
-        avgFillPrice 218.96
-        lastFillPrice 218.96]
-    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+    ;; 4
+    (let [symbol "AAPL"
+          orderId 3
+          orderType "MKT"
+          action "BUY"
+          quantity 10.0
+          status "Filled"]
+      (->openOrder wrapper symbol account-name orderId orderType action quantity status))
 
-  ;; 6
-  (let [symbol "AAPL"
-        orderId 3
-        orderType "MKT"
-        action "BUY"
-        quantity 10.0
-        status "Filled"]
-    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+    ;; 5
+    (let [orderId 3
+          status "Filled"
+          filled 10.0
+          remaining 0.0
+          avgFillPrice 218.96
+          lastFillPrice 218.96]
+      (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
 
-  ;; 7
-  (let [orderId 3
-        status "Filled"
-        filled 10.0
-        remaining 0.0
-        avgFillPrice 218.96
-        lastFillPrice 218.96]
-    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+    ;; 6
+    (let [symbol "AAPL"
+          orderId 3
+          orderType "MKT"
+          action "BUY"
+          quantity 10.0
+          status "Filled"]
+      (->openOrder wrapper symbol account-name orderId orderType action quantity status))
 
-  ;; 8
-  (let [commission 0.382257
-        currency "USD"
-        realizedPNL 1.7976931348623157E308]
-    (->commissionReport wrapper commission currency realizedPNL)))
+    ;; 7
+    (let [orderId 3
+          status "Filled"
+          filled 10.0
+          remaining 0.0
+          avgFillPrice 218.97
+          lastFillPrice 218.98]
+      (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+    ;; 8
+    (let [commission 0.382257
+          currency "USD"
+          realizedPNL 1.7976931348623157E308]
+      (->commissionReport wrapper commission currency realizedPNL))))
 
 (comment  ;; TRAIL LIMIT (sell)
 
