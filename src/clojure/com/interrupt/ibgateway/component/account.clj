@@ -890,6 +890,116 @@
         realizedPNL 1.7976931348623157E308]
     (->commissionReport wrapper commission currency realizedPNL)))
 
+(comment  ;; TRAIL (sell)
+
+
+  (do
+    (mount/stop #'ew/default-chs-map #'ew/ewrapper #'account)
+    (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
+    (def wrapper (:wrapper ew/ewrapper))
+    (def account-name "DU542121")
+    (def valid-order-id (atom -1))
+
+
+    ;; NOTE
+    ;; this happens after we've submitted a MKT (buy)
+    (bind-order-updates ew/default-chs-map valid-order-id))
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL"
+        quantity 10.0
+        status "PreSubmitted"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "PreSubmitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL"
+        quantity 10.0
+        status "PreSubmitted"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "PreSubmitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL"
+        quantity 10.0
+        status "Submitted"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "Submitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [symbol "AAPL"
+        orderId 13
+        shares 10.0
+        price 0.0
+        avgPrice 0.0
+        reqId 1]
+    (->execDetails wrapper symbol orderId shares price avgPrice reqId))
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL"
+        quantity 10.0
+        status "Filled"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "Filled"
+        filled 10.0
+        remaining 0.0
+        avgFillPrice 176.27
+        lastFillPrice 176.27]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL"
+        quantity 10.0
+        status "Filled"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "Filled"
+        filled 10.0
+        remaining 0.0
+        avgFillPrice 176.27
+        lastFillPrice 176.27]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  ;; exec-details is missing
+
+  (let [commission 0.355362
+        currency "USD"
+        realizedPNL -380.989362]
+    (->commissionReport wrapper commission currency realizedPNL)))
+
 (comment  ;; TRAIL LIMIT (sell)
 
   (do
