@@ -130,14 +130,22 @@
 (defmethod handle-open-order ["SELL" "TRAIL"]
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
-  ;; TODO
-  )
+
+  (when-not (stock-exists? symbol @account)
+    (add-stock! val account))
+
+  (let [status-kw (get order-status-map status)]
+    (transition-order! symbol orderId status-kw account)))
 
 (defmethod handle-open-order ["SELL" "TRAIL LIMIT"]
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
-  ;; TODO
-  )
+
+  (when-not (stock-exists? symbol @account)
+    (add-stock! val account))
+
+  (let [status-kw (get order-status-map status)]
+    (transition-order! symbol orderId status-kw account)))
 
 
 ;; ORDER STATUS
@@ -365,12 +373,6 @@
 
 (comment  ;; Mock callbacks for orders
 
-  ;; (->openOrder [symbol account orderId wrapper action quantity status])
-  ;; (->orderStatus [orderId status filled remaining avgFillPrice lastFillPrice])
-  ;; (->execDetails [symbol shares price avgPrice reqId])
-  ;; (->commissionReport [commission currency realizedPNL])
-  ;; (->position [symbol account pos avgCost])
-
 
   ;; TODO
 
@@ -402,31 +404,6 @@
   ;;       lmtPriceOffset 0.1
   ;;       trailingAmount 0.2
   ;;       trailStopPrice 218.49])
-
-
-  ;; callbacks
-  ;; wrapper
-
-
-  (require '[automata.core :as au])
-
-  (def a (au/automaton [:pre-submitted :submitted :filled]))
-  (-> a (au/advance :pre-submitted))
-  (-> a (au/advance :pre-submitted) (u/advance :submitted))
-
-
-
-  (mount/stop #'ew/default-chs-map #'ew/ewrapper)
-
-  (do
-
-    (mount/start #'ew/default-chs-map #'ew/ewrapper)
-    (def wrapper (:wrapper ew/ewrapper))
-
-    (let [{:keys [order-updates]} ew/default-chs-map]
-      (go-loop [{:keys [topic] :as val} (<! order-updates)]
-        (info "go-loop / order-updates / topic /" val)
-        (recur (<! order-updates)))))
 
 
   ;; TRAIL - buy (https://www.interactivebrokers.com/en/index.php?f=605)
@@ -707,19 +684,6 @@
 
 (comment  ;; MKT (buy)
 
-  (def a (au/automaton [(au/* :api-pending) (au/* :pending-submit) (au/* :pending-cancel) (au/* :pre-submitted)
-                        (au/* :submitted) (au/* :api-cancelled) (au/* :cancelled) (au/* :filled) (au/* :inactive)]))
-
-  (-> a (au/advance :pre-submitted) (au/advance :submitted))
-  (-> a (au/advance :pre-submitted) (au/advance :submitted) (au/advance :filled))
-
-
-  (s/select [:stock s/ALL :orders s/ALL #(= 3 (:orderId %))] example)
-  (s/select [:stock (s/collect s/ALL) s/FIRST] example)
-  (s/select [:stock (s/collect s/ALL) :orders] example)
-  (s/select [:stock (s/collect s/ALL) :orders #(= 3 (:orderId %))] example)
-
-
   (do
     (mount/stop #'ew/default-chs-map #'ew/ewrapper #'account)
     (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
@@ -804,13 +768,26 @@
           realizedPNL 1.7976931348623157E308]
       (->commissionReport wrapper commission currency realizedPNL))))
 
-(comment  ;; TRAIL LIMIT (sell)
+(comment  ;; TRAIL LIMIT (buy)
+
+  (do
+    (mount/stop #'ew/default-chs-map #'ew/ewrapper #'account)
+    (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
+    (def wrapper (:wrapper ew/ewrapper))
+    (def account-name "DU542121")
+    (def valid-order-id (atom -1))
+
+
+    ;; NOTE
+    ;; this happens after we've submitted a MKT (buy)
+    (bind-order-updates ew/default-chs-map valid-order-id))
+
 
   ;; 1
   (let [symbol "AAPL"
         account-name "DU542121"
         orderId 5
-        action "BUY"
+        action "SELL"
         orderType "TRAIL LIMIT"
         quantity 10.0
         status "PreSubmitted"]
@@ -823,14 +800,13 @@
         avgFillPrice 0.0
         lastFillPrice 0.0]
     (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
-
 
 
   ;; 2
   (let [symbol "AAPL"
         account-name "DU542121"
         orderId 5
-        action "BUY"
+        action "SELL"
         orderType "TRAIL LIMIT"
         quantity 10.0
         status "PreSubmitted"]
@@ -845,12 +821,11 @@
     (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
 
 
-
   ;; 3
   (let [symbol "AAPL"
         account-name "DU542121"
         orderId 5
-        action "BUY"
+        action "SELL"
         orderType "TRAIL LIMIT"
         quantity 10.0
         status "Submitted"]
@@ -873,12 +848,11 @@
     (->execDetails wrapper symbol orderId shares price avgPrice reqId))
 
 
-
   ;; 4
   (let [symbol "AAPL"
         account-name "DU542121"
         orderId 5
-        action "BUY"
+        action "SELL"
         orderType "TRAIL LIMIT"
         quantity 10.0
         status "Filled"]
@@ -893,12 +867,11 @@
     (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
 
 
-
   ;; 5
   (let [symbol "AAPL"
         account-name "DU542121"
         orderId 5
-        action "BUY"
+        action "SELL"
         orderType "TRAIL LIMIT"
         quantity 10.0
         status "Filled"]
@@ -915,4 +888,96 @@
   (let [commission 0.352257
         currency "USD"
         realizedPNL 1.7976931348623157E308]
+    (->commissionReport wrapper commission currency realizedPNL)))
+
+(comment  ;; TRAIL LIMIT (sell)
+
+  (do
+    (mount/stop #'ew/default-chs-map #'ew/ewrapper #'account)
+    (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
+    (def wrapper (:wrapper ew/ewrapper))
+    (def account-name "DU542121")
+    (def valid-order-id (atom -1))
+
+
+    ;; NOTE
+    ;; this happens after we've submitted a MKT (buy)
+    (bind-order-updates ew/default-chs-map valid-order-id))
+
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL LIMIT"
+        quantity 10.0
+        status "PreSubmitted"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "PreSubmitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL LIMIT"
+        quantity 10.0
+        status "PreSubmitted"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "PreSubmitted"
+        filled 0.0
+        remaining 10.0
+        avgFillPrice 0.0
+        lastFillPrice 0.0]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [symbol "AAPL"
+        orderId 13
+        shares 10.0
+        price 0.0
+        avgPrice 0.0
+        reqId 1]
+    (->execDetails wrapper symbol orderId shares price avgPrice reqId))
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL LIMIT"
+        quantity 10.0
+        status "Filled"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "Filled"
+        filled 0.0
+        remaining 0.0
+        avgFillPrice 177.16
+        lastFillPrice 177.16]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [orderId 13
+        symbol "AAPL"
+        action "SELL"
+        orderType "TRAIL LIMIT"
+        quantity 10.0
+        status "Filled"]
+    (->openOrder wrapper symbol account-name orderId orderType action quantity status))
+
+  (let [orderId 13
+        status "Filled"
+        filled 0.0
+        remaining 0.0
+        avgFillPrice 177.16
+        lastFillPrice 177.16]
+    (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
+
+  (let [commission 0.352478
+        currency "USD"
+        realizedPNL -372.086478]
     (->commissionReport wrapper commission currency realizedPNL)))

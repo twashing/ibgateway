@@ -161,15 +161,3 @@
 ;; INFO [2018-11-20 20:01:33,338] clojure-agent-send-off-pool-7 - com.interrupt.ibgateway.component.ewrapper-impl orderStatus /  Id /  13  Status /  Filled  Filled 10.0  Remaining /  0.0  AvgFillPrice /  177.16  PermId /  1226545700  ParentId /  0  LastFillPrice /  177.16  ClientId /  1  WhyHeld /  nil
 ;; INFO [2018-11-20 20:01:33,340] clojure-agent-send-off-pool-7 - com.interrupt.ibgateway.component.ewrapper-impl commissionReport /  execId / 00018037.5c1438bf.01.01  commission / 0.352478  currency / USD  realizedPNL / -372.086478
 
-
-
-function find-in-jar {
-  find $1 -name "*.jar" -exec sh -c "echo; echo Inspecting: {}; jar tvf {} | grep $2" \;
-}
-
-
-Getting nextOrderId from TWS
-Example TRAIL + TRAIL LIMIT callback workflow
-
-
-
