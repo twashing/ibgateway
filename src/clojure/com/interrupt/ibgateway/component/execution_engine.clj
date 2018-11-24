@@ -29,7 +29,6 @@
 (defn leading-signals? [a] (s/subset? a leading-signals))
 (defn confirming-signals? [a] (s/subset? a confirming-signals))
 
-
 (defn identity-or-empty [l]
   (if-not (empty? l) l false))
 
@@ -91,7 +90,6 @@
                  {:signal :down :why :moving-average-crossover}]}
    :b {:signals [{:signal :up, :why :macd-divergence}]}})
 
-
 (defn which-ups? [which-signals]
   (let [[lags leads confs] (transform
                              [ALL #(and ((comp not false?) %)
@@ -117,18 +115,29 @@
 
 (defn setup-execution-engine []
 
-  ;; Extract signals from processcing pipeline
+
+  ;; TODO
+
+  ;; Extract signals -> processcing pipeline
+  ;; Bind -> order updates
+
+  ;; (-> three
+  ;;     which-signals?
+  ;;     which-ups?)
+
+  ;; Place order
+  ;; Updates account cash level
+  ;; Once a BUY order is "Filled", place a "TRAIL" sell order
+  ;;   listen to / #'ew/default-chs-map / order-updates / open-order (:filled)
 
 
-  ;; ** ALWAYS keep a running count of cash balance
-
+  ;; TODO
 
   ;; BUY if
   ;;   :up signal from lagging + leading (or more)
   ;;   within last 3 ticks
   ;;   we have enough money
   ;;   * buy up to $1000 or 50% of cash (whichever is less)
-
 
   ;; SELL if
   ;;   any :down signal
@@ -138,6 +147,8 @@
   ;;   ? speed of change (howto measure)
   ;;   ? 5 percent outside of volatility range
 
+
+  ;; TODO
 
   ;;  Add :buy :sell annotations to stream
 
@@ -155,7 +166,6 @@
           (recur (inc c) (<! joined-channel-tapped)))))
 
     joined-channel-tapped))
-
 
 (defn teardown-execution-engine [ee]
   (when-not (nil? ee)
