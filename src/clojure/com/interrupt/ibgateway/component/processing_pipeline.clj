@@ -500,10 +500,12 @@
 
     {:joined-channel analytic-connector-ch}))
 
+(def instrument "TSLA")
+
 (defn teardown-publisher-channel [processing-pipeline]
   (doseq [vl (vals processing-pipeline)]
     (close! vl)))
 
 (defstate processing-pipeline
-  :start (setup-publisher-channel "TSLA" 1 0)
+  :start (setup-publisher-channel instrument 1 0)
   :stop (teardown-publisher-channel processing-pipeline))

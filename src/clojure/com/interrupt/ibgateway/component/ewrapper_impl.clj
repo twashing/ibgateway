@@ -202,7 +202,7 @@
                  :req-id req-id
                  :account account
                  :tag tag
-                 :value value #_(acct-summary/parse-tag-value tag value)
+                 :value (acct-summary/parse-tag-value tag value)
                  :currency currency}]
         (info "accountSummary / val / " val)
         (async/put! account-updates val)))

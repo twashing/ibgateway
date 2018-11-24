@@ -33,16 +33,6 @@
 
 
 ;; MARKET Data
-(defn- create-order [action qty price]
-
-  (let [order (Order.)]
-    (set! (.m_totalQuantity order) qty)
-    (set! (.m_action order) action)
-    (set! (.m_orderType order) "LMT")
-    (set! (.m_lmtPrice order) price)
-
-    order))
-
 (defn request-market-data
   "Request historical market information in the form of a feed or data snapshot"
 
@@ -64,23 +54,64 @@
 (defn cancel-market-data
   "Cancel the request ID, used in 'request-market-data'"
   [client idx]
-
   (.cancelMktData client idx))
 
 
 ;; BUY / SELL stock
-(defn buy-stock [client idx instrm qty price]
+(defmulti buy-stock (fn [_ _ order-type _ _ _ _] order-type))
+
+(defmethod buy-stock "MKT" [client order-id order-type account-name instrm qty _price]
 
   (let [contract (contract/create instrm)
-        order (create-order "BUY" qty price)]
+        order (doto (Order.)
+                (.action "BUY")
+                (.orderType order-type)
+                (.totalQuantity qty)
+                (.account account-name))]
+    (.placeOrder client order-id contract order)))
 
-    (println (str "buy-stock >> client[" client "] / idx[" idx "] / instrm[" instrm "] / contract[" contract "] / order[" order "]"))
-    (.placeOrder client idx contract order)))
 
-(defn sell-stock [client idx instrm qty price]
+
+(defmulti sell-stock (fn [_ _ order-type _ _ _ _] order-type))
+
+(defmethod sell-stock "MKT" [client order-id order-type account-name instrm qty _price]
 
   (let [contract (contract/create instrm)
-        order (create-order "SELL" qty price)]
+        order (doto (Order.)
+                (.action "SELL")
+                (.orderType order-type)
+                (.totalQuantity qty)
+                (.account account-name))]
+    (.placeOrder client order-id contract order)))
 
-    (println (str "sell-stock >> client[" client "] / idx[" idx "] / instrm[" instrm "] / contract[" contract "] / order[" order "]"))
-    (.placeOrder client idx contract order)))
+(defmethod sell-stock "TRAIL" [client order-id order-type account-name instrm qty price]
+
+  (let [action "SELL"
+        trailingPercent 1]
+
+    (.placeOrder client
+                 order-id
+                 (contract/create "AAPL")
+                 (doto (Order.)
+                   (.action action)
+                   (.orderType order-type)
+                   (.trailingPercent trailingPercent)
+                   (.trailStopPrice price)
+                   (.totalQuantity qty)))))
+
+(defmethod sell-stock "TRAIL LIMIT" [client order-id order-type account-name instrm qty price]
+
+  (let [action "SELL"
+        lmtPriceOffset 0.1
+        trailingAmount 0.2]
+
+    (.placeOrder client
+                 order-id
+                 (contract/create "AAPL")
+                 (doto (Order.)
+                   (.action action)
+                   (.orderType order-type)
+                   (.lmtPriceOffset lmtPriceOffset)
+                   (.auxPrice trailingAmount)
+                   (.trailStopPrice price)
+                   (.totalQuantity qty)))))

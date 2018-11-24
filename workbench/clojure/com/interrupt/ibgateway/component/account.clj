@@ -3,7 +3,7 @@
   (:require [mount.core :refer [defstate] :as mount]
             [com.rpl.specter :as s]
             [clojure.tools.logging :refer [info] :as log]
-            [clojure.core.async :as async :refer [go-loop <!]]
+            [clojure.core.async :as async :refer [chan go-loop <!! <!]]
             [automata.core :as au]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
@@ -31,15 +31,15 @@
     (def client (:client ew/ewrapper))
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
-    (def valid-order-id (atom -1))
+    (def valid-order-id (chan))
 
-    (bind-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id))
 
 
   (.cancelOrder client valid-order-id)
   (.cancelOrder client 3)
   ;; (.reqIds client -1)
-  ;; valid-order-id
+  ;; (<!! valid-order-id)
 
 
   (.reqAllOpenOrders client)
@@ -221,7 +221,7 @@
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
 
-    (bind-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id))
 
 
   (do
@@ -304,7 +304,7 @@
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
 
-    (bind-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id))
 
 
   ;; 1
@@ -424,7 +424,7 @@
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
 
-    (bind-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id))
 
   (do
     (let [orderId 13
@@ -531,7 +531,7 @@
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
 
-    (bind-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id))
 
 
   (do

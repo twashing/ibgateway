@@ -1,7 +1,7 @@
 (ns com.interrupt.ibgateway.component.account-test
   (:require [mount.core :refer [defstate] :as mount]
             [com.interrupt.ibgateway.component.ewrapper :refer [default-chs-map ewrapper]]
-            [com.interrupt.ibgateway.component.account :refer [account bind-order-updates]]
+            [com.interrupt.ibgateway.component.account :refer [account consume-order-updates]]
             [com.interrupt.ibgateway.component.switchboard.mock :refer :all]
             [clojure.test :refer :all]))
 
@@ -12,7 +12,7 @@
   (def wrapper (:wrapper ewrapper))
   (def account-name "DU542121")
   (def valid-order-id (atom -1))
-  (bind-order-updates default-chs-map valid-order-id)
+  (consume-order-updates default-chs-map valid-order-id)
 
   (f)
   (mount/stop #'default-chs-map #'ewrapper #'account))
@@ -421,7 +421,7 @@
        :orderId 13}]}]
    :cash 0.0})
 
-(deftest trail-sell
+(deftest test-trail-sell
 
   (let [orderId 13
         symbol "AAPL"
@@ -583,7 +583,7 @@
        :orderId 13}]}]
    :cash 0.0})
 
-(deftest trail-limit-sell
+(deftest test-trail-limit-sell
 
   (let [orderId 13
         symbol "AAPL"

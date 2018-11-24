@@ -3,7 +3,7 @@
   (:require [mount.core :refer [defstate] :as mount]
             [com.rpl.specter :as s]
             [clojure.tools.logging :refer [info] :as log]
-            [clojure.core.async :as async :refer [go-loop <!]]
+            [clojure.core.async :as async :refer [go-loop <! >!!]]
             [automata.core :as au]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
@@ -60,9 +60,10 @@
                               :history [nil]}}]}]
    :cash 1000000})
 
+(def account-name "DU542121")
+
 (defstate account
-  :start (atom {:stock []
-                :cash 0.0})
+  :start (atom {:stock [] :cash 0.0})
   :stop (reset! account nil))
 
 
@@ -211,15 +212,15 @@
   (bind-exec-id->commission-report! val account))
 
 
-;; BIND -> ORDER UPDATES
-(defn bind-order-updates [updates-map valid-order-id]
+;; CONSUME ORDER UPDATES
+(defn consume-order-updates [updates-map valid-order-id]
   (let [{:keys [order-updates]} updates-map]
     (go-loop [{:keys [topic] :as val} (<! order-updates)]
       (case topic
         :open-order (handle-open-order val)
         :order-status (handle-order-status val account)
         :next-valid-id (let [{oid :order-id} val]
-                         (reset! valid-order-id oid))
+                         (>!! valid-order-id oid))
         :exec-details (handle-exec-details val account)
         :commission-report (handle-commission-report val account)
         :default)

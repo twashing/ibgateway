@@ -2,12 +2,17 @@
   (:require [clojure.core.async
              :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
                      sliding-buffer mult tap pipeline] :as async]
+            [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [info]]
             [clojure.tools.trace :refer [trace]]
             [clojure.set :as s]
             [com.rpl.specter :refer :all]
             [mount.core :refer [defstate] :as mount]
-            [com.interrupt.ibgateway.component.processing-pipeline :as pp]))
+            [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
+            [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
+            [com.interrupt.ibgateway.component.account :refer [account account-name consume-order-updates]]
+            [com.interrupt.ibgateway.component.processing-pipeline :as pp]
+            [com.interrupt.edgar.ib.market :as market]))
 
 
 (def lagging-signals #{:moving-average-crossover
@@ -103,27 +108,93 @@
 
     (map all-ups? [lags leads confs])))
 
+(defn next-valid-order-id [client valid-order-id-ch]
+  (.reqIds client -1)
+  (<!! valid-order-id-ch))
+
+(defn ->account-cash-level [client account-updates-ch]
+  (.reqAccountSummary client 9001 "All" "TotalCashValue")
+  (<!! account-updates-ch))
+
+(defn derive-order-quantity [cash-level price]
+  (-> (cond
+        (< cash-level 500) (* 0.5 cash-level)
+        (<= cash-level 2000) 500
+        (> cash-level 2000) (* 0.25 cash-level)
+        (> cash-level 10000) (* 0.1 cash-level)
+        (> cash-level 100000) (* 0.05 cash-level))
+      (/ price)
+      (.longValue)))
+
+(defn extract-signals+decide-order [client joined-tick account-name {account-updates-ch :account-updates} valid-order-id-ch]
+
+  (let [order-type "MKT"
+        instrm "TSLA" ;; TODO pull from joined-tick
+
+        price (-> joined-tick :sma-list :last-trade-price)
+        {cash-level :value} (->account-cash-level client account-updates-ch) ;; TODO make a mock version of this
+        qty (derive-order-quantity cash-level price)
+        order-id (next-valid-order-id client valid-order-id-ch)
+
+        [laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
+
+    (match [laggingS leadingS confirmingS]
+           [true true true] :A-buy-stock ;; (market/buy-stock "MKT" client order-id order-type account-name instrm qty price)
+           [true true _] :B-buy-stock ;; (market/buy-stock "MKT" client order-id order-type account-name instrm qty price)
+           [_ true true] :C-buy-stock ;; (market/buy-stock "MKT" client order-id order-type account-name instrm qty price)
+           :else :noop)))
+
 (comment
 
   (which-signals? one)
   (which-signals? three)
   (which-signals? four)
 
-  (-> three
-      which-signals?
-      which-ups?))
+  (let [[laggingS leadingS confirmingS] (-> one which-signals? which-ups?)]
+    (match [laggingS leadingS confirmingS]
+           [true true _] :a
+           :else :b))
 
-(defn setup-execution-engine []
+  (do
+    (mount/stop #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
+    (mount/start #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
 
+    (def client (:client ewrapper/ewrapper))
+    (def wrapper (:wrapper ewrapper/ewrapper))
+    (def valid-order-id-ch (chan))
+
+    (consume-order-updates ewrapper/default-chs-map valid-order-id-ch))
+
+  (next-valid-order-id client valid-order-id-ch))
+
+(defn consume-joined-channel [joined-channel-tapped account+order-updates-map valid-order-id-ch client account-name]
+
+  (go-loop [c 0 joined-tick (<! joined-channel-tapped)]
+    (if-not joined-tick
+      joined-tick
+      (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
+
+        (info "count: " c " / sr: " sr)
+        (extract-signals+decide-order client joined-tick account-name account+order-updates-map valid-order-id-ch)
+
+        (recur (inc c) (<! joined-channel-tapped))))))
+
+(defn setup-execution-engine [processing-pipeline wrapper default-chs account-name]
+
+  (let [client (:client wrapper)
+        account+order-updates-map default-chs
+        valid-order-id-ch (chan)
+
+        {joined-channel :joined-channel} processing-pipeline
+        joined-channel-tapped (chan (sliding-buffer 100))]
+
+    (bind-channels->mult joined-channel joined-channel-tapped)
+    (consume-order-updates account+order-updates-map valid-order-id-ch)
+    (consume-joined-channel joined-channel-tapped account+order-updates-map valid-order-id-ch client account-name)
+
+    joined-channel-tapped)
 
   ;; TODO
-
-  ;; Extract signals -> processcing pipeline
-  ;; Bind -> order updates
-
-  ;; (-> three
-  ;;     which-signals?
-  ;;     which-ups?)
 
   ;; Place order
   ;; Updates account cash level
@@ -151,26 +222,13 @@
   ;; TODO
 
   ;;  Add :buy :sell annotations to stream
-
-
-  #_(let [{joined-channel :joined-channel} pp/processing-pipeline
-        joined-channel-tapped (chan (sliding-buffer 100))]
-
-    (pp/bind-channels->mult joined-channel joined-channel-tapped)
-
-    (go-loop [c 0 r (<! joined-channel-tapped)]
-      (if-not r
-        r
-        (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "count: " c " / sr: " r)
-          (recur (inc c) (<! joined-channel-tapped)))))
-
-    joined-channel-tapped))
+  )
 
 (defn teardown-execution-engine [ee]
   (when-not (nil? ee)
     (close! ee)))
 
+
 (defstate execution-engine
-  :start (setup-execution-engine)
+  :start (setup-execution-engine pp/processing-pipeline ewrapper/ewrapper ewrapper/default-chs-map account-name)
   :stop (teardown-execution-engine execution-engine))
