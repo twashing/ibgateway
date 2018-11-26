@@ -1,5 +1,6 @@
 (ns com.interrupt.ibgateway.component.account-test
   (:require [mount.core :refer [defstate] :as mount]
+            [clojure.core.async :refer [chan]]
             [com.interrupt.ibgateway.component.ewrapper :refer [default-chs-map ewrapper]]
             [com.interrupt.ibgateway.component.account :refer [account consume-order-updates]]
             [com.interrupt.ibgateway.component.switchboard.mock :refer :all]
@@ -12,7 +13,8 @@
   (def wrapper (:wrapper ewrapper))
   (def account-name "DU542121")
   (def valid-order-id (atom -1))
-  (consume-order-updates default-chs-map valid-order-id)
+  (def order-filled-notification-ch (chan))
+  (consume-order-updates default-chs-map valid-order-id order-filled-notification-ch)
 
   (f)
   (mount/stop #'default-chs-map #'ewrapper #'account))
@@ -356,7 +358,7 @@
             realizedPNL 1.7976931348623157E308]
         (->commissionReport wrapper commission currency realizedPNL)
 
-        (Thread/sleep 250)
+        (Thread/sleep 500)
         (is (= @account account-mkt-filled-spurious)))))
 
 (def account-trail-sell

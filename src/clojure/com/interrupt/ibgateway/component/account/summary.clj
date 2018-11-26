@@ -4,7 +4,7 @@
             [clojure.string :as str]
             [mount.core :refer [defstate] :as mount]
             [com.interrupt.edgar.subscription :as sub]
-            [com.interrupt.ibgateway.component.ewrapper :as ew]
+            ;; [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.account.common :refer [next-reqid!]]
             [inflections.core :as inflections]))
 
@@ -49,7 +49,7 @@
 (def req-id (atom nil))
 
 
-(defstate summary
+#_(defstate summary
   :start (do (reset! req-id (next-reqid! []))
              (.start (:client ew/ewrapper) @req-id))
   :stop (.stop (:client ew/ewrapper) @req-id))

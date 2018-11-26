@@ -32,8 +32,9 @@
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
     (def valid-order-id (chan))
+    (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch))
 
 
   (.cancelOrder client valid-order-id)
@@ -212,7 +213,7 @@
                    (.trailStopPrice trailStopPrice)
                    (.totalQuantity quantity)))))
 
-(comment  ;; MKT (buy)
+(comment  ;; MKT (buy w/ order-filled-notification)
 
   (do
     (mount/stop #'ew/default-chs-map #'ew/ewrapper #'account)
@@ -220,8 +221,12 @@
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
+    (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch)
+    (go-loop [{:keys [stock order] :as stock+order} (<! order-filled-notification-ch)]
+      (info "stock+order / " stock+order)
+      (recur (<! order-filled-notification-ch))))
 
 
   (do
@@ -303,8 +308,9 @@
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
+    (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch))
 
 
   ;; 1
@@ -423,8 +429,9 @@
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
+    (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch))
 
   (do
     (let [orderId 13
@@ -530,8 +537,9 @@
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
     (def valid-order-id (atom -1))
+    (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id))
+    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch))
 
 
   (do

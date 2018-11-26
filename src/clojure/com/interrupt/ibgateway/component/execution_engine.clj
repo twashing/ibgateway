@@ -11,8 +11,10 @@
             [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
             [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
             [com.interrupt.ibgateway.component.account :refer [account account-name consume-order-updates]]
+            [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
-            [com.interrupt.edgar.ib.market :as market]))
+            [com.interrupt.edgar.ib.market :as market])
+  (:import [com.ib.client Order]))
 
 
 (def lagging-signals #{:moving-average-crossover
@@ -108,7 +110,7 @@
 
     (map all-ups? [lags leads confs])))
 
-(defn next-valid-order-id [client valid-order-id-ch]
+(defn ->next-valid-order-id [client valid-order-id-ch]
   (.reqIds client -1)
   (<!! valid-order-id-ch))
 
@@ -134,7 +136,7 @@
         price (-> joined-tick :sma-list :last-trade-price)
         {cash-level :value} (->account-cash-level client account-updates-ch) ;; TODO make a mock version of this
         qty (derive-order-quantity cash-level price)
-        order-id (next-valid-order-id client valid-order-id-ch)
+        order-id (->next-valid-order-id client valid-order-id-ch) ;; TODO make a mock version of this
 
         [laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
 
@@ -162,10 +164,37 @@
     (def client (:client ewrapper/ewrapper))
     (def wrapper (:wrapper ewrapper/ewrapper))
     (def valid-order-id-ch (chan))
+    (def order-filled-notification-ch (chan))
+    (def account-updates-ch (:account-updates ewrapper/default-chs-map))
 
-    (consume-order-updates ewrapper/default-chs-map valid-order-id-ch))
+    (consume-order-updates ewrapper/default-chs-map valid-order-id-ch order-filled-notification-ch))
 
-  (next-valid-order-id client valid-order-id-ch))
+  (->next-valid-order-id client valid-order-id-ch)
+  (->account-cash-level client account-updates-ch))
+
+(defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
+
+  (go-loop [{:keys [stock order]} (<! order-filled-notification-ch)]
+
+    ;; TODO derive price
+    (let [symbol (:symbol stock)
+          action "SELL"
+          quantity (:quantity order)
+          valid-order-id (->next-valid-order-id client valid-order-id-ch)
+          trailingPercent 1
+          trailStopPrice 176.26]
+
+      (.placeOrder client
+                   valid-order-id
+                   (contract/create symbol)
+                   (doto (Order.)
+                     (.action action)
+                     (.orderType "TRAIL")
+                     (.trailingPercent trailingPercent)
+                     (.trailStopPrice trailStopPrice)
+                     (.totalQuantity quantity))))
+
+    (recur (<! order-filled-notification-ch))))
 
 (defn consume-joined-channel [joined-channel-tapped account+order-updates-map valid-order-id-ch client account-name]
 
@@ -184,25 +213,34 @@
   (let [client (:client wrapper)
         account+order-updates-map default-chs
         valid-order-id-ch (chan)
+        order-filled-notification-ch (chan)
 
         {joined-channel :joined-channel} processing-pipeline
         joined-channel-tapped (chan (sliding-buffer 100))]
 
+
     (bind-channels->mult joined-channel joined-channel-tapped)
-    (consume-order-updates account+order-updates-map valid-order-id-ch)
+
+
+    ;; CONSUME ORDER UPDATES
+    (consume-order-updates account+order-updates-map valid-order-id-ch order-filled-notification-ch)
+
+
+    ;; CONSUME ORDER FILLED NOTIFICATIONS
+    (consume-order-filled-notifications order-filled-notification-ch)
+
+
+    ;; CONSUME JOINED TICK STREAM
     (consume-joined-channel joined-channel-tapped account+order-updates-map valid-order-id-ch client account-name)
+
 
     joined-channel-tapped)
 
-  ;; TODO
-
-  ;; Place order
-  ;; Updates account cash level
-  ;; Once a BUY order is "Filled", place a "TRAIL" sell order
-  ;;   listen to / #'ew/default-chs-map / order-updates / open-order (:filled)
-
 
   ;; TODO
+
+  ;; fix tests
+  ;; derive sell price
 
   ;; BUY if
   ;;   :up signal from lagging + leading (or more)
@@ -227,7 +265,6 @@
 (defn teardown-execution-engine [ee]
   (when-not (nil? ee)
     (close! ee)))
-
 
 (defstate execution-engine
   :start (setup-execution-engine pp/processing-pipeline ewrapper/ewrapper ewrapper/default-chs-map account-name)

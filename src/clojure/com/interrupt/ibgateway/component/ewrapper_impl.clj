@@ -4,7 +4,7 @@
             [clojure.tools.logging :refer [debug info warn error]]
             [clojure.core.async :as async]
             [clojure.tools.logging :as log]
-            ;; [com.interrupt.ibgateway.component.account.summary :as acct-summary]
+            [com.interrupt.ibgateway.component.account.summary :as acct-summary]
             ;; [com.interrupt.ibgateway.component.account.updates :as acct-updates]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.ibgateway.component.account.contract :as contract]

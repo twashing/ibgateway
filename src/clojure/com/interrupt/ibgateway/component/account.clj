@@ -86,6 +86,10 @@
   ((comp not nil?)
    (s/select-one [:stock s/ALL #(= symbol (:symbol %))] state)))
 
+(defn order-exists? [order-id state]
+  ((comp not nil?)
+   (s/select-one [:stock s/ALL :orders s/ALL #(= order-id (:orderId %))] state)))
+
 (defn add-stock! [{:keys [orderId symbol secType exchange action
                           orderType totalQuantity status] :as val}
                   state]
@@ -115,12 +119,15 @@
 (defn order-id->stock [order-id account]
   (s/select [:stock s/ALL s/VAL :orders s/ALL #(= order-id (:orderId %))] @account))
 
+(defn exec-id->stock+order [state execId]
+  (s/select [:stock s/ALL s/VAL :orders s/ALL #(= execId (:exec-id %))] state))
+
 (defn bind-order-id->exec-id! [order-id exec-id state]
   (reset! state (s/transform [:stock s/ALL :orders s/ALL #(= order-id (:orderId %))]
                              #(assoc % :exec-id exec-id)
                              @state)))
 
-(defn bind-exec-id->commission-report! [{:keys [execId commission realizedPNL] :as val} state]
+(defn bind-exec-id->commission-report! [state {:keys [execId commission realizedPNL] :as val}]
   (reset! state (s/transform [:stock s/ALL :orders s/ALL #(= execId (:exec-id %))]
                              #(assoc % :commission commission :realizedPNL realizedPNL)
                              @state)))
@@ -134,6 +141,14 @@
                         #(assoc % :avgFillPrice avgFillPrice :price lastFillPrice)
                         s))))
 
+(defn conditionally-notify-filled [[[stock order]] order-filled-notification-ch]
+  (info "conditionally-notify-filled / " [stock order])
+  (when (and
+          (= "BUY" (:action order))
+          (= :filled (-> order :state :state :matcher)))
+    (>!! order-filled-notification-ch {:stock stock :order order}))
+  [stock order])
+
 
 ;; OPEN ORDER
 (defmulti handle-open-order (fn [{:keys [action orderType]}]
@@ -143,7 +158,8 @@
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
-  (when-not (stock-exists? symbol @account)
+  (when-not (and (stock-exists? symbol @account)
+                 (order-exists? orderId @account))
     (add-stock! val account))
 
   (let [status-kw (get order-status-map status)]
@@ -208,21 +224,23 @@
 ;; COMMISSION REPORT
 (defn handle-commission-report [{:keys [execId commission
                                         currency realizedPNL] :as val}
-                                account]
-  (bind-exec-id->commission-report! val account))
-
+                                account order-filled-notification-ch]
+  (-> account
+      (bind-exec-id->commission-report! val)
+      (exec-id->stock+order execId)
+      (conditionally-notify-filled order-filled-notification-ch)))
 
 ;; CONSUME ORDER UPDATES
-(defn consume-order-updates [updates-map valid-order-id]
+(defn consume-order-updates [updates-map valid-order-id-ch order-filled-notification-ch]
   (let [{:keys [order-updates]} updates-map]
     (go-loop [{:keys [topic] :as val} (<! order-updates)]
       (case topic
         :open-order (handle-open-order val)
         :order-status (handle-order-status val account)
         :next-valid-id (let [{oid :order-id} val]
-                         (>!! valid-order-id oid))
+                         (>!! valid-order-id-ch oid))
         :exec-details (handle-exec-details val account)
-        :commission-report (handle-commission-report val account)
+        :commission-report (handle-commission-report val account order-filled-notification-ch)
         :default)
 
       (recur (<! order-updates)))))
