@@ -17,6 +17,8 @@
   (:import [com.ib.client Order]))
 
 
+(def latest-standard-deviation (atom -1))
+
 (def lagging-signals #{:moving-average-crossover
                        :bollinger-divergence-overbought
                        :bollinger-divergence-oversold
@@ -176,13 +178,12 @@
 
   (go-loop [{:keys [stock order]} (<! order-filled-notification-ch)]
 
-    ;; TODO derive price
     (let [symbol (:symbol stock)
           action "SELL"
           quantity (:quantity order)
           valid-order-id (->next-valid-order-id client valid-order-id-ch)
           trailingPercent 1
-          trailStopPrice 176.26]
+          trailStopPrice (- (:price order) @latest-standard-deviation)]
 
       (.placeOrder client
                    valid-order-id
@@ -204,6 +205,9 @@
       (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
 
         (info "count: " c " / sr: " sr)
+
+        ;; TODO design a better way to capture running standard-deviation
+        (reset! latest-standard-deviation (-> joined-tick :bollinger-band :standard-deviation))
         (extract-signals+decide-order client joined-tick account-name account+order-updates-map valid-order-id-ch)
 
         (recur (inc c) (<! joined-channel-tapped))))))
@@ -239,8 +243,16 @@
 
   ;; TODO
 
+  ;; [ok] derive sell price
+  ;; workbench
+  ;;   -> joined-ticks (place orders)
+  ;;   -> order-updates (notify order filled)
+  ;;   -> order-filled (place opposite TRAIL sell)
+  ;;   ensure sell order completes
+  ;;   mock(s) for ->account-cash-level + ->next-valid-order-id
+
   ;; fix tests
-  ;; derive sell price
+  ;; overlay (emit) orders on top of stream
 
   ;; BUY if
   ;;   :up signal from lagging + leading (or more)
