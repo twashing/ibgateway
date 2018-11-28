@@ -155,7 +155,6 @@
   (let [instrm "TSLA" ;; TODO pull from joined-tick
         [laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
 
-    ;; (market/buy-stock "MKT" client order-id order-type account-name instrm qty price)
     (match [laggingS leadingS confirmingS]
            [true true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
            [true true _] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
@@ -246,10 +245,19 @@
 
 
     ;; CONSUME ORDER UPDATES
+
+    ;; TODO mock
+    ;;   account+order-updates-map (->account-cash-level)
+    ;;   order-filled-notification-ch
+    ;;   valid-order-id-ch (->next-valid-order-id)
     (consume-order-updates account+order-updates-map valid-order-id-ch order-filled-notification-ch)
 
 
     ;; CONSUME ORDER FILLED NOTIFICATIONS
+
+    ;; TODO mock
+    ;;   order-filled-notification-ch
+    ;;   valid-order-id-ch (->next-valid-order-id)
     (consume-order-filled-notifications client order-filled-notification-ch valid-order-id-ch)
 
 

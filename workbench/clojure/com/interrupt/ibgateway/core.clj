@@ -148,7 +148,7 @@
 
   ;; STOP
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.switchboard/control-channel
+              #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               ;; #'com.interrupt.ibgateway.component.repl-server/server
@@ -164,7 +164,7 @@
 
   ;; 1. START
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.switchboard/control-channel
+               #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                ;; #'com.interrupt.ibgateway.component.repl-server/server
@@ -197,7 +197,7 @@
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
               #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.switchboard/control-channel
+              #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               #'com.interrupt.ibgateway.component.execution-engine/execution-engine
@@ -208,7 +208,7 @@
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
                #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.switchboard/control-channel
+               #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.execution-engine/execution-engine
@@ -216,6 +216,32 @@
                #'com.interrupt.ibgateway.core/state)
 
   (sw/kickoff-stream-workbench))
+
+
+(comment ;; stream live workbench
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+              #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.switchboard/control-channel
+              #'com.interrupt.ibgateway.component.switchboard.store/conn
+              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+              #'com.interrupt.ibgateway.component.execution-engine/execution-engine
+              #'com.interrupt.ibgateway.component.vase/server
+              #'com.interrupt.ibgateway.core/state)
+
+  (sw/stop-stream-live)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+               #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.switchboard/control-channel
+               #'com.interrupt.ibgateway.component.switchboard.store/conn
+               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+               #'com.interrupt.ibgateway.component.execution-engine/execution-engine
+               #'com.interrupt.ibgateway.component.vase/server
+               #'com.interrupt.ibgateway.core/state)
+
+  (let [ticker-id 1003]
+    (sw/start-stream-live ew/ewrapper ew/default-chs-map "TSLA" ticker-id)))
 
 
 (comment ;; from com.interrupt.ibgateway.component.processing-pipeline

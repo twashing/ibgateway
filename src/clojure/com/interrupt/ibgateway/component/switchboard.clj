@@ -1294,8 +1294,9 @@
                 snapshot? false
                 options nil
                 fname (str "live-recordings/" symbol ".edn")
-                live-subscription (sub/->LiveSubscription client ch ticker-id contract
-                                                          generic-tick-list snapshot? options)]]
+                live-subscription (sub/->LiveSubscription
+                                    client ch ticker-id contract
+                                    generic-tick-list snapshot? options)]]
 
     (sub/subscribe live-subscription)
     (swap! live-subscriptions conj live-subscription)
@@ -1305,7 +1306,6 @@
   (doseq [{ticker-id :ticker-id :as live-subscription} @live-subscriptions]
     (sub/unsubscribe live-subscription)
     (swap! live-subscriptions remove #(= ticker-id (:ticker-id %)))))
-
 
 (comment  ;; A scanner workbench
 
@@ -1327,20 +1327,44 @@
 
 
 ;; ==========
-;; STEAM WORKBENCH
+;; STREAM LIVE
 (defstate control-channel
   :start (chan)
   :stop (close! control-channel))
 
-(defn stop-stream-workbench []
+(defn stop-stream-live []
   (>!! control-channel :exit))
+
+(defn start-stream-live [{client :client wrapper :wrapper :as ewrapper}
+                         {tick-ch :publisher}
+                         symbol ticker-id]
+
+  (let [contract (contract/create symbol)
+        generic-tick-list "225, 233, 236"
+        snapshot? false
+        options nil
+        live-subscription (sub/->LiveSubscription
+                            client tick-ch ticker-id contract
+                            generic-tick-list snapshot? options)]
+
+    (sub/subscribe live-subscription)))
+
+
+;; ==========
+;; STREAM WORKBENCH
+(defstate workbench-control-channel
+  :start (chan)
+  :stop (close! workbench-control-channel))
+
+(defn stop-stream-workbench []
+  (>!! workbench-control-channel :exit))
 
 (defn kickoff-stream-workbench []
   (let [{:keys [wrapper]} ew/ewrapper
         sub (sub/->FileSubscription "live-recordings/2018-08-20-TSLA.edn" (chan 100))
         ch (sub/subscribe sub)]
     (go-loop []
-      (let [[v c] (alts! [ch control-channel])]
+      (let [[v c] (alts! [ch workbench-control-channel])]
         (if (= v :exit)
           (sub/unsubscribe sub)
           (let [{:keys [topic]} v]

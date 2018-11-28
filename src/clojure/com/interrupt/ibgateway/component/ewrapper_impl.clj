@@ -5,7 +5,6 @@
             [clojure.core.async :as async]
             [clojure.tools.logging :as log]
             [com.interrupt.ibgateway.component.account.summary :as acct-summary]
-            ;; [com.interrupt.ibgateway.component.account.updates :as acct-updates]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.edgar.obj-convert :as obj-convert]
@@ -59,7 +58,7 @@
 ;; client.cancelPositions();
 
 (defn ewrapper-impl
-  [{ch :publisher
+  [{tick-updates :publisher
     account-updates :account-updates
     order-updates :order-updates}]
 
@@ -81,21 +80,21 @@
                  :field field
                  :price price
                  :can-auto-execute can-auto-execute?}]
-        (async/put! ch val)))
+        (async/put! tick-updates val)))
 
     (tickSize [^Integer ticker-id ^Integer field ^Integer size]
       (let [val {:topic :tick-size
                  :ticker-id ticker-id
                  :field field
                  :size size}]
-        (async/put! ch val)))
+        (async/put! tick-updates val)))
 
     (tickString [^Integer ticker-id ^Integer tickType ^String value]
       (let [val {:topic :tick-string
                  :ticker-id ticker-id
                  :tick-type tickType
                  :value value}]
-        (async/put! ch val)))
+        (async/put! tick-updates val)))
 
     (tickGeneric [^Integer ticker-id ^Integer tickType ^Double value]
       (let [val {:topic :tick-generic
@@ -103,7 +102,7 @@
                  :tick-type tickType
                  :value value}]
         (info "New - Tick Generic. Ticker Id:"  ticker-id  ", Field: " tickType  ", Value: "  value)
-        (async/put! ch val)))
+        (async/put! tick-updates val)))
 
 
     ;; ========
@@ -145,7 +144,7 @@
                  :count count
                  :wap wap
                  :has-gaps gaps?}]
-        (async/put! ch val)))
+        (async/put! tick-updates val)))
 
 
     ;; ========

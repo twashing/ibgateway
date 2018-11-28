@@ -71,7 +71,6 @@
     (.placeOrder client order-id contract order)))
 
 
-
 (defmulti sell-stock (fn [_ _ order-type _ _ _ _] order-type))
 
 (defmethod sell-stock "MKT" [client order-id order-type account-name instrm qty _price]
