@@ -3,7 +3,7 @@
              :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
                      sliding-buffer mult tap pipeline] :as async]
             [clojure.core.match :refer [match]]
-            [clojure.tools.logging :refer [info]]
+            [clojure.tools.logging :refer [debug info]]
             [clojure.tools.trace :refer [trace]]
             [clojure.set :as s]
             [com.rpl.specter :refer :all]
@@ -116,9 +116,14 @@
   (.reqIds client -1)
   (<!! valid-order-id-ch))
 
+;; TODO make a mock version of this
 (defn ->account-cash-level [client account-updates-ch]
   (.reqAccountSummary client 9001 "All" "TotalCashValue")
   (<!! account-updates-ch))
+
+;; TODO pick a better way to cap-order-quantity
+(defn cap-order-quantity [quantity]
+  (if (< quantity 500) quantity 500))
 
 (defn derive-order-quantity [cash-level price]
   (-> (cond
@@ -126,26 +131,35 @@
         (<= cash-level 2000) 500
         (> cash-level 2000) (* 0.25 cash-level)
         (> cash-level 10000) (* 0.1 cash-level)
-        (> cash-level 100000) (* 0.05 cash-level))
+        (> cash-level 100000) (* 0.05 cash-level)
+        :else (* 0.05 cash-level))
       (/ price)
-      (.longValue)))
+      (.longValue)
+      cap-order-quantity))
+
+(defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
+  (let [order-type "MKT"
+        price (-> joined-tick :sma-list :last-trade-price)
+        qty (derive-order-quantity
+              (-> client (->account-cash-level account-updates-ch) :value)
+              price)
+
+        ;; TODO make a mock version of this
+        order-id (->next-valid-order-id client valid-order-id-ch)]
+
+    (info "buy-stock / client, " [order-id order-type account-name instrm qty price])
+    (market/buy-stock client order-id order-type account-name instrm qty price)))
 
 (defn extract-signals+decide-order [client joined-tick account-name {account-updates-ch :account-updates} valid-order-id-ch]
 
-  (let [order-type "MKT"
-        instrm "TSLA" ;; TODO pull from joined-tick
-
-        price (-> joined-tick :sma-list :last-trade-price)
-        {cash-level :value} (->account-cash-level client account-updates-ch) ;; TODO make a mock version of this
-        qty (derive-order-quantity cash-level price)
-        order-id (->next-valid-order-id client valid-order-id-ch) ;; TODO make a mock version of this
-
+  (let [instrm "TSLA" ;; TODO pull from joined-tick
         [laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
 
+    ;; (market/buy-stock "MKT" client order-id order-type account-name instrm qty price)
     (match [laggingS leadingS confirmingS]
-           [true true true] :A-buy-stock ;; (market/buy-stock "MKT" client order-id order-type account-name instrm qty price)
-           [true true _] :B-buy-stock ;; (market/buy-stock "MKT" client order-id order-type account-name instrm qty price)
-           [_ true true] :C-buy-stock ;; (market/buy-stock "MKT" client order-id order-type account-name instrm qty price)
+           [true true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [true true _] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
            :else :noop)))
 
 (comment
@@ -185,6 +199,7 @@
           trailingPercent 1
           trailStopPrice (- (:price order) @latest-standard-deviation)]
 
+      (info "(balancing) sell-stock / client, " [quantity valid-order-id trailingPercent trailStopPrice])
       (.placeOrder client
                    valid-order-id
                    (contract/create symbol)
@@ -202,13 +217,17 @@
   (go-loop [c 0 joined-tick (<! joined-channel-tapped)]
     (if-not joined-tick
       joined-tick
-      (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
+      (let [sr (update-in joined-tick [:sma-list] dissoc :population)
+            account-updates-ch (:account-updates account+order-updates-map)]
 
-        (info "count: " c " / sr: " sr)
+        (debug "count: " c " / sr: " sr)
 
         ;; TODO design a better way to capture running standard-deviation
-        (reset! latest-standard-deviation (-> joined-tick :bollinger-band :standard-deviation))
-        (extract-signals+decide-order client joined-tick account-name account+order-updates-map valid-order-id-ch)
+        (reset! latest-standard-deviation
+                (-> joined-tick :bollinger-band :standard-deviation))
+
+        (when (:sma-list joined-tick)
+          (extract-signals+decide-order client joined-tick account-name account+order-updates-map valid-order-id-ch))
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
@@ -231,7 +250,7 @@
 
 
     ;; CONSUME ORDER FILLED NOTIFICATIONS
-    (consume-order-filled-notifications order-filled-notification-ch)
+    (consume-order-filled-notifications client order-filled-notification-ch valid-order-id-ch)
 
 
     ;; CONSUME JOINED TICK STREAM

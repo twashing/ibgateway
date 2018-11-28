@@ -3,6 +3,7 @@
   (:require [mount.core :refer [defstate] :as mount]
             [com.rpl.specter :as s]
             [clojure.tools.logging :refer [info] :as log]
+            [clojure.core.match :refer [match]]
             [clojure.core.async :as async :refer [go-loop <! >!!]]
             [automata.core :as au]
             [com.interrupt.ibgateway.component.account.contract :as contract]
@@ -90,24 +91,35 @@
   ((comp not nil?)
    (s/select-one [:stock s/ALL :orders s/ALL #(= order-id (:orderId %))] state)))
 
+(defn order->order-state [{:keys [orderId symbol secType exchange action
+                                  orderType totalQuantity status]}]
+  {:orderId orderId
+   :orderType (str orderType)
+   :action (str action)
+   :quantity totalQuantity
+   :price nil
+   :state (au/automaton
+            [(au/* :api-pending) (au/* :pending-submit) (au/* :pending-cancel) (au/* :pre-submitted)
+             (au/* :submitted) (au/* :api-cancelled) (au/* :cancelled) (au/* :filled) (au/* :inactive)])})
+
 (defn add-stock! [{:keys [orderId symbol secType exchange action
                           orderType totalQuantity status] :as val}
                   state]
 
-  (let [automaton (au/automaton [(au/* :api-pending) (au/* :pending-submit) (au/* :pending-cancel) (au/* :pre-submitted)
-                                 (au/* :submitted) (au/* :api-cancelled) (au/* :cancelled) (au/* :filled) (au/* :inactive)])
-        order {:orderId orderId
-               :orderType (str orderType)
-               :action (str action)
-               :quantity totalQuantity
-               :price nil
-               :state automaton}
+  (let [order (order->order-state val)
         stock {:symbol symbol
                :amount totalQuantity
                :avgFillPrice nil
                :orders [order]}]
 
     (reset! state (s/transform [:stock] #(conj % stock) @state))))
+
+(defn add-order! [{:keys [orderId symbol secType exchange action
+                          orderType totalQuantity status] :as val}
+                  state]
+
+  (let [order (order->order-state val)]
+    (reset! state (s/transform [:stock s/ALL #(= symbol (:symbol %)) :orders] #(conj % order) @state))))
 
 (defn transition-order! [symbol order-id to-state account]
 
@@ -158,9 +170,13 @@
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
-  (when-not (and (stock-exists? symbol @account)
-                 (order-exists? orderId @account))
-    (add-stock! val account))
+  (let [sexists? (stock-exists? symbol @account)
+        oexists? (order-exists? orderId @account)]
+
+    (match [sexists? oexists?]
+           [false false] (add-stock! val account)
+           [true false] (add-order! val account)
+           :else :noop))
 
   (let [status-kw (get order-status-map status)]
     (transition-order! symbol orderId status-kw account)))
@@ -169,8 +185,13 @@
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
-  (when-not (stock-exists? symbol @account)
-    (add-stock! val account))
+  (let [sexists? (stock-exists? symbol @account)
+        oexists? (order-exists? orderId @account)]
+
+    (match [sexists? oexists?]
+           [false false] (add-stock! val account)
+           [true false] (add-order! val account)
+           :else :no-match))
 
   (let [status-kw (get order-status-map status)]
     (transition-order! symbol orderId status-kw account)))
@@ -179,8 +200,13 @@
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
-  (when-not (stock-exists? symbol @account)
-    (add-stock! val account))
+  (let [sexists? (stock-exists? symbol @account)
+        oexists? (order-exists? orderId @account)]
+
+    (match [sexists? oexists?]
+           [false false] (add-stock! val account)
+           [true false] (add-order! val account)
+           :else :no-match))
 
   (let [status-kw (get order-status-map status)]
     (transition-order! symbol orderId status-kw account)))
@@ -229,6 +255,7 @@
       (bind-exec-id->commission-report! val)
       (exec-id->stock+order execId)
       (conditionally-notify-filled order-filled-notification-ch)))
+
 
 ;; CONSUME ORDER UPDATES
 (defn consume-order-updates [updates-map valid-order-id-ch order-filled-notification-ch]

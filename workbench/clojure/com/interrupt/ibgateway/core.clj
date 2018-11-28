@@ -195,7 +195,8 @@
 
 (comment ;; execution-engine workbench
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+              #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.switchboard/control-channel
               #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
@@ -205,7 +206,8 @@
 
   (sw/stop-stream-workbench)
 
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+               #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.switchboard/control-channel
                #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
