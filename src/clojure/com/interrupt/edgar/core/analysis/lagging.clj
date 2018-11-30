@@ -177,6 +177,8 @@
               (as-> etal-keys v
                 (zipmap v (map #(% ech) etal-keys))
                 (assoc v
+                       :variance variance
+                       :standard-deviation standard-deviation
                        :upper-band (+ ma (* 2 standard-deviation))
                        :lower-band (- ma (* 2 standard-deviation)))
                 (list v)

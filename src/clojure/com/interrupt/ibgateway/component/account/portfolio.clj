@@ -1,4 +1,4 @@
-(ns com.interrupt.edgar.account.portfolio
+(ns com.interrupt.ibgateway.component.account.portfolio
   (:require [clojure.core.async :as async]
             [clojure.pprint :as pprint]))
 

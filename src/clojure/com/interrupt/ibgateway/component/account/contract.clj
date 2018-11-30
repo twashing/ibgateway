@@ -1,4 +1,4 @@
-(ns com.interrupt.edgar.contract
+(ns com.interrupt.ibgateway.component.account.contract
   (:require [com.interrupt.edgar.obj-convert :as obj-convert])
   (:import [com.ib.client Contract DeltaNeutralContract]))
 

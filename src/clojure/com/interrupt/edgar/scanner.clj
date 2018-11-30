@@ -9,12 +9,12 @@
 (def scan-codes (->> ScanCode .getEnumConstants (map str) sort))
 
 (def relevant-scan-codes
-  ["HIGH_OPT_IMP_VOLAT"
-   "HIGH_OPT_IMP_VOLAT_OVER_HIST"
-   "HOT_BY_VOLUME"
-   "TOP_VOLUME_RATE"
-   "HOT_BY_OPT_VOLUME"
-   "OPT_VOLUME_MOST_ACTIVE"
+  [;; "HIGH_OPT_IMP_VOLAT"
+   ;; "HIGH_OPT_IMP_VOLAT_OVER_HIST"
+   ;; "HOT_BY_VOLUME"
+   ;; "TOP_VOLUME_RATE"
+   ;; "HOT_BY_OPT_VOLUME"
+   ;; "OPT_VOLUME_MOST_ACTIVE"
    "MOST_ACTIVE_USD"
    "HOT_BY_PRICE"
    "TOP_PRICE_RANGE"
@@ -115,6 +115,6 @@
   ([]
    (scanner-decide (vals ch-kw->atom)))
   ([atoms]
-   (scanner-decide atoms (partial most-frequent 10)))
+   (scanner-decide atoms (partial most-frequent 20)))
   ([atoms decider]
    (decider (map deref atoms))))

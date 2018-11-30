@@ -41,6 +41,7 @@
                  [io.pedestal/pedestal.log "0.5.2"]
                  [com.cognitect/pedestal.vase "0.9.3"]
                  [org.clojure/tools.cli "0.3.7"]
+                 [automata "0.2.0-SNAPSHOT"]
 
                  ;; Java Libraries
                  [manifold "0.1.7-alpha6"]
@@ -50,37 +51,32 @@
                  [com.cognitect/transit-clj "0.8.309"]
                  [com.cognitect/transit-cljs "0.8.256"]
                  [com.amazonaws/aws-java-sdk "1.11.401"]
-                 [org.apache.commons/commons-math3 "3.6.1"]]
+                 [org.apache.commons/commons-math3 "3.6.1"]
+                 [com.rpl/specter "1.1.1"]]
+
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
   :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[org.clojure/tools.trace "0.7.9"]
+                                  [org.clojure/tools.nrepl "0.2.13"]
                                   [org.clojure/test.check "0.10.0-alpha2"]
                                   [com.gfredericks/test.chuck "0.2.9"]
                                   [im.chit/lucid.core.inject "1.3.13"]
                                   [http-kit.fake "0.2.2"]
                                   [cider/piggieback "0.3.6"]
-                                  [figwheel-sidecar "0.5.16"]
-                                  [com.bhauman/rebel-readline "0.1.2"]]
+                                  [figwheel-sidecar "0.5.16"]]
 
                    :source-paths ["src/clojure" "workbench/clojure" "test/clojure"]
                    :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
 
                    :resource-paths ["dev-resources" "test/resources"]
-                   :injections [(use 'lucid.core.inject)
-                                (inject '[clojure.core
-                                          [clojure.repl dir]
-                                          [clojure.pprint pprint]
-                                          [clojure.java.javadoc javadoc]
-                                          [clojure.reflect reflect]
-                                          [clojure.repl apropos dir doc find-doc pst source]])]
 
                    :plugins [[refactor-nrepl "2.4.0"]
                              [cider/cider-nrepl "0.18.0"]
                              [lein-cljsbuild "1.1.7"]
                              [lein-environ "1.1.0"]
                              [lein-figwheel "0.5.16"]
-                             #_[lein-virgil "0.1.8"]]
+                             [com.billpiel/sayid "0.0.17"]]
 
                    :aliases {"rebl" ["trampoline" "run" "-m" "rebel-readline.main"]}}}
 

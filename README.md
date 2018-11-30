@@ -40,7 +40,17 @@ Running the app solo
 lein run -m com.interrupt.ibgateway.core/-main
 ```
 
+Troubleshoot with
+```
+docker run -it --entrypoint /bin/bash edgarly/ibgateway-app:latest
+```
+
 ## TODO
+
+- UI Performance
+https://www.highcharts.com/docs/advanced-chart-features/boost-module
+https://api.highcharts.com/highstock/boost
+
 
 - Test with 40 + 20 period windows
 - Signals (SMA, EMA, BB)
@@ -54,6 +64,9 @@ lein run -m com.interrupt.ibgateway.core/-main
 ? Will Bid / Ask give us more price signals 
 
 - Artifactory for i) custom jars and ii) as a docker registry
+
+- Research Candlesticks
+  https://www.youtube.com/watch?v=NEwixpz7Bow
 
 
 ## NOTES

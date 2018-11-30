@@ -41,6 +41,22 @@ services:
     image: edgarly/ibgateway-app:latest
     depends_on:
       - tws
+    working_dir: /usr/src/app
+    shm_size: 1G
+    environment:
+      - DISPLAY=:0.0
+    ports:
+      - 5554:5554
+      - 8080:8080
+      - 3449:3449
+    volumes:
+      - /Users/timothyw/Projects/edgarly/ibgateway:/usr/src/app
+    entrypoint: lein run
+
+  record-live-data:
+    image: edgarly/ibgateway-app:latest
+    depends_on:
+      - tws
     working_dir: /usr/app
     shm_size: 1G
     ports:
@@ -49,8 +65,7 @@ services:
       - 3449:3449
     volumes:
       - /Users/timothyw/Projects/edgarly/ibgateway:/usr/app
-    # entrypoint: lein run --record
-    entrypoint: lein run
+    entrypoint: lein run com.interrupt.ibgateway.record-live-data --record
 
   kafka-tools:
     image: confluentinc/cp-kafka:3.3.1

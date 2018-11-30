@@ -1,7 +1,7 @@
-(ns com.interrupt.edgar.account.updates-test
+(ns com.interrupt.ibgateway.component.account.updates-test
   (:require [clojure.test :refer :all]
             [clojure.core.async :as async :refer [<!!]]
-            [com.interrupt.edgar.account.updates :as sut]))
+            [com.interrupt.ibgateway.component.account.updates :as sut]))
 
 (def u1 {:key "k1" :value 1})
 (def u2 {:key "k2" :value 2})

@@ -10,7 +10,7 @@
             [com.interrupt.edgar.core.strategy.strategy :as strategy]
             [com.interrupt.edgar.core.strategy.target :as target]
             [com.interrupt.edgar.core.signal.common :as common]
-            [com.interrupt.edgar.core.tee.live :as tlive]
+            ;; [com.interrupt.edgar.core.tee.live :as tlive]
             [com.interrupt.edgar.server.handler :as shandler]
 
             [clojure.java.io :as io]
@@ -30,7 +30,6 @@
             [ring.util.response :as ring-resp]))
 
 
-
 ;; HOME Page
 (defhandler home-page
   [request]
@@ -39,16 +38,14 @@
       (ring-resp/content-type "text/html")))
 
 
-
 ;; LIST Filtered Stocks
-(defhandler list-filtered-input
+#_(defhandler list-filtered-input
   "List high-moving stocks"
   [request]
 
   (let [conn (edatomic/database-connect nil)
         result (live/load-filtered-results 20 conn)]
     (ring-resp/response result)))
-
 
 
 ;; HISTORICAL Data
@@ -168,7 +165,6 @@
                 []
                 tick-list))])))
 
-
 #_(defbefore get-historical-data
     "Get historical data for a particular stock"
     [{request :request :as context}]
@@ -176,7 +172,6 @@
     (iimpl/with-pause [paused-context context]
       (async-historical
        (assoc paused-context :resume-fn (partial resume-historical paused-context)))))
-
 
 
 ;; LIVE Data
@@ -203,7 +198,6 @@
     (catch java.io.IOException ioe
       (stop-streaming-stock-data))))
 
-
 #_(defn get-streaming-stock-data [request]
 
   (let [client (:interactive-brokers-client edgar/*interactive-brokers-workbench*)
@@ -213,7 +207,6 @@
     (edgar/play-live client stock-selection [(partial tlive/tee-fn stream-live stock-name)])
     { :status 204 }))
 
-
 (definterceptor session-interceptor
   (middlewares/session {:store (rcookie/cookie-store)} ))
 
@@ -221,7 +214,7 @@
   [[["/" {:get home-page}
 
      ^:interceptors [body-params/body-params, session-interceptor]
-     ["/list-filtered-input" {:get list-filtered-input}]
+     #_["/list-filtered-input" {:get list-filtered-input}]
      #_["/get-historical-data" {:get get-historical-data}]
      #_["/get-streaming-stock-data" {:get [::init-streaming-stock-data (sse/start-event-stream init-streaming-stock-data)]
                                    :post get-streaming-stock-data}]

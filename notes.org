@@ -1,0 +1,11 @@
+
+
+Call IB US Customer Service: US Customer Service
+Toll Free 1 (877) 442-2757 (Mon-Fri 08:00-20:00 EST Sun 13:00-19:00 EST)
+Direct Dial 1 (312) 542-6901 (Mon-Fri 08:00-20:00 EST Sun 13:00-19:00 EST)
+
+
+Calling "com.ib.client.EClientSocket.reqMktData(1 contract "IBM" false nil)"... gives me the following error.
+Error. Id: 0, Code: 354, Msg: Requested market data is not subscribed. Delayed market data is available. Error&BEST/STK/Top&BEST/STK/Top
+
+Remind me which setting enables market data subscription?

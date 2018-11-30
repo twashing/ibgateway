@@ -1,11 +1,15 @@
-(ns com.interrupt.edgar.account.summary
-  (:require [clojure.core.async :as async :refer [<! go-loop]]
+(ns com.interrupt.ibgateway.component.account.summary
+  (:require [clojure.core.match :refer [match]]
+            [clojure.core.async :as async :refer [<! go-loop]]
             [clojure.string :as str]
+            [mount.core :refer [defstate] :as mount]
             [com.interrupt.edgar.subscription :as sub]
+            ;; [com.interrupt.ibgateway.component.ewrapper :as ew]
+            [com.interrupt.ibgateway.component.account.common :refer [next-reqid!]]
             [inflections.core :as inflections]))
 
-(def account-summary (atom nil))
 
+(def account-summary (atom nil))
 (def account-summary-ch (async/chan (async/sliding-buffer 100)))
 
 (defrecord AccountSummarySubscription [client req-id ch
@@ -41,3 +45,11 @@
 (defn stop
   [client req-id]
   (.cancelAccountSummary client req-id))
+
+(def req-id (atom nil))
+
+
+#_(defstate summary
+  :start (do (reset! req-id (next-reqid! []))
+             (.start (:client ew/ewrapper) @req-id))
+  :stop (.stop (:client ew/ewrapper) @req-id))
