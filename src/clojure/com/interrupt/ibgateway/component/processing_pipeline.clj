@@ -500,7 +500,7 @@
 
     {:joined-channel analytic-connector-ch}))
 
-(def instrument "TSLA")
+  (def instrument "AAPL")
 
 (defn teardown-publisher-channel [processing-pipeline]
   (doseq [vl (vals processing-pipeline)]

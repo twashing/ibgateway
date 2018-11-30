@@ -14,7 +14,7 @@
 
 ;; MKT (buy)
 ;; TRAIL (sell) - https://www.interactivebrokers.com/en/index.php?f=605 (greater protection for fast-moving stocks)
-;; vs TRAIL LIMIT (sell) - https://www.interactivebrokers.com/en/index.php?f=606 (Not guaranteed an execution)
+;; TRAIL LIMIT (sell) - https://www.interactivebrokers.com/en/index.php?f=606 (Not guaranteed an execution)
 ;;   https://www.fidelity.com/learning-center/trading-investing/trading/stop-loss-video
 ;;   https://www.thestreet.com/story/10273105/1/ask-thestreet-limits-and-losses.html
 ;;   https://money.stackexchange.com/questions/89018/stop-limit-vs-stop-market-vs-trailing-stop-limit-vs-trailing-stop-market
@@ -131,7 +131,7 @@
 (defn order-id->stock [order-id account]
   (s/select [:stock s/ALL s/VAL :orders s/ALL #(= order-id (:orderId %))] @account))
 
-(defn exec-id->stock+order [state execId]
+(defn exec-id->stock [state execId]
   (s/select [:stock s/ALL s/VAL :orders s/ALL #(= execId (:exec-id %))] state))
 
 (defn bind-order-id->exec-id! [order-id exec-id state]
@@ -158,6 +158,7 @@
   (when (and
           (= "BUY" (:action order))
           (= :filled (-> order :state :state :matcher)))
+    (info "sending to order-filled-notification-ch")
     (>!! order-filled-notification-ch {:stock stock :order order}))
   [stock order])
 
@@ -251,9 +252,10 @@
 (defn handle-commission-report [{:keys [execId commission
                                         currency realizedPNL] :as val}
                                 account order-filled-notification-ch]
+  (info "NOW / handle-commission-report / " val)
   (-> account
       (bind-exec-id->commission-report! val)
-      (exec-id->stock+order execId)
+      (exec-id->stock execId)
       (conditionally-notify-filled order-filled-notification-ch)))
 
 

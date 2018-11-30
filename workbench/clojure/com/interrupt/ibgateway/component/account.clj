@@ -42,6 +42,8 @@
   ;; (.reqIds client -1)
   ;; (<!! valid-order-id)
 
+  (doseq [a [25 15 17 19 21 23]]
+    (.cancelOrder client a))
 
   (.reqAllOpenOrders client)
   (.reqOpenOrders client)
@@ -220,14 +222,13 @@
     (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
-    (def valid-order-id (atom -1))
+    (def valid-order-id-ch (chan))
     (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch)
+    (consume-order-updates ew/default-chs-map valid-order-id-ch order-filled-notification-ch)
     (go-loop [{:keys [stock order] :as stock+order} (<! order-filled-notification-ch)]
       (info "stock+order / " stock+order)
       (recur (<! order-filled-notification-ch))))
-
 
   (do
 
@@ -307,10 +308,10 @@
     (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
-    (def valid-order-id (atom -1))
+    (def valid-order-id-ch (chan))
     (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch))
+    (consume-order-updates ew/default-chs-map valid-order-id-ch order-filled-notification-ch))
 
 
   ;; 1
@@ -428,10 +429,10 @@
     (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
-    (def valid-order-id (atom -1))
+    (def valid-order-id-ch (chan))
     (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch))
+    (consume-order-updates ew/default-chs-map valid-order-id-ch order-filled-notification-ch))
 
   (do
     (let [orderId 13
@@ -522,7 +523,13 @@
           lastFillPrice 176.27]
       (->orderStatus wrapper orderId status filled remaining avgFillPrice lastFillPrice))
 
-    ;; exec-details is missing
+    (let [symbol "AAPL"
+          orderId 13
+          shares 10.0
+          price 0.0
+          avgPrice 0.0
+          reqId 1]
+      (->execDetails wrapper symbol orderId shares price avgPrice reqId))
 
     (let [commission 0.355362
           currency "USD"
@@ -536,10 +543,10 @@
     (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
     (def wrapper (:wrapper ew/ewrapper))
     (def account-name "DU542121")
-    (def valid-order-id (atom -1))
+    (def valid-order-id-ch (chan))
     (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id order-filled-notification-ch))
+    (consume-order-updates ew/default-chs-map valid-order-id-ch order-filled-notification-ch))
 
 
   (do

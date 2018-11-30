@@ -1325,15 +1325,10 @@
     #_(record-live-data-stop client live-subscriptions)))
 
 
-
 ;; ==========
 ;; STREAM LIVE
-(defstate control-channel
-  :start (chan)
-  :stop (close! control-channel))
-
-(defn stop-stream-live []
-  (>!! control-channel :exit))
+(defn stop-stream-live [live-subscription]
+  (sub/unsubscribe live-subscription))
 
 (defn start-stream-live [{client :client wrapper :wrapper :as ewrapper}
                          {tick-ch :publisher}
@@ -1347,7 +1342,8 @@
                             client tick-ch ticker-id contract
                             generic-tick-list snapshot? options)]
 
-    (sub/subscribe live-subscription)))
+    (sub/subscribe live-subscription)
+    live-subscription))
 
 
 ;; ==========
@@ -1359,9 +1355,9 @@
 (defn stop-stream-workbench []
   (>!! workbench-control-channel :exit))
 
-(defn kickoff-stream-workbench []
+(defn kickoff-stream-workbench [fname]
   (let [{:keys [wrapper]} ew/ewrapper
-        sub (sub/->FileSubscription "live-recordings/2018-08-20-TSLA.edn" (chan 100))
+        sub (sub/->FileSubscription fname (chan 100))
         ch (sub/subscribe sub)]
     (go-loop []
       (let [[v c] (alts! [ch workbench-control-channel])]

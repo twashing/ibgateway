@@ -198,10 +198,10 @@
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
               #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
-              #'com.interrupt.ibgateway.component.switchboard.store/conn
+              ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               #'com.interrupt.ibgateway.component.execution-engine/execution-engine
-              #'com.interrupt.ibgateway.component.vase/server
+              ;; #'com.interrupt.ibgateway.component.vase/server
               #'com.interrupt.ibgateway.core/state)
 
   (sw/stop-stream-workbench)
@@ -209,39 +209,36 @@
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
                #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
-               #'com.interrupt.ibgateway.component.switchboard.store/conn
+               ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.execution-engine/execution-engine
-               #'com.interrupt.ibgateway.component.vase/server
+               ;; #'com.interrupt.ibgateway.component.vase/server
                #'com.interrupt.ibgateway.core/state)
 
-  (sw/kickoff-stream-workbench))
+  ;; "live-recordings/2018-08-20-TSLA.edn"
+  ;; "live-recordings/2018-08-27-TSLA.edn"
+  (let [fname "live-recordings/2018-08-20-TSLA.edn"]
+    (sw/kickoff-stream-workbench fname)))
 
 
 (comment ;; stream live workbench
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-              #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.switchboard/control-channel
-              #'com.interrupt.ibgateway.component.switchboard.store/conn
-              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-              #'com.interrupt.ibgateway.component.execution-engine/execution-engine
-              #'com.interrupt.ibgateway.component.vase/server
-              #'com.interrupt.ibgateway.core/state)
-
-  (sw/stop-stream-live)
-
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
                #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.switchboard/control-channel
-               #'com.interrupt.ibgateway.component.switchboard.store/conn
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.execution-engine/execution-engine
-               #'com.interrupt.ibgateway.component.vase/server
                #'com.interrupt.ibgateway.core/state)
 
   (let [ticker-id 1003]
-    (sw/start-stream-live ew/ewrapper ew/default-chs-map "TSLA" ticker-id)))
+    (def live-subscription (sw/start-stream-live ew/ewrapper ew/default-chs-map "AAPL" ticker-id)))
+
+  (sw/stop-stream-live live-subscription)
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+              #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
+              #'com.interrupt.ibgateway.component.execution-engine/execution-engine
+              #'com.interrupt.ibgateway.core/state))
 
 
 (comment ;; from com.interrupt.ibgateway.component.processing-pipeline
@@ -487,6 +484,7 @@
                #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
   (do
+
     (def client (:client ew/ewrapper))
 
     ;; Subscribe
@@ -1064,6 +1062,7 @@
         (when-not (nil? r)
           (log/info "record" r)
           (recur (<! output-ch))))))
+
 
 (comment  ;; Track strategies / Manage orders
 

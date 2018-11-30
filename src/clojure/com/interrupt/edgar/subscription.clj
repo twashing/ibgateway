@@ -36,7 +36,7 @@
     (.reqMktData client (int ticker-id)
                  contract generic-tick-list (boolean snapshot?) options)
     ch)
-  (unsubscribe [_] (.cancelMktData client ticker-id)))
+  (unsubscribe [_] (.cancelMktData client (int ticker-id))))
 
 
 (defrecord HistoricalDataSubscription [client ch ticker-id
