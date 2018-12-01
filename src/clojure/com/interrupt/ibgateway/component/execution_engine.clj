@@ -112,9 +112,13 @@
 
     (map all-ups? [lags leads confs])))
 
-(defn ->next-valid-order-id [client valid-order-id-ch]
-  (.reqIds client -1)
-  (<!! valid-order-id-ch))
+(defn ->next-valid-order-id
+  ([client valid-order-id-ch]
+   (->next-valid-order-id
+     client valid-order-id-ch (fn [] (.reqIds client -1))))
+  ([_ valid-order-id-ch f]
+   (f)
+   (<!! valid-order-id-ch)))
 
 (defn ->account-cash-level
 
@@ -269,8 +273,8 @@
 
     ;; TODO mock
     ;;   account+order-updates-map (->account-cash-level)
-    ;;   order-filled-notification-ch
     ;;   valid-order-id-ch (->next-valid-order-id)
+    ;;   order-filled-notification-ch
     (consume-order-updates account+order-updates-map valid-order-id-ch order-filled-notification-ch)
 
 
@@ -306,10 +310,10 @@
   ;; [ok] re-check scanners to see that we're getting stocks with the most price movement
   ;; [ok] what is the minimum trailing stop price
   ;;   none - just need to round the value to 2 decimal places
-
-
   ;; [ok] round trailing stop price to 2 decimal places
-  ;; test with a sine wave
+  ;; [ok] test with a sine wave
+
+
   ;; mock(s) for ->account-cash-level + ->next-valid-order-id
   ;; workbench
   ;;   -> joined-ticks (place orders)
@@ -411,7 +415,6 @@
   ;; ? Error. Id: 21, Code: 105, Msg: Order being modified does not match original order
   ;; https://groups.io/g/twsapi/topic/fixed_how_to_modify_combo/5333246?p=,,,20,0,0,0::recentpostdate%2Fsticky,,,20,2,0,5333246
   ;; TWS thinks I'm using the same order ID
-
   )
 
 (defn teardown-execution-engine [ee]
