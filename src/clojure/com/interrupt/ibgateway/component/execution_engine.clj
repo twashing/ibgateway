@@ -112,9 +112,13 @@
 
     (map all-ups? [lags leads confs])))
 
-(defn ->next-valid-order-id [client valid-order-id-ch]
-  (.reqIds client -1)
-  (<!! valid-order-id-ch))
+(defn ->next-valid-order-id
+  ([client valid-order-id-ch]
+   (->next-valid-order-id
+     client valid-order-id-ch (fn [] (.reqIds client -1))))
+  ([_ valid-order-id-ch f]
+   (f)
+   (<!! valid-order-id-ch)))
 
 (defn ->account-cash-level
 
@@ -207,9 +211,14 @@
           quantity (:quantity order)
           valid-order-id (->next-valid-order-id client valid-order-id-ch)
           ;; trailingPercent 1
-          trail-price (if (< @latest-standard-deviation 0.5) 0.5 @latest-standard-deviation)
-          auxPrice trail-price
-          trailStopPrice (- (:price order) trail-price)]
+          ;; trail-price (if (< @latest-standard-deviation 0.5) 0.5 @latest-standard-deviation)
+
+          ;; (clojure.pprint/cl-format nil "~,2f" 23.456)
+          ;; (clojure.pprint/cl-format nil "~,2f" 0.0057683)
+          ;; (clojure.pprint/cl-format nil "~,2f" 66.2)
+
+          auxPrice (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
+          trailStopPrice (- (:price order) auxPrice)]
 
       (info "(balancing) sell-stock / client, " [quantity valid-order-id auxPrice #_trailingPercent trailStopPrice])
       (.placeOrder client
@@ -264,8 +273,8 @@
 
     ;; TODO mock
     ;;   account+order-updates-map (->account-cash-level)
-    ;;   order-filled-notification-ch
     ;;   valid-order-id-ch (->next-valid-order-id)
+    ;;   order-filled-notification-ch
     (consume-order-updates account+order-updates-map valid-order-id-ch order-filled-notification-ch)
 
 
@@ -299,9 +308,10 @@
   ;; [ok] In TRAIL stop orders, does the API let us see the trailingStopPrice
   ;;   add a column header with that value
   ;; [ok] re-check scanners to see that we're getting stocks with the most price movement
-
-
-  ;; what is the minimum trailing stop price
+  ;; [ok] what is the minimum trailing stop price
+  ;;   none - just need to round the value to 2 decimal places
+  ;; [ok] round trailing stop price to 2 decimal places
+  ;; [ok] test with a sine wave
 
 
   ;; mock(s) for ->account-cash-level + ->next-valid-order-id
@@ -311,9 +321,18 @@
   ;;   -> order-filled (place opposite TRAIL sell)
 
 
+  ;; upstream scanner
+
+
+  ;; track many (n) stocks
+  ;;   track instrument symbol with stream
+  ;;   track bid / ask with stream
+
+
   ;; only purchase more if
   ;;   we're gaining (over last 3 ticks)
   ;;   we have enough money
+
 
   ;; BUY if
   ;;   :up signal from lagging + leading (or more)
@@ -323,6 +342,8 @@
   ;;   * buy up to $1000 or 50% of cash (whichever is less)
 
 
+  ;; (in processing pipeline) bollinger-band signals should be fleshed out more
+  ;;   also look at RSI divergence
   ;; fix tests
   ;; host on AWS
   ;; after some time - memory lag
@@ -394,7 +415,6 @@
   ;; ? Error. Id: 21, Code: 105, Msg: Order being modified does not match original order
   ;; https://groups.io/g/twsapi/topic/fixed_how_to_modify_combo/5333246?p=,,,20,0,0,0::recentpostdate%2Fsticky,,,20,2,0,5333246
   ;; TWS thinks I'm using the same order ID
-
   )
 
 (defn teardown-execution-engine [ee]

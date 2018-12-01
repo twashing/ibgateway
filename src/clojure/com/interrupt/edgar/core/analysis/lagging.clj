@@ -1,6 +1,8 @@
 (ns com.interrupt.edgar.core.analysis.lagging
   (:require [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]
-            [com.interrupt.edgar.math :as math]))
+            [com.interrupt.edgar.math :as math]
+            [clojure.data.csv :as csv]))
+
 
 (defn simple-moving-average
   "Takes the ticks, and moves back as far as the tick window will take it.

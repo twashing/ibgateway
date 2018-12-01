@@ -52,7 +52,8 @@
                  [com.cognitect/transit-cljs "0.8.256"]
                  [com.amazonaws/aws-java-sdk "1.11.401"]
                  [org.apache.commons/commons-math3 "3.6.1"]
-                 [com.rpl/specter "1.1.1"]]
+                 [com.rpl/specter "1.1.1"]
+                 [org.clojure/data.csv "0.1.4"]]
 
   :local-repo "m2"
   :source-paths ["src/clojure" "test/clojure"]
