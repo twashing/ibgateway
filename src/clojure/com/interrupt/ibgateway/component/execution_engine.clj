@@ -314,12 +314,15 @@
   ;; [ok] test with a sine wave
 
 
-  ;; mock(s) for ->account-cash-level + ->next-valid-order-id
   ;; workbench
   ;;   -> joined-ticks (place orders)
   ;;   -> order-updates (notify order filled)
   ;;   -> order-filled (place opposite TRAIL sell)
 
+
+  ;; mock(s) for ->account-cash-level + ->next-valid-order-id
+  ;; dynamically change log levels
+  ;; turn logging on/off per namespace
 
   ;; upstream scanner
 
