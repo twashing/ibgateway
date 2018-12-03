@@ -1348,19 +1348,18 @@
 
 ;; ==========
 ;; STREAM WORKBENCH
-(defstate workbench-control-channel
+#_(defstate workbench-control-channel
   :start (chan)
   :stop (close! workbench-control-channel))
 
-(defn stop-stream-workbench []
-  (>!! workbench-control-channel :exit))
+(defn stop-stream-workbench [control-channel]
+  (>!! control-channel :exit))
 
-(defn kickoff-stream-workbench [fname]
-  (let [{:keys [wrapper]} ew/ewrapper
-        sub (sub/->FileSubscription fname (chan 100))
+(defn kickoff-stream-workbench [wrapper control-channel fname]
+  (let [sub (sub/->FileSubscription fname (chan 100))
         ch (sub/subscribe sub)]
     (go-loop []
-      (let [[v c] (alts! [ch workbench-control-channel])]
+      (let [[v c] (alts! [ch control-channel])]
         (if (= v :exit)
           (sub/unsubscribe sub)
           (let [{:keys [topic]} v]

@@ -312,6 +312,14 @@
   ;;   none - just need to round the value to 2 decimal places
   ;; [ok] round trailing stop price to 2 decimal places
   ;; [ok] test with a sine wave
+  ;; [ok] dynamically change log levels
+  ;; [ok] turn logging on/off per namespace
+
+
+  ;; upstream scanner
+  ;; track many (n) stocks
+  ;;   track instrument symbol with stream
+  ;;   track bid / ask with stream
 
 
   ;; workbench
@@ -321,15 +329,6 @@
 
 
   ;; mock(s) for ->account-cash-level + ->next-valid-order-id
-  ;; dynamically change log levels
-  ;; turn logging on/off per namespace
-
-  ;; upstream scanner
-
-
-  ;; track many (n) stocks
-  ;;   track instrument symbol with stream
-  ;;   track bid / ask with stream
 
 
   ;; only purchase more if
@@ -424,6 +423,6 @@
   (when-not (nil? ee)
     (close! ee)))
 
-(defstate execution-engine
+#_(defstate execution-engine
   :start (setup-execution-engine pp/processing-pipeline ewrapper/ewrapper ewrapper/default-chs-map account-name)
   :stop (teardown-execution-engine execution-engine))

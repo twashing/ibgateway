@@ -35,7 +35,7 @@
 
 (start-logging! logging-config)
 
-(defstate state
+#_(defstate state
   :start {:running true}
   :stop (assoc state :running false))
 
@@ -43,7 +43,7 @@
   (mount/start #'com.interrupt.ibgateway.component.repl-server/server))
 
 (defn start []
-  (while (:running state)))
+  #_(while (:running state)))
 
 (defn stop []
   (mount/stop #'com.interrupt.ibgateway.component.repl-server/server))

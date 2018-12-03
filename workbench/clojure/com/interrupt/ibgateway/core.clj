@@ -140,57 +140,47 @@
 (comment ;; processing-pipeline workbench
 
 
-  (def one (flatten (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")))
-  (def two (atom (-> (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")
-                     flatten)))
-
-  (mount/find-all-states)
-
-  ;; STOP
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
-              #'com.interrupt.ibgateway.component.switchboard.store/conn
-              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-              ;; #'com.interrupt.ibgateway.component.repl-server/server
-              ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
-              ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
-              #'com.interrupt.ibgateway.component.vase/server
-              ;; #'com.interrupt.ibgateway.cloud.storage/s3
-              #'com.interrupt.ibgateway.core/state)
-
-
-  (sw/stop-stream-workbench)
-
-
   ;; 1. START
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
-               #'com.interrupt.ibgateway.component.switchboard.store/conn
-               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-               ;; #'com.interrupt.ibgateway.component.repl-server/server
-               ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
-               ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
-               #'com.interrupt.ibgateway.component.vase/server
-               ;; #'com.interrupt.ibgateway.cloud.storage/s3
-               #'com.interrupt.ibgateway.core/state)
+               ;; #'com.interrupt.ibgateway.component.vase/server
+               )
+
+  (do
+    (def control-channel (chan))
+    (def instrument "TSLA")
+    (def concurrency 1)
+    (def ticker-id 0)
+    (def source-ch (-> ew/ewrapper :ewrapper :publisher))
+    (def joined-channel (pp/setup-publisher-channel source-ch instrument concurrency ticker-id)))
+
 
   ;; 2. Point your browser to http://localhost:8080
 
 
-  ;; 3. Start streaming
-  (sw/kickoff-stream-workbench)
+  ;; 3. Capture output channels and send to browser
+  (let [{jch :joined-channel} joined-channel]
 
-
-  ;; 4. Capture output channels and send to browser
-  (let [{joined-channel :joined-channel} pp/processing-pipeline]
-
-    (go-loop [c 0 r (<! joined-channel)]
+    (go-loop [c 0 r (<! jch)]
       (if-not r
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
           (info "count: " c " / sr: " r)
-          (send-message-to-all! sr)
-          (recur (inc c) (<! joined-channel)))))))
+          ;; (send-message-to-all! sr)
+          (recur (inc c) (<! jch))))))
+
+
+  ;; 4. Start streaming
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
+                               control-channel
+                               "live-recordings/2018-08-20-TSLA.edn")
+
+
+  ;; STOP
+  (sw/stop-stream-workbench control-channel)
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              ;; #'com.interrupt.ibgateway.component.vase/server
+              ))
 
 
 (comment ;; execution-engine workbench

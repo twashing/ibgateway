@@ -329,7 +329,7 @@
     (stream/connect @result analytic-connector-ch)
     analytic-connector-ch))
 
-(defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
+(defn setup-publisher-channel [source-ch stock-name concurrency ticker-id-filter]
 
   (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
 
@@ -429,7 +429,7 @@
 
 
     ;; TICK LIST
-    (pipeline concurrency source-list-ch handler-xform (ew/ewrapper :publisher))
+    (pipeline concurrency source-list-ch handler-xform source-ch)
     (pipeline concurrency tick-list-ch handler-xform source-list-ch)
 
 
@@ -506,7 +506,7 @@
   (doseq [vl (vals processing-pipeline)]
     (close! vl)))
 
-(defstate processing-pipeline
+#_(defstate processing-pipeline
   :start (setup-publisher-channel instrument 1 0)
   :stop (teardown-publisher-channel processing-pipeline))
 
