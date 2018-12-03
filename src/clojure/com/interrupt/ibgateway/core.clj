@@ -20,7 +20,18 @@
                                     :max-size 5120}
                 :file     "logs/ibgateway.log"}]
    :overrides  {"org.apache.http"      :debug
-                "org.apache.http.wire" :error}})
+                "org.apache.http.wire" :error
+                "org.apache.zookeeper" :info
+                "org.apache.kafka.clients.consumer.internals" :info
+                "org.apache.kafka.common.network.Selector" :info
+                "org.apache.kafka.clients.NetworkClient" :info
+                "org.apache.kafka.clients.Metadata" :info
+                "org.apache.kafka.clients.producer.KafkaProducer" :info
+                "org.apache.kafka.common.metrics.Metrics" :info
+                "org.apache.kafka.clients.consumer.KafkaConsumer" :info
+                "org.I0Itec.zkclient.ZkConnection" :info
+                "org.I0Itec.zkclient.ZkClient" :info
+                "ChocoRP" :info}})
 
 (start-logging! logging-config)
 
