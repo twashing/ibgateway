@@ -26,11 +26,12 @@
   :start (let [dchans (setup-default-channels)]
            {:default-channels dchans
             :ewrapper (ewi/ewrapper tws-host tws-port @client-id dchans)})
-  :stop (let [client (-> ewrapper :ewrapper :client)]
+  :stop (let [client (-> ewrapper :ewrapper :client)
+              resetState true]
 
           ;; disconnect client
           (when (.isConnected client)
-            (.eDisconnect client))
+            (.eDisconnect client resetState))
           (release-reqid! @client-id)
           (reset! client-id -1)
 

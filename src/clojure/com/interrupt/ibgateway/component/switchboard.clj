@@ -1348,10 +1348,6 @@
 
 ;; ==========
 ;; STREAM WORKBENCH
-#_(defstate workbench-control-channel
-  :start (chan)
-  :stop (close! workbench-control-channel))
-
 (defn stop-stream-workbench [control-channel]
   (>!! control-channel :exit))
 

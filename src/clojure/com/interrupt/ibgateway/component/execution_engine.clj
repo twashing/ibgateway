@@ -164,16 +164,16 @@
     (info "buy-stock / client, " [order-id order-type account-name instrm qty price])
     (market/buy-stock client order-id order-type account-name instrm qty price)))
 
-(defn extract-signals+decide-order [client joined-tick account-name {account-updates-ch :account-updates} valid-order-id-ch]
+(defn extract-signals+decide-order [client joined-tick instrm account-name
+                                    {account-updates-ch :account-updates} valid-order-id-ch]
 
-  (let [instrm "AAPL" ;; TODO pull from joined-tick
-        [laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
+  (let [[laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
 
     (info "extract-signals+decide-order / " [laggingS leadingS confirmingS])
     (match [laggingS leadingS confirmingS]
-           [true true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
-           [true true _] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
-           [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [true true true] :a ;; (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [true true _] :b ;; (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [_ true true] :c ;; (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
            :else :noop)))
 
 (comment
@@ -234,7 +234,7 @@
 
     (recur (<! order-filled-notification-ch))))
 
-(defn consume-joined-channel [joined-channel-tapped account+order-updates-map valid-order-id-ch client account-name]
+(defn consume-joined-channel [joined-channel-tapped account+order-updates-map valid-order-id-ch client instrm account-name]
 
   (go-loop [c 0 joined-tick (<! joined-channel-tapped)]
     (if-not joined-tick
@@ -251,18 +251,18 @@
                 (-> joined-tick :bollinger-band :standard-deviation))
 
         (when (:sma-list joined-tick)
-          (extract-signals+decide-order client joined-tick account-name account+order-updates-map valid-order-id-ch))
+          (extract-signals+decide-order client joined-tick instrm account-name
+                                        account+order-updates-map valid-order-id-ch))
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
-(defn setup-execution-engine [processing-pipeline wrapper default-chs account-name]
+(defn setup-execution-engine [{joined-channel :joined-channel}
+                              {account+order-updates-map :default-channels
+                               {client :client} :ewrapper}
+                              instrm account-name]
 
-  (let [client (:client wrapper)
-        account+order-updates-map default-chs
-        valid-order-id-ch (chan)
+  (let [valid-order-id-ch (chan)
         order-filled-notification-ch (chan)
-
-        {joined-channel :joined-channel} processing-pipeline
         joined-channel-tapped (chan (sliding-buffer 100))]
 
 
@@ -287,7 +287,7 @@
 
 
     ;; CONSUME JOINED TICK STREAM
-    (consume-joined-channel joined-channel-tapped account+order-updates-map valid-order-id-ch client account-name)
+    (consume-joined-channel joined-channel-tapped account+order-updates-map valid-order-id-ch client instrm account-name)
 
 
     joined-channel-tapped)
@@ -422,7 +422,3 @@
 (defn teardown-execution-engine [ee]
   (when-not (nil? ee)
     (close! ee)))
-
-#_(defstate execution-engine
-  :start (setup-execution-engine pp/processing-pipeline ewrapper/ewrapper ewrapper/default-chs-map account-name)
-  :stop (teardown-execution-engine execution-engine))
