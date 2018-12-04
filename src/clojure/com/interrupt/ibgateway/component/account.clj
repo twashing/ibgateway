@@ -260,16 +260,16 @@
 
 
 ;; CONSUME ORDER UPDATES
-(defn consume-order-updates [updates-map valid-order-id-ch order-filled-notification-ch]
-  (let [{:keys [order-updates]} updates-map]
-    (go-loop [{:keys [topic] :as val} (<! order-updates)]
-      (case topic
-        :open-order (handle-open-order val)
-        :order-status (handle-order-status val account)
-        :next-valid-id (let [{oid :order-id} val]
-                         (>!! valid-order-id-ch oid))
-        :exec-details (handle-exec-details val account)
-        :commission-report (handle-commission-report val account order-filled-notification-ch)
-        :default)
+(defn consume-order-updates [{:keys [order-updates]} valid-order-id-ch order-filled-notification-ch]
+  (go-loop [{:keys [topic] :as val} (<! order-updates)]
+    (info "consume-order-updates LOOP / " val)
+    (case topic
+      :open-order (handle-open-order val)
+      :order-status (handle-order-status val account)
+      :next-valid-id (let [{oid :order-id} val]
+                       (>!! valid-order-id-ch oid))
+      :exec-details (handle-exec-details val account)
+      :commission-report (handle-commission-report val account order-filled-notification-ch)
+      :default)
 
-      (recur (<! order-updates)))))
+    (recur (<! order-updates))))

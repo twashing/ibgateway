@@ -40,7 +40,9 @@
    (request-market-data client idx instrm nil false))
 
   ([client idx instrm genericTicklist snapshot]
-   (let [contract (contract/create instrm)]
+   (let [contract (contract/create instrm)
+         regulatorySnaphsot false
+         mktDataOptions []]
 
      ;; As of v969?
      ;; https://interactivebrokers.github.io/tws-api/market_data_type.html
@@ -48,8 +50,7 @@
      ;; Switch to live (1) frozen (2) delayed (3) or delayed frozen (4)
      ;; client.reqMarketDataType(1);
 
-     ;; reqMktData(int, com.ib.client.Contract, java.lang.String, boolean);
-     (.reqMktData client (.intValue idx) contract genericTicklist snapshot nil))))
+     (.reqMktData client (.intValue idx) contract genericTicklist snapshot regulatorySnaphsot mktDataOptions))))
 
 (defn cancel-market-data
   "Cancel the request ID, used in 'request-market-data'"

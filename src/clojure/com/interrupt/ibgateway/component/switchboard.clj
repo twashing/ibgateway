@@ -1330,11 +1330,12 @@
 (defn stop-stream-live [live-subscription]
   (sub/unsubscribe live-subscription))
 
-(defn start-stream-live [{client :client wrapper :wrapper :as ewrapper}
-                         {tick-ch :publisher}
-                         symbol ticker-id]
+(defn start-stream-live [{{client :client
+                           wrapper :wrapper} :ewrapper
+                          {tick-ch :publisher} :default-channels}
+                         instrm ticker-id]
 
-  (let [contract (contract/create symbol)
+  (let [contract (contract/create instrm)
         generic-tick-list "225, 233, 236"
         snapshot? false
         options nil

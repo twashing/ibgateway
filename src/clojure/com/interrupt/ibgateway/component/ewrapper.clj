@@ -15,9 +15,9 @@
 (def client-id (atom (next-reqid!)))
 
 (defn setup-default-channels []
-  {:publisher (-> 1000 async/sliding-buffer async/chan)
-   :account-updates (-> 1000 async/sliding-buffer async/chan)
-   :order-updates (-> 1000 async/sliding-buffer async/chan)})
+  {:publisher (-> 100 async/sliding-buffer async/chan)
+   :account-updates (-> 100 async/sliding-buffer async/chan)
+   :order-updates (-> 100 async/sliding-buffer async/chan)})
 
 (defn teardown-default-channels [default-channels]
   (->> default-channels vals (map close!)))
@@ -26,12 +26,11 @@
   :start (let [dchans (setup-default-channels)]
            {:default-channels dchans
             :ewrapper (ewi/ewrapper tws-host tws-port @client-id dchans)})
-  :stop (let [client (-> ewrapper :ewrapper :client)
-              resetState true]
+  :stop (let [client (-> ewrapper :ewrapper :client)]
 
           ;; disconnect client
           (when (.isConnected client)
-            (.eDisconnect client resetState))
+            (.eDisconnect client))
           (release-reqid! @client-id)
           (reset! client-id -1)
 

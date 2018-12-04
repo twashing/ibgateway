@@ -33,6 +33,10 @@
                              options]
   Subscription
   (subscribe [_]
+    #_(let [regulatorySnaphsot false]
+        (.reqMktData client (int ticker-id)
+                     contract generic-tick-list (boolean snapshot?)
+                     regulatorySnaphsot options))
     (.reqMktData client (int ticker-id)
                  contract generic-tick-list (boolean snapshot?) options)
     ch)

@@ -45,6 +45,16 @@ Troubleshoot with
 docker run -it --entrypoint /bin/bash edgarly/ibgateway-app:latest
 ```
 
+
+## Installing TWS API locally
+
+This in the "Guide to installing 3rd party JARs", taken from [maven's documentation](https://maven.apache.org/guides/mini/guide-3rd-party-jars-local.html).
+```
+mvn install:install-file -Dfile=TwsApi.jar -DgroupId=com.interactivebrokers.tws \
+  -DartifactId=tws-api -Dversion=9.74.01 -Dpackaging=jar
+```
+
+
 ## TODO
 
 - UI Performance

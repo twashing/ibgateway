@@ -171,9 +171,9 @@
 
     (info "extract-signals+decide-order / " [laggingS leadingS confirmingS])
     (match [laggingS leadingS confirmingS]
-           [true true true] :a ;; (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
-           [true true _] :b ;; (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
-           [_ true true] :c ;; (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [true true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [true true _] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
            :else :noop)))
 
 (comment
@@ -204,8 +204,8 @@
 
 (defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
 
-  (go-loop [{:keys [stock order]} (<! order-filled-notification-ch)]
-    (info "consume-order-filled-notifications LOOPED")
+  (go-loop [{:keys [stock order] :as val} (<! order-filled-notification-ch)]
+    (info "consume-order-filled-notifications LOOPED / " val)
     (let [symbol (:symbol stock)
           action "SELL"
           quantity (:quantity order)
@@ -217,7 +217,17 @@
           ;; (clojure.pprint/cl-format nil "~,2f" 0.0057683)
           ;; (clojure.pprint/cl-format nil "~,2f" 66.2)
 
-          auxPrice (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
+          _ (println "1 / " @latest-standard-deviation)
+          _ (println "2 / " (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation))
+          _ (println "3 / " (type (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)))
+          auxPrice (->> @latest-standard-deviation
+                        (clojure.pprint/cl-format nil "~,2f")
+                        read-string)
+
+          _ (println "4 / " auxPrice)
+          _ (println "5 / " (:price order))
+          _ (println "6 / " (type (:price order)))
+          _ (println "7 / " (- (:price order) auxPrice))
           trailStopPrice (- (:price order) auxPrice)]
 
       (info "(balancing) sell-stock / client, " [quantity valid-order-id auxPrice #_trailingPercent trailStopPrice])
@@ -314,12 +324,11 @@
   ;; [ok] test with a sine wave
   ;; [ok] dynamically change log levels
   ;; [ok] turn logging on/off per namespace
+  ;; [ok] upstream scanner
 
-
-  ;; upstream scanner
   ;; track many (n) stocks
   ;;   track instrument symbol with stream
-  ;;   track bid / ask with stream
+  ;;   track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
 
 
   ;; workbench

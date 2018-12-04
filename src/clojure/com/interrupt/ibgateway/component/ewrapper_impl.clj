@@ -94,6 +94,8 @@
                  :ticker-id ticker-id
                  :tick-type tickType
                  :value value}]
+
+        ;; (info "tickString / " val)
         (async/put! tick-updates val)))
 
     (tickGeneric [^Integer ticker-id ^Integer tickType ^Double value]

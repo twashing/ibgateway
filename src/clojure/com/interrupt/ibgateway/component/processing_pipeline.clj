@@ -500,13 +500,6 @@
 
     {:joined-channel analytic-connector-ch}))
 
-(def instrument "AAPL")
-
 (defn teardown-publisher-channel [processing-pipeline]
   (doseq [vl (vals processing-pipeline)]
     (close! vl)))
-
-#_(defstate processing-pipeline
-  :start (setup-publisher-channel instrument 1 0)
-  :stop (teardown-publisher-channel processing-pipeline))
-
