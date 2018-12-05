@@ -69,7 +69,6 @@
        ((juxt has-lagging-signal? has-leading-signal? has-confirming-signal?))
        (map identity-or-empty)))
 
-
 (def one
   {:signal-stochastic-oscillator {:last-trade-time 1534782057122 :last-trade-price 297.79 :highest-price 298.76 :lowest-price 297.78 :K 0.010204081632701595 :D 0.03316326530614967 :signals [{:signal :up :why :stochastic-oversold}]}
    :signal-on-balance-volume {:obv -112131 :total-volume 112307 :last-trade-price 297.79 :last-trade-time 1534782057122}
@@ -175,32 +174,6 @@
            [true true _] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
            [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
            :else :noop)))
-
-(comment
-
-  (which-signals? one)
-  (which-signals? three)
-  (which-signals? four)
-
-  (let [[laggingS leadingS confirmingS] (-> one which-signals? which-ups?)]
-    (match [laggingS leadingS confirmingS]
-           [true true _] :a
-           :else :b))
-
-  (do
-    (mount/stop #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
-    (mount/start #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
-
-    (def client (:client ewrapper/ewrapper))
-    (def wrapper (:wrapper ewrapper/ewrapper))
-    (def valid-order-id-ch (chan))
-    (def order-filled-notification-ch (chan))
-    (def account-updates-ch (:account-updates ewrapper/default-chs-map))
-
-    (consume-order-updates ewrapper/default-chs-map valid-order-id-ch order-filled-notification-ch))
-
-  (->next-valid-order-id client valid-order-id-ch)
-  (->account-cash-level client account-updates-ch))
 
 (defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
 
@@ -431,3 +404,89 @@
 (defn teardown-execution-engine [ee]
   (when-not (nil? ee)
     (close! ee)))
+
+(comment
+
+  (which-signals? one)
+  (which-signals? three)
+  (which-signals? four)
+
+  (let [[laggingS leadingS confirmingS] (-> one which-signals? which-ups?)]
+    (match [laggingS leadingS confirmingS]
+           [true true _] :a
+           :else :b))
+
+  (do
+    (mount/stop #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
+    (mount/start #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
+
+    (def client (:client ewrapper/ewrapper))
+    (def wrapper (:wrapper ewrapper/ewrapper))
+    (def valid-order-id-ch (chan))
+    (def order-filled-notification-ch (chan))
+    (def account-updates-ch (:account-updates ewrapper/default-chs-map))
+
+    (consume-order-updates ewrapper/default-chs-map valid-order-id-ch order-filled-notification-ch))
+
+  (->next-valid-order-id client valid-order-id-ch)
+  (->account-cash-level client account-updates-ch))
+
+(comment  ;; Scanner + Processing Pipeline + Execution Engine
+
+
+  ;; SCAN SET CHANGES
+  (require '[clojure.set :as s])
+
+  (do
+    (def one #{:a :b :c})
+    (def two #{:b :c :d})
+    (def three #{:c :d}))
+
+  (defn ->removed [orig princ]
+    (s/difference orig princ))
+
+  (defn ->added [orig princ]
+    (s/difference princ orig))
+
+
+  ;; SCAN
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account/account)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.account/account)
+
+  (do
+
+    (def client (-> ew/ewrapper :ewrapper :client))
+
+    ;; Subscribe
+    (scanner/start client)
+
+    ;; Unsubscribe
+    ;; (scanner/stop client)
+
+    (when-let [leaderboard (scanner/scanner-decide)]
+      (doseq [[i m] (map-indexed vector leaderboard)]
+        (println i ":" m))))
+
+
+  ;; START
+  (do
+    (def instrument "AMZN")
+    (def concurrency 1)
+    (def ticker-id 1003)
+    (def source-ch (-> ew/ewrapper :ewrapper :publisher))
+    (def joined-channel-map (pp/setup-publisher-channel source-ch instrument concurrency ticker-id))
+    (def joined-channel-tapped (ee/setup-execution-engine joined-channel-map ew/ewrapper instrument account-name))
+    (def live-subscription (sw/start-stream-live ew/ewrapper instrument ticker-id)))
+
+
+  ;; STOP
+  (do
+    (sw/stop-stream-live live-subscription)
+    (pp/teardown-publisher-channel joined-channel-map)
+    (ee/teardown-execution-engine joined-channel-tapped))
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account/account))

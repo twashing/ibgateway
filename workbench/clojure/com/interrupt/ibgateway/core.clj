@@ -253,64 +253,6 @@
         (println i ":" m)))))
 
 
-(comment  ;; Scanner + Processing Pipeline + Execution Engine
-
-
-  ;; SCAN SET CHANGES
-  (require '[clojure.set :as s])
-
-  (do
-    (def one #{:a :b :c})
-    (def two #{:b :c :d})
-    (def three #{:c :d}))
-
-  (defn ->removed [orig princ]
-    (s/difference orig princ))
-
-  (defn ->added [orig princ]
-    (s/difference princ orig))
-
-
-  ;; SCAN
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.account/account)
-
-  (do
-
-    (def client (-> ew/ewrapper :ewrapper :client))
-
-    ;; Subscribe
-    (scanner/start client)
-
-    ;; Unsubscribe
-    ;; (scanner/stop client)
-
-    (when-let [leaderboard (scanner/scanner-decide)]
-      (doseq [[i m] (map-indexed vector leaderboard)]
-        (println i ":" m))))
-
-
-  ;; START
-  (do
-    (def instrument "AMZN")
-    (def concurrency 1)
-    (def ticker-id 1003)
-    (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def joined-channel-map (pp/setup-publisher-channel source-ch instrument concurrency ticker-id))
-    (def joined-channel-tapped (ee/setup-execution-engine joined-channel-map ew/ewrapper instrument account-name))
-    (def live-subscription (sw/start-stream-live ew/ewrapper instrument ticker-id)))
-
-
-  ;; STOP
-  (do
-    (sw/stop-stream-live live-subscription)
-    (pp/teardown-publisher-channel joined-channel-map)
-    (ee/teardown-execution-engine joined-channel-tapped))
-
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.account/account))
-
-
 (comment ;; from com.interrupt.ibgateway.component.processing-pipeline
 
   (require

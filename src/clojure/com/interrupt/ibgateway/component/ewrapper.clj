@@ -12,7 +12,7 @@
 
 (def tws-host (env :tws-host "tws"))
 (def tws-port (env :tws-port 4002))
-(def client-id (atom (next-reqid!)))
+(def client-id (atom nil))
 
 (defn setup-default-channels []
   {:publisher (-> 100 async/sliding-buffer async/chan)
@@ -25,7 +25,7 @@
 (defstate ewrapper
   :start (let [dchans (setup-default-channels)]
            {:default-channels dchans
-            :ewrapper (ewi/ewrapper tws-host tws-port @client-id dchans)})
+            :ewrapper (ewi/ewrapper tws-host tws-port (reset! client-id (next-reqid!)) dchans)})
   :stop (let [client (-> ewrapper :ewrapper :client)]
 
           ;; disconnect client
