@@ -271,7 +271,7 @@
     (stream/connect @result bollinger-band-connector-ch)
     bollinger-band-connector-ch))
 
-(defn join-analytics [tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+(defn join-analytics [output-ch tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
                       macd->SIGNAL stochastic-oscillator->SIGNAL
                       on-balance-volume->SIGNAL relative-strength->SIGNAL
 
@@ -301,7 +301,6 @@
                          signal-stochastic-oscillator->SIGNAL
                          signal-on-balance-volume->SIGNAL)
 
-        analytic-connector-ch (chan (sliding-buffer 100))
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
                                                 :skey-streams {:tick-list tick-list->CROSS
 
@@ -326,10 +325,10 @@
                                                                :signal-on-balance-volume signal-on-balance-volume->CROSS
                                                                }})]
 
-    (stream/connect @result analytic-connector-ch)
-    analytic-connector-ch))
+    (stream/connect @result output-ch)
+    output-ch))
 
-(defn setup-publisher-channel [source-ch stock-name concurrency ticker-id-filter]
+(defn setup-publisher-channel [source-ch output-ch stock-name concurrency ticker-id-filter]
 
   (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
 
@@ -391,17 +390,17 @@
                 signal-macd->SIGNAL
                 signal-stochastic-oscillator->SIGNAL
                 signal-on-balance-volume->SIGNAL]}
-        (signal-join-mults)
+        (signal-join-mults)]
 
-        analytic-connector-ch (join-analytics tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
-                                              macd->SIGNAL stochastic-oscillator->SIGNAL
-                                              on-balance-volume->SIGNAL relative-strength->SIGNAL
+    (join-analytics output-ch tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+                    macd->SIGNAL stochastic-oscillator->SIGNAL
+                    on-balance-volume->SIGNAL relative-strength->SIGNAL
 
-                                              signal-moving-averages->SIGNAL
-                                              signal-bollinger-band->SIGNAL
-                                              signal-macd->SIGNAL
-                                              signal-stochastic-oscillator->SIGNAL
-                                              signal-on-balance-volume->SIGNAL)]
+                    signal-moving-averages->SIGNAL
+                    signal-bollinger-band->SIGNAL
+                    signal-macd->SIGNAL
+                    signal-stochastic-oscillator->SIGNAL
+                    signal-on-balance-volume->SIGNAL)
 
     (doseq [source+mults [[source-list-ch tick-list-ch]
                           [tick-list-ch tick-list->sma-ch tick-list->macd-ch
@@ -493,13 +492,12 @@
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))
 
-    #_(go-loop [c 0 r (<! analytic-connector-ch)]
+    #_(go-loop [c 0 r (<! output-ch)]
         (info "count: " c " / r: " r)
       (when r
-        (recur (inc c) (<! analytic-connector-ch))))
+        (recur (inc c) (<! output-ch))))
 
-    {:joined-channel analytic-connector-ch}))
+    {:joined-channel output-ch}))
 
 (defn teardown-publisher-channel [processing-pipeline]
-  (doseq [vl (vals processing-pipeline)]
-    (close! vl)))
+  (close! processing-pipeline))

@@ -252,7 +252,7 @@
 (defn handle-commission-report [{:keys [execId commission
                                         currency realizedPNL] :as val}
                                 account order-filled-notification-ch]
-  (info "NOW / handle-commission-report / " val)
+  ;; (info "NOW / handle-commission-report / " val)
   (-> account
       (bind-exec-id->commission-report! val)
       (exec-id->stock execId)
@@ -262,7 +262,7 @@
 ;; CONSUME ORDER UPDATES
 (defn consume-order-updates [{:keys [order-updates]} valid-order-id-ch order-filled-notification-ch]
   (go-loop [{:keys [topic] :as val} (<! order-updates)]
-    (info "consume-order-updates LOOP / " val)
+    ;; (info "consume-order-updates LOOP / " val)
     (case topic
       :open-order (handle-open-order val)
       :order-status (handle-order-status val account)

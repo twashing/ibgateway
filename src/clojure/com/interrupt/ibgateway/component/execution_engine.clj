@@ -1,18 +1,20 @@
 (ns com.interrupt.ibgateway.component.execution-engine
   (:require [clojure.core.async
-             :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
-                     sliding-buffer mult tap pipeline] :as async]
+             :refer [chan >! >!! <! <!! close! go-loop
+                     sliding-buffer thread] :as async]
             [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [debug info]]
             [clojure.tools.trace :refer [trace]]
             [clojure.set :as s]
             [com.rpl.specter :refer :all]
             [mount.core :refer [defstate] :as mount]
+            [com.interrupt.edgar.scanner :as scanner]
             [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
             [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
             [com.interrupt.ibgateway.component.account :refer [account account-name consume-order-updates]]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
+            [com.interrupt.ibgateway.component.switchboard :as sw]
             [com.interrupt.edgar.ib.market :as market])
   (:import [com.ib.client Order]))
 
@@ -178,7 +180,7 @@
 (defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
 
   (go-loop [{:keys [stock order] :as val} (<! order-filled-notification-ch)]
-    (info "consume-order-filled-notifications LOOPED / " val)
+    ;; (info "consume-order-filled-notifications LOOPED / " val)
     (let [symbol (:symbol stock)
           action "SELL"
           quantity (:quantity order)
@@ -190,17 +192,17 @@
           ;; (clojure.pprint/cl-format nil "~,2f" 0.0057683)
           ;; (clojure.pprint/cl-format nil "~,2f" 66.2)
 
-          _ (println "1 / " @latest-standard-deviation)
-          _ (println "2 / " (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation))
-          _ (println "3 / " (type (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)))
+          ;; _ (println "1 / " @latest-standard-deviation)
+          ;; _ (println "2 / " (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation))
+          ;; _ (println "3 / " (type (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)))
           auxPrice (->> @latest-standard-deviation
                         (clojure.pprint/cl-format nil "~,2f")
                         read-string)
 
-          _ (println "4 / " auxPrice)
-          _ (println "5 / " (:price order))
-          _ (println "6 / " (type (:price order)))
-          _ (println "7 / " (- (:price order) auxPrice))
+          ;; _ (println "4 / " auxPrice)
+          ;; _ (println "5 / " (:price order))
+          ;; _ (println "6 / " (type (:price order)))
+          ;; _ (println "7 / " (- (:price order) auxPrice))
           trailStopPrice (- (:price order) auxPrice)]
 
       (info "(balancing) sell-stock / client, " [quantity valid-order-id auxPrice #_trailingPercent trailStopPrice])
@@ -239,14 +241,14 @@
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
-(defn setup-execution-engine [{joined-channel :joined-channel}
+(defn setup-execution-engine [joined-channel
+                              joined-channel-tapped
                               {account+order-updates-map :default-channels
                                {client :client} :ewrapper}
                               instrm account-name]
 
   (let [valid-order-id-ch (chan)
-        order-filled-notification-ch (chan)
-        joined-channel-tapped (chan (sliding-buffer 100))]
+        order-filled-notification-ch (chan)]
 
 
     (bind-channels->mult joined-channel joined-channel-tapped)
@@ -298,10 +300,11 @@
   ;; [ok] dynamically change log levels
   ;; [ok] turn logging on/off per namespace
   ;; [ok] upstream scanner
+  ;; [ok] track many (n) stocks
+  ;; [ok] track instrument symbol with stream
 
-  ;; track many (n) stocks
-  ;;   track instrument symbol with stream
-  ;;   track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
+  ;; put processing-pipeline and execution-engine on different threads (order callbacks running slow)
+  ;; track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
 
 
   ;; workbench
@@ -431,6 +434,27 @@
   (->next-valid-order-id client valid-order-id-ch)
   (->account-cash-level client account-updates-ch))
 
+;; 0 : {:symbol OVOL, :sec-type STK}
+;; 1 : {:symbol RPUT, :sec-type STK}
+;; 2 : {:symbol BNED, :sec-type STK}
+;; 3 : {:symbol DHDG, :sec-type STK}
+;; 4 : {:symbol AMZN, :sec-type STK}
+;; 5 : {:symbol HTAB, :sec-type STK}
+;; 6 : {:symbol GOOGL, :sec-type STK}
+;; 7 : {:symbol SPY, :sec-type STK}
+;; 8 : {:symbol UBT, :sec-type STK}
+;; 9 : {:symbol FTV PRA, :sec-type STK}
+;; 10 : {:symbol VXZB, :sec-type STK}
+;; 11 : {:symbol PMO, :sec-type STK}
+;; 12 : {:symbol NVR, :sec-type STK}
+;; 13 : {:symbol IWM, :sec-type STK}
+;; 14 : {:symbol AZO, :sec-type STK}
+;; 15 : {:symbol BRK A, :sec-type STK}
+;; 16 : {:symbol AAPL, :sec-type STK}
+;; 17 : {:symbol DIAL, :sec-type STK}
+;; 18 : {:symbol EEM, :sec-type STK}
+;; 19 : {:symbol BABA, :sec-type STK}
+
 (comment  ;; Scanner + Processing Pipeline + Execution Engine
 
 
@@ -449,7 +473,7 @@
     (s/difference princ orig))
 
 
-  ;; SCAN
+
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account)
 
@@ -458,13 +482,10 @@
 
   (do
 
-    (def client (-> ew/ewrapper :ewrapper :client))
+    (def client (-> com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper :client))
 
     ;; Subscribe
     (scanner/start client)
-
-    ;; Unsubscribe
-    ;; (scanner/stop client)
 
     (when-let [leaderboard (scanner/scanner-decide)]
       (doseq [[i m] (map-indexed vector leaderboard)]
@@ -476,17 +497,34 @@
     (def instrument "AMZN")
     (def concurrency 1)
     (def ticker-id 1003)
-    (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def joined-channel-map (pp/setup-publisher-channel source-ch instrument concurrency ticker-id))
-    (def joined-channel-tapped (ee/setup-execution-engine joined-channel-map ew/ewrapper instrument account-name))
-    (def live-subscription (sw/start-stream-live ew/ewrapper instrument ticker-id)))
+    (def client (-> ewrapper/ewrapper :ewrapper :client))
+    (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
+    (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
+    (def execution-engine-output-ch (chan (sliding-buffer 100)))
 
+    (thread (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency ticker-id))
+    (thread (setup-execution-engine processing-pipeline-output-ch execution-engine-output-ch
+                                    ewrapper/ewrapper instrument account-name))
+
+    (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id)))
+
+
+  (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
+  (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
+
+  ;; These are the only tickString types I see coming in
+  ;; 48 45 33 32
+
+
+  ;; Next valid Id
+  (.reqIds client -1)
 
   ;; STOP
   (do
+    (scanner/stop client)
     (sw/stop-stream-live live-subscription)
-    (pp/teardown-publisher-channel joined-channel-map)
-    (ee/teardown-execution-engine joined-channel-tapped))
+    (pp/teardown-publisher-channel processing-pipeline-output-ch)
+    (teardown-execution-engine execution-engine-output-ch))
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account))
