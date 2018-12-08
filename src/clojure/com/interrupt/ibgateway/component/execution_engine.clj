@@ -183,15 +183,21 @@
       (market/buy-stock client order-id order-type account-name instrm qty price))))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
-                                    {account-updates-ch :account-updates} valid-order-id-ch]
+                                    {account-updates-ch :account-updates
+                                     order-updates-ch :order-updates
+                                     valid-order-ids-ch :valid-order-ids
+                                     order-filled-notifications-ch :order-filled-notifications}]
+  {:pre [((comp not closed?) order-updates-ch)
+         ((comp not closed?) valid-order-ids-ch)
+         ((comp not closed?) order-filled-notifications-ch)]}
 
   (let [[laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
 
     (info "2 - extract-signals+decide-order / " [laggingS leadingS confirmingS])
     (match [laggingS leadingS confirmingS]
-           [true true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
-           [true true _] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
-           [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [true true true] (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
+           [true true _] (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
+           [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
            :else :noop)))
 
 (defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
@@ -203,7 +209,7 @@
           quantity (:quantity order)
           valid-order-id (->next-valid-order-id client valid-order-id-ch)
           _ (info "3 - buy-stock / valid-order-id-ch closed? / " (closed? valid-order-id-ch)
-                  " / order-id / " order-id)
+                  " / order-id / " valid-order-id)
 
           ;; trailingPercent 1
           ;; trail-price (if (< @latest-standard-deviation 0.5) 0.5 @latest-standard-deviation)
@@ -242,7 +248,7 @@
 
     (recur (<! order-filled-notification-ch))))
 
-(defn consume-joined-channel [joined-channel-tapped account+order-updates-map valid-order-id-ch client instrm account-name]
+(defn consume-joined-channel [joined-channel-tapped default-channels client instrm account-name]
 
   (go-loop [c 0 joined-tick (<! joined-channel-tapped)]
     (if-not joined-tick
@@ -258,46 +264,44 @@
                 (-> joined-tick :bollinger-band :standard-deviation))
 
         (when (:sma-list joined-tick)
-          (extract-signals+decide-order client joined-tick instrm account-name
-                                        account+order-updates-map valid-order-id-ch))
+          (extract-signals+decide-order client joined-tick instrm account-name default-channels))
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
 (defn setup-execution-engine [joined-channel
                               joined-channel-tapped
-                              {account+order-updates-map :default-channels
+                              {{valid-order-id-ch :valid-order-ids
+                                order-filled-notification-ch :order-filled-notifications-ch
+                                :as default-channels} :default-channels
                                {client :client} :ewrapper}
                               instrm account-name]
 
-  (let [valid-order-id-ch (chan)
-        order-filled-notification-ch (chan)]
+
+  (bind-channels->mult joined-channel joined-channel-tapped)
 
 
-    (bind-channels->mult joined-channel joined-channel-tapped)
+  ;; CONSUME ORDER UPDATES
+
+  ;; TODO mock
+  ;;   default-channels (->account-cash-level)
+  ;;   valid-order-id-ch (->next-valid-order-id)
+  ;;   order-filled-notification-ch
+  (consume-order-updates default-channels order-filled-notification-ch)
 
 
-    ;; CONSUME ORDER UPDATES
+  ;; CONSUME ORDER FILLED NOTIFICATIONS
 
-    ;; TODO mock
-    ;;   account+order-updates-map (->account-cash-level)
-    ;;   valid-order-id-ch (->next-valid-order-id)
-    ;;   order-filled-notification-ch
-    (consume-order-updates account+order-updates-map valid-order-id-ch order-filled-notification-ch)
-
-
-    ;; CONSUME ORDER FILLED NOTIFICATIONS
-
-    ;; TODO mock
-    ;;   order-filled-notification-ch
-    ;;   valid-order-id-ch (->next-valid-order-id)
-    (consume-order-filled-notifications client order-filled-notification-ch valid-order-id-ch)
+  ;; TODO mock
+  ;;   order-filled-notification-ch
+  ;;   valid-order-id-ch (->next-valid-order-id)
+  (consume-order-filled-notifications client order-filled-notification-ch valid-order-id-ch)
 
 
-    ;; CONSUME JOINED TICK STREAM
-    (consume-joined-channel joined-channel-tapped account+order-updates-map valid-order-id-ch client instrm account-name)
+  ;; CONSUME JOINED TICK STREAM
+  (consume-joined-channel joined-channel-tapped default-channels client instrm account-name)
 
 
-    joined-channel-tapped)
+  joined-channel-tapped
 
 
   ;; TODO
@@ -325,6 +329,9 @@
   ;; [ok] track many (n) stocks
   ;; [ok] track instrument symbol with stream
   ;; [ok] put processing-pipeline and execution-engine on different threads (order callbacks running slow)
+
+
+  ;; [ok] Scheduled health check for input channels
 
   ;; Error. Id: 55, Code: 103, Msg: Duplicate order id
 
@@ -486,11 +493,11 @@
     (mount/stop #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
     (mount/start #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
 
-    (def client (:client ewrapper/ewrapper))
-    (def wrapper (:wrapper ewrapper/ewrapper))
-    (def valid-order-id-ch (chan))
-    (def order-filled-notification-ch (chan))
-    (def account-updates-ch (:account-updates ewrapper/default-chs-map))
+    (def client (-> ewrapper/ewrapper :ewrapper :client))
+    (def wrapper (-> ewrapper/ewrapper :ewrapper :wrapper))
+    (def valid-order-id-ch (-> ewrapper/ewrapper :default-channels :valid-order-ids) )
+    (def order-filled-notification-ch (-> ewrapper/ewrapper :default-channels :order-filled-notifications-ch))
+    (def account-updates-ch (-> ewrapper/ewrapper :default-channels :account-updates))
 
     (consume-order-updates ewrapper/default-chs-map valid-order-id-ch order-filled-notification-ch))
 
@@ -560,6 +567,7 @@
     (def instrument "AMZN")
     (def concurrency 1)
     (def ticker-id 1003)
+
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
     (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
