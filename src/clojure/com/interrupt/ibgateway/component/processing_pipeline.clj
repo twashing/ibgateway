@@ -58,6 +58,22 @@
 (defn empty-last-trade-price? [event]
   (-> event :last-trade-price (<= 0)))
 
+
+;; track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
+;;   These are the only tickString types I see coming in
+;;   48 45 33 32
+
+;; Bid Size	0	IBApi.EWrapper.tickSize
+;; Bid Price	1	IBApi.EWrapper.tickPrice
+;; Ask Price	2	IBApi.EWrapper.tickPrice
+;; Ask Size	3	IBApi.EWrapper.tickSize
+;; Last Price	4	IBApi.EWrapper.tickPrice
+;; Last Size	5	IBApi.EWrapper.tickSize
+;; High	6 IBApi.EWrapper.tickPrice
+;; Low	7	IBApi.EWrapper.tickPrice
+;; Volume	8	IBApi.EWrapper.tickSize
+;; Close Price	9, IBApi.EWrapper.tickPrice
+
 (def handler-xform
     (comp (filter rtvolume-time-and-sales?)
        (map parse-tick-string)

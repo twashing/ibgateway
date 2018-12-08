@@ -80,6 +80,7 @@
                  :field field
                  :price price
                  :can-auto-execute can-auto-execute?}]
+        (debug "tickPrice / " val)
         (async/put! tick-updates val)))
 
     (tickSize [^Integer ticker-id ^Integer field ^Integer size]
@@ -87,6 +88,7 @@
                  :ticker-id ticker-id
                  :field field
                  :size size}]
+        (debug "tickSize / " val)
         (async/put! tick-updates val)))
 
     (tickString [^Integer ticker-id ^Integer tickType ^String value]
@@ -95,7 +97,7 @@
                  :tick-type tickType
                  :value value}]
 
-        (info "tickString / " val)
+        (debug "tickString / " val)
         (async/put! tick-updates val)))
 
     (tickGeneric [^Integer ticker-id ^Integer tickType ^Double value]
@@ -103,7 +105,7 @@
                  :ticker-id ticker-id
                  :tick-type tickType
                  :value value}]
-        (info "New - Tick Generic. Ticker Id:"  ticker-id  ", Field: " tickType  ", Value: "  value)
+        (debug "New - Tick Generic. Ticker Id:"  ticker-id  ", Field: " tickType  ", Value: "  value)
         (async/put! tick-updates val)))
 
 
@@ -160,7 +162,7 @@
                  :key key
                  :value value
                  :currency currency}]
-        (info "updateAccountValue / val / " val)
+        (debug "updateAccountValue / val / " val)
         (async/put! account-updates val)))
 
     (updatePortfolio [^Contract contract
@@ -180,19 +182,19 @@
                  :unrealized-pnl unrealized-pnl
                  :realized-pnl realized-pnl
                  :account-name account-name}]
-        (info "updatePortfolio / val / " val)
+        (debug "updatePortfolio / val / " val)
         (async/put! account-updates val)))
 
     (updateAccountTime [^String timeStamp]
       (let [val {:topic :update-account-time
                  :time-stamp timeStamp}]
-        (info "updateAccountTime / timeStamp /" val)
+        (debug "updateAccountTime / timeStamp /" val)
         (async/put! account-updates val)))
 
     (accountDownloadEnd [^String account]
       (let [val {:topic :account-download-end
                  :account account}]
-        (info "accountDownloadEnd / account /" val)
+        (debug "accountDownloadEnd / account /" val)
         (async/put! account-updates val)))
 
 
@@ -205,13 +207,13 @@
                  :tag tag
                  :value (acct-summary/parse-tag-value tag value)
                  :currency currency}]
-        (info "accountSummary / val / " val)
+        (debug "accountSummary / val / " val)
         (async/put! account-updates val)))
 
     (accountSummaryEnd [^Integer reqId]
       (let [val {:topic :account-summary-end
                  :req-id reqId}]
-        (info "accountSummaryEnd / reqId /" reqId)
+        (debug "accountSummaryEnd / reqId /" reqId)
         (async/put! account-updates val)))
 
 
@@ -227,7 +229,7 @@
                  :pos pos
                  :avg-cost avgCost}]
 
-        (info "position / "
+        (debug "position / "
               " Account / " account
               " Symbol / " (.symbol contract)
               " SecType / " (.secType contract)
@@ -238,7 +240,7 @@
 
     (positionEnd []
       (let [val {:topic :position-end}]
-        (info "PositionEnd \n")
+        (debug "PositionEnd \n")
         (async/put! account-updates val)))
 
 
