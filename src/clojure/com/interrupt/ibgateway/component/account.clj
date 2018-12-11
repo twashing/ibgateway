@@ -6,8 +6,8 @@
             [clojure.core.match :refer [match]]
             [clojure.core.async :as async :refer [go-loop <! >!!]]
             [automata.core :as au]
+            [com.interrupt.ibgateway.component.common :refer [exists?]]
             [com.interrupt.ibgateway.component.account.contract :as contract]
-            [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.switchboard.mock :refer :all])
   (:import [com.ib.client Order OrderStatus]))
 
@@ -153,9 +153,25 @@
                         #(assoc % :avgFillPrice avgFillPrice :price lastFillPrice)
                         s))))
 
+(defn conditionally-process-filled [[[stock order]]]
+  (info "2 - conditionally-process-filled / " [(exists? stock) (exists? order)]
+        " / 1 / " #_(-> order :state)
+        " / 2 / " (-> order :state :state)
+        " / 3 / " (-> order :state :state :matcher))
+  (info "2 - conditionally-process-filled / action / " (:action order))
+  (info "2 - conditionally-process-filled / state / " (-> order :state :state :matcher))
+  (info "2 - conditionally-process-filled / match? / " (and
+                                                         (= "BUY" (:action order))
+                                                         (= :filled (-> order :state :state :matcher))))
+  (when (and
+          (= "BUY" (:action order))
+          (= :filled (-> order :state :state :matcher)))
+    (info "2 - returning from conditionally-process-filled")
+    {:stock stock :order order}))
+
 (defn conditionally-notify-filled [[[stock order]] order-filled-notification-ch]
-  (info "3 - conditionally-notify-filled / " [stock order]
-        " / 1 / " (-> order :state)
+  (info "3 - conditionally-notify-filled / " [(exists? stock) (exists? order)]
+        " / 1 / " #_(-> order :state)
         " / 2 / " (-> order :state :state)
         " / 3 / " (-> order :state :state :matcher))
   (info "3 - conditionally-notify-filled / action / " (:action order))
@@ -257,6 +273,15 @@
 
 
 ;; COMMISSION REPORT
+(defn process-commission-report [{:keys [execId commission
+                                        currency realizedPNL] :as val}
+                                 account]
+  (info "2 - handle-commission-report / " val)
+  (-> account
+      (bind-exec-id->commission-report! val)
+      (exec-id->stock execId)
+      (conditionally-process-filled)))
+
 (defn handle-commission-report [{:keys [execId commission
                                         currency realizedPNL] :as val}
                                 account order-filled-notification-ch]
@@ -268,7 +293,7 @@
 
 
 ;; CONSUME ORDER UPDATES
-(defn consume-order-updates [{:keys [order-updates valid-order-ids]} order-filled-notification-ch]
+(defn consume-order-updates [{:keys [order-updates valid-order-ids order-filled-notifications]}]
   (go-loop [{:keys [topic] :as val} (<! order-updates)]
     (info "1 - consume-order-updates LOOP / " val)
     (case topic
@@ -277,7 +302,7 @@
       :next-valid-id (let [{oid :order-id} val]
                        (>!! valid-order-ids oid))
       :exec-details (handle-exec-details val account)
-      :commission-report (handle-commission-report val account order-filled-notification-ch)
+      :commission-report :noop ;; (handle-commission-report val account order-filled-notifications)
       :default)
 
     (recur (<! order-updates))))

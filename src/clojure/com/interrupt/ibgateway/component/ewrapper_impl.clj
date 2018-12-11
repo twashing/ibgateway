@@ -7,6 +7,10 @@
             [com.interrupt.ibgateway.component.account.summary :as acct-summary]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.ibgateway.component.account.contract :as contract]
+
+            [com.interrupt.ibgateway.component.common :refer :all :as common]
+            [com.interrupt.ibgateway.component.account :as account]
+
             [com.interrupt.edgar.obj-convert :as obj-convert]
             [com.interrupt.edgar.scanner :as scanner])
   (:import [com.ib.client Contract Order OrderState Execution
@@ -57,10 +61,13 @@
 ;; client.reqPositions();
 ;; client.cancelPositions();
 
+(declare client*)
+
 (defn ewrapper-impl
   [{tick-updates :publisher
     account-updates :account-updates
-    order-updates :order-updates}]
+    order-updates :order-updates
+    valid-order-ids :valid-order-ids}]
 
   (proxy [EWrapperImpl] []
 
@@ -69,7 +76,11 @@
       (info "nextValidId / " order-id)
       (let [val {:topic :next-valid-id
                  :order-id order-id}]
-        (async/put! order-updates val)))
+
+        (deliver common/next-valid-order-id order-id)
+        ;; (async/put! order-updates val)
+
+        ))
 
 
     ;; ========
@@ -271,7 +282,9 @@
               " Order::orderType / " orderType
               " Order::totalQuantity / " totalQuantity
               " OrderState::status / " status)
-        (async/put! order-updates val)))
+
+        ;; (async/put! order-updates val)
+        (account/handle-open-order val)))
 
     (orderStatus [^Integer orderId
                   ^String status
@@ -309,7 +322,10 @@
               " LastFillPrice / " lastFillPrice
               " ClientId / " clientId
               " WhyHeld / " whyHeld)
-        (async/put! order-updates val)))
+
+        ;; (async/put! order-updates val)
+        (account/handle-order-status val account/account)))
+
 
     (openOrderEnd [] (info "OpenOrderEnd"))
 
@@ -338,7 +354,9 @@
               " execId /" execId
               " orderId /" orderId
               " shares /" shares)
-        (async/put! order-updates val)))
+
+        ;; (async/put! order-updates val)
+        (account/handle-exec-details val account/account)))
 
     (commissionReport [^CommissionReport commissionReport]
 
@@ -354,7 +372,13 @@
               " commission /" commission
               " currency /" currency
               " realizedPNL /" realizedPNL)
-        (async/put! order-updates val)))
+
+        ;; (async/put! order-updates val)
+
+        (let [stock+order (account/process-commission-report val account/account)]
+
+          (info "commissionReport / stock+order / " stock+order)
+          (common/process-order-filled-notifications client* stock+order valid-order-ids))))
 
     (execDetailsEnd [^Integer reqId]
       (info "execDetailsEnd / reqId / " reqId))))
@@ -382,6 +406,9 @@
    (let [wrapper (ewrapper-impl chs-map)
          client (.getClient wrapper)
          signal (.getSignal wrapper)]
+
+     (def client* client)
+
      (.eConnect client host port client-id)
      (let [ereader (EReader. client signal)]
        (.start ereader)

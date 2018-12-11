@@ -2,8 +2,6 @@
   (:require [clojure.core.async
              :refer [chan >! >!! <! <!! close! go-loop
                      sliding-buffer thread] :as async]
-            [clojure.core.async.impl.protocols :refer [closed?]]
-
             [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [debug info]]
             [clojure.tools.trace :refer [trace]]
@@ -12,7 +10,7 @@
             [environ.core :refer [env]]
             [mount.core :refer [defstate] :as mount]
             [com.interrupt.edgar.scanner :as scanner]
-            [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
+            [com.interrupt.ibgateway.component.common :refer :all :as common]
             [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
             [com.interrupt.ibgateway.component.account :refer [account account-name consume-order-updates]]
             [com.interrupt.ibgateway.component.account.contract :as contract]
@@ -25,8 +23,6 @@
 (def minimum-cash-level (let [a (env :minimum-cash-level 1000)]
                           (if (number? a)
                             a (read-string a))))
-
-(def latest-standard-deviation (atom -1))
 
 (def lagging-signals #{:moving-average-crossover
                        :bollinger-divergence-overbought
@@ -120,7 +116,7 @@
 
     (map all-ups? [lags leads confs])))
 
-(defn ->next-valid-order-id
+#_(defn ->next-valid-order-id
   ([client valid-order-id-ch]
    (->next-valid-order-id
      client valid-order-id-ch (fn [] (.reqIds client -1))))
@@ -164,14 +160,14 @@
         price (-> joined-tick :sma-list :last-trade-price)
 
         cash-level (-> client (->account-cash-level account-updates-ch) :value)
-        _ (info "3 - buy-stock / account-updates-ch closed? / " (closed? account-updates-ch)
+        _ (info "3 - buy-stock / account-updates-ch channel-open? / " (channel-open? account-updates-ch)
                 " / cash-level / " cash-level)
 
         qty (derive-order-quantity cash-level price)
 
         ;; TODO make a mock version of this
         order-id (->next-valid-order-id client valid-order-id-ch)
-        _ (info "3 - buy-stock / valid-order-id-ch closed? / " (closed? valid-order-id-ch)
+        _ (info "3 - buy-stock / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
                 " / order-id / " order-id)]
 
     (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
@@ -187,9 +183,9 @@
                                      order-updates-ch :order-updates
                                      valid-order-ids-ch :valid-order-ids
                                      order-filled-notifications-ch :order-filled-notifications}]
-  {:pre [((comp not closed?) order-updates-ch)
-         ((comp not closed?) valid-order-ids-ch)
-         ((comp not closed?) order-filled-notifications-ch)]}
+  {:pre [(channel-open? order-updates-ch)
+         (channel-open? valid-order-ids-ch)
+         (channel-open? order-filled-notifications-ch)]}
 
   (let [[laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
 
@@ -203,24 +199,14 @@
 (defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
 
   (go-loop [{:keys [stock order] :as val} (<! order-filled-notification-ch)]
-    (info "1 - consume-order-filled-notifications LOOP / " val)
+    (info "1 - consume-order-filled-notifications LOOP / " (exists? val))
     (let [symbol (:symbol stock)
           action "SELL"
           quantity (:quantity order)
           valid-order-id (->next-valid-order-id client valid-order-id-ch)
-          _ (info "3 - buy-stock / valid-order-id-ch closed? / " (closed? valid-order-id-ch)
+          _ (info "3 - consume-order-filled-notifications / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
                   " / order-id / " valid-order-id)
 
-          ;; trailingPercent 1
-          ;; trail-price (if (< @latest-standard-deviation 0.5) 0.5 @latest-standard-deviation)
-
-          ;; (clojure.pprint/cl-format nil "~,2f" 23.456)
-          ;; (clojure.pprint/cl-format nil "~,2f" 0.0057683)
-          ;; (clojure.pprint/cl-format nil "~,2f" 66.2)
-
-          ;; _ (println "1 / " @latest-standard-deviation)
-          ;; _ (println "2 / " (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation))
-          ;; _ (println "3 / " (type (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)))
           auxPrice (->> @latest-standard-deviation
                         (clojure.pprint/cl-format nil "~,2f")
                         read-string
@@ -229,10 +215,6 @@
                         (clojure.pprint/cl-format nil "~,2f")
                         read-string)
 
-          ;; _ (println "4 / " auxPrice)
-          ;; _ (println "5 / " (:price order))
-          ;; _ (println "6 / " (type (:price order)))
-          ;; _ (println "7 / " (- (:price order) auxPrice))
           trailStopPrice (- (:price order) auxPrice)]
 
       (info "1 - (balancing) sell-stock / client, " [quantity valid-order-id auxPrice trailStopPrice])
@@ -260,7 +242,7 @@
 
 
         ;; TODO design a better way to capture running standard-deviation
-        (reset! latest-standard-deviation
+        (reset! common/latest-standard-deviation
                 (-> joined-tick :bollinger-band :standard-deviation))
 
         (when (:sma-list joined-tick)
@@ -271,7 +253,7 @@
 (defn setup-execution-engine [joined-channel
                               joined-channel-tapped
                               {{valid-order-id-ch :valid-order-ids
-                                order-filled-notification-ch :order-filled-notifications-ch
+                                order-filled-notification-ch :order-filled-notifications
                                 :as default-channels} :default-channels
                                {client :client} :ewrapper}
                               instrm account-name]
@@ -286,7 +268,7 @@
   ;;   default-channels (->account-cash-level)
   ;;   valid-order-id-ch (->next-valid-order-id)
   ;;   order-filled-notification-ch
-  (consume-order-updates default-channels order-filled-notification-ch)
+  (consume-order-updates default-channels)
 
 
   ;; CONSUME ORDER FILLED NOTIFICATIONS
@@ -294,7 +276,7 @@
   ;; TODO mock
   ;;   order-filled-notification-ch
   ;;   valid-order-id-ch (->next-valid-order-id)
-  (consume-order-filled-notifications client order-filled-notification-ch valid-order-id-ch)
+  ;; (consume-order-filled-notifications client order-filled-notification-ch valid-order-id-ch)
 
 
   ;; CONSUME JOINED TICK STREAM
@@ -330,10 +312,19 @@
   ;; [ok] track instrument symbol with stream
   ;; [ok] put processing-pipeline and execution-engine on different threads (order callbacks running slow)
 
+  ;; [~] Scheduled health check for input channels
+  ;;   Error. Id: 55, Code: 103, Msg: Duplicate order id
 
-  ;; [ok] Scheduled health check for input channels
 
-  ;; Error. Id: 55, Code: 103, Msg: Duplicate order id
+  ;; Onyx
+  ;;   stream joined
+  ;;   aggregation
+
+
+  ;; kkinnear/zpst
+  ;;   Library to show source code and arguments in stack backtraces
+  ;;   https://mail.google.com/mail/u/0/#label/**+Clojure/FMfcgxvwzcLlWljQvGlldvvpzTQFJHpr
+  ;;   https://github.com/kkinnear/zpst
 
   ;; only purchase more if
   ;;   we're gaining (over last 3 ticks)
@@ -341,7 +332,7 @@
 
 
   ;; BUY if
-  ;;   :up signal from lagging + leading (or more)
+  ;;   [ok] :up signal from lagging + leading (or more)
   ;;   standard deviation is at least 0.5
   ;;   within last 3 ticks
   ;;   we have enough money
@@ -350,7 +341,8 @@
 
   ;; (in processing pipeline) bollinger-band signals should be fleshed out more
   ;;   also look at RSI divergence
-
+  ;;   Day Trading Interactive Lessons - Bollinger Bands Squeeze
+  ;;   https://www.youtube.com/watch?v=mnFpLRxxB5o
 
   ;; track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
   ;;   These are the only tickString types I see coming in
@@ -562,6 +554,9 @@
         (println i ":" m))))
 
 
+  ;; (-> ewrapper/ewrapper :default-channels :order-filled-notifications channel-open?)
+  ;; (-> ewrapper/ewrapper :default-channels :order-updates channel-open?)
+
   ;; START
   (do
     (def instrument "AMZN")
@@ -581,8 +576,9 @@
   (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
 
   (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
-  (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
 
   (set-log-level :warn "com.interrupt.ibgateway.component.execution-engine")
   (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")
