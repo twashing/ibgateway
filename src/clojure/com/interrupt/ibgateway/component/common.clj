@@ -13,22 +13,22 @@
 (def channel-open? (comp not closed?))
 (def exists? (comp not empty?))
 (def latest-standard-deviation (atom -1))
+(def valid-order-id (atom 100))
 
 (defn ->next-valid-order-id
+
   ([client valid-order-id-ch]
    (->next-valid-order-id
      client valid-order-id-ch (fn [] (.reqIds client -1))))
-  #_([_ valid-order-id-ch f]
 
-     (f)
-     (<!! valid-order-id-ch))
+  #_([_ valid-order-id-ch f]
+   (f)
+   (<!! valid-order-id-ch))
 
   ([_ valid-order-id-ch f]
 
    ;; KLUDGE
-   (def next-valid-order-id (promise))
-   (f)
-   @next-valid-order-id))
+   (swap! valid-order-id inc)))
 
 (defn process-order-filled-notifications [client {:keys [stock order] :as val} valid-order-id-ch]
 
@@ -37,7 +37,7 @@
         action "SELL"
         quantity (:quantity order)
         valid-order-id (->next-valid-order-id client valid-order-id-ch)
-        _ (info "3 - consume-order-filled-notifications / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
+        _ (info "3 - process-order-filled-notifications / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
                 " / order-id / " valid-order-id)
 
         auxPrice (->> @latest-standard-deviation

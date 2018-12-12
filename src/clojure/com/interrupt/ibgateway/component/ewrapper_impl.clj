@@ -17,9 +17,6 @@
             EReader EWrapperMsgGenerator CommissionReport]
            [com.interrupt.ibgateway EWrapperImpl]))
 
-
-(def valid-order-id (atom -1))
-
 (def datetime-formatter (tf/formatter "yyyyMMdd HH:mm:ss"))
 
 (defn historical-subscribe
@@ -77,8 +74,8 @@
       (let [val {:topic :next-valid-id
                  :order-id order-id}]
 
-        (deliver common/next-valid-order-id order-id)
-        ;; (async/put! order-updates val)
+        ;; (deliver common/next-valid-order-id order-id)
+        (async/put! order-updates val)
 
         ))
 
@@ -377,7 +374,7 @@
 
         (let [stock+order (account/process-commission-report val account/account)]
 
-          (info "commissionReport / stock+order / " stock+order)
+          ;; (info "commissionReport / stock+order / " stock+order)
           (common/process-order-filled-notifications client* stock+order valid-order-ids))))
 
     (execDetailsEnd [^Integer reqId]

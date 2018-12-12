@@ -196,7 +196,7 @@
            [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
            :else :noop)))
 
-(defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
+#_(defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
 
   (go-loop [{:keys [stock order] :as val} (<! order-filled-notification-ch)]
     (info "1 - consume-order-filled-notifications LOOP / " (exists? val))
@@ -204,7 +204,7 @@
           action "SELL"
           quantity (:quantity order)
           valid-order-id (->next-valid-order-id client valid-order-id-ch)
-          _ (info "3 - consume-order-filled-notifications / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
+          _ (info "1 - consume-order-filled-notifications / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
                   " / order-id / " valid-order-id)
 
           auxPrice (->> @latest-standard-deviation
@@ -563,11 +563,13 @@
     (def concurrency 1)
     (def ticker-id 1003)
 
+    ;; Next valid Id
+    ;; (.reqIds client -1)
+
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
     (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
     (def execution-engine-output-ch (chan (sliding-buffer 100))))
-
 
   (thread (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency ticker-id))
   (thread (setup-execution-engine processing-pipeline-output-ch execution-engine-output-ch
@@ -585,8 +587,6 @@
 
 
 
-  ;; Next valid Id
-  (.reqIds client -1)
   (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))
 
 
