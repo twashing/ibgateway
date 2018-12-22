@@ -30,16 +30,12 @@
    ;; KLUDGE
    (swap! valid-order-id inc)))
 
-(defn process-order-filled-notifications [client {:keys [stock order] :as val} valid-order-id-ch]
+(defn sell-trailing [client stock order valid-order-id-ch]
 
-  (info "3 - process-order-filled-notifications LOOP / " (exists? val))
-  (let [symbol (:symbol stock)
-        action "SELL"
+  (let [action "SELL"
+        symbol (:symbol stock)
         quantity (:quantity order)
         valid-order-id (->next-valid-order-id client valid-order-id-ch)
-        _ (info "3 - process-order-filled-notifications / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
-                " / order-id / " valid-order-id)
-
         auxPrice (->> @latest-standard-deviation
                       (clojure.pprint/cl-format nil "~,2f")
                       read-string
@@ -47,10 +43,9 @@
                       (* 1.75)
                       (clojure.pprint/cl-format nil "~,2f")
                       read-string)
-
         trailStopPrice (- (:price order) auxPrice)]
 
-    (info "3 - (balancing) sell-stock / client, " [quantity valid-order-id auxPrice trailStopPrice])
+    (info "3 - (balancing) sell-stock / sell-trailing / " [quantity valid-order-id auxPrice trailStopPrice])
     (.placeOrder client
                  valid-order-id
                  (contract/create symbol)
@@ -60,3 +55,32 @@
                    (.auxPrice auxPrice)
                    (.trailStopPrice trailStopPrice)
                    (.totalQuantity quantity)))))
+
+(defn sell-trailing-limit [client stock order valid-order-id-ch]
+
+  (let [action "SELL"
+        symbol (:symbol stock)
+        quantity (:quantity order)
+        valid-order-id (->next-valid-order-id client valid-order-id-ch)
+        lmtPriceOffset 0.05
+        trailingAmount (->> @latest-standard-deviation
+                            (clojure.pprint/cl-format nil "~,2f")
+                            read-string)
+        trailStopPrice (- (:price order) trailingAmount)]
+
+    (info "3 - (balancing) sell-stock / sell-trailing-limit / " [quantity valid-order-id trailingAmount trailStopPrice])
+    (.placeOrder client
+                 valid-order-id
+                 (contract/create symbol)
+                 (doto (Order.)
+                   (.action action)
+                   (.orderType "TRAIL LIMIT")
+                   (.lmtPriceOffset lmtPriceOffset)
+                   (.auxPrice trailingAmount)
+                   (.trailStopPrice trailStopPrice)
+                   (.totalQuantity quantity)))))
+
+(defn process-order-filled-notifications [client {:keys [stock order] :as val} valid-order-id-ch]
+
+  (info "3 - process-order-filled-notifications LOOP / " (exists? val))
+  (sell-trailing client stock order valid-order-id-ch))

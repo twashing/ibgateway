@@ -5,6 +5,8 @@
             [clojure.set :as cs]
             [clojure.tools.logging :refer [debug info warn error]]
             [clojure.tools.trace :refer [trace]]
+            [clj-time.format :as f]
+            [clj-time.core :as t]
             [com.interrupt.edgar.ib.market :as market]
             [com.interrupt.edgar.subscription :as sub]
             [com.interrupt.ibgateway.component.account.contract :as contract]
@@ -1261,17 +1263,20 @@
 
 ;; ==========
 ;; RECORD LIVE DATA (n symbols)
+#_(def stock-scans
+    [{:index 0 :symbol "SPY" :sec-type "STK"}
+     {:index 1 :symbol "ARI PRC" :sec-type "STK"}
+     {:index 2 :symbol "AAPL" :sec-type "STK"}
+     {:index 3 :symbol "NCTY" :sec-type "STK"}
+     {:index 4 :symbol "QQQ" :sec-type "STK"}
+     {:index 5 :symbol "AMD" :sec-type "STK"}
+     {:index 6 :symbol "MER PRK" :sec-type "STK"}
+     {:index 7 :symbol "IWM" :sec-type "STK"}
+     {:index 8 :symbol "SREV" :sec-type "STK"}
+     {:index 9 :symbol "OZK" :sec-type "STK"}])
+
 (def stock-scans
-  [{:index 0 :symbol "SPY" :sec-type "STK"}
-   {:index 1 :symbol "ARI PRC" :sec-type "STK"}
-   {:index 2 :symbol "AAPL" :sec-type "STK"}
-   {:index 3 :symbol "NCTY" :sec-type "STK"}
-   {:index 4 :symbol "QQQ" :sec-type "STK"}
-   {:index 5 :symbol "AMD" :sec-type "STK"}
-   {:index 6 :symbol "MER PRK" :sec-type "STK"}
-   {:index 7 :symbol "IWM" :sec-type "STK"}
-   {:index 8 :symbol "SREV" :sec-type "STK"}
-   {:index 9 :symbol "OZK" :sec-type "STK"}])
+  [{:index 0 :symbol "AMZN" :sec-type "STK"}])
 
 (def live-subscriptions (atom []))
 
@@ -1283,24 +1288,26 @@
       (spit fname tick-record :append true))
     (recur (<! publisher))))
 
-(defn record-live-data [{client :client
-                         wrapper :wrapper
-                         :as ewrapper} stock-scans publisher]
+(defn record-live-data [{{client :client
+                          wrapper :wrapper :as ewrapper} :ewrapper}
+                        stock-scans publisher]
 
-  (doseq [{ticker-id :index symbol :symbol} stock-scans
-          :let [ch nil
-                contract (contract/create symbol)
-                generic-tick-list "225, 233, 236"
-                snapshot? false
-                options nil
-                fname (str "live-recordings/" symbol ".edn")
-                live-subscription (sub/->LiveSubscription
-                                    client ch ticker-id contract
-                                    generic-tick-list snapshot? options)]]
+  (let [custom-formatter (f/formatter "yyyy-MM-dd")
+        date-string (f/unparse custom-formatter (t/now))
+        generic-tick-list "225, 233, 236"
+        snapshot? false
+        options nil]
 
-    (sub/subscribe live-subscription)
-    (swap! live-subscriptions conj live-subscription)
-    (record-live-to-file ewrapper publisher ticker-id fname)))
+    (doseq [{ticker-id :index symbol :symbol} stock-scans
+            :let [contract (contract/create symbol)
+                  fname (str "live-recordings/" date-string "-" symbol ".edn")
+                  live-subscription (trace (sub/->LiveSubscription
+                                             client ticker-id contract
+                                             generic-tick-list snapshot? options))]]
+
+      (sub/subscribe live-subscription)
+      (swap! live-subscriptions conj live-subscription)
+      (record-live-to-file ewrapper publisher ticker-id fname))))
 
 (defn record-live-data-stop [client live-subscriptions]
   (doseq [{ticker-id :ticker-id :as live-subscription} @live-subscriptions]
@@ -1309,10 +1316,8 @@
 
 (comment  ;; A scanner workbench
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-              #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-               #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
   (do
 

@@ -1,6 +1,7 @@
 (ns com.interrupt.edgar.subscription
   (:require [clj-time.core :as t]
             [clj-time.format :as tf]
+            [clojure.tools.trace :refer [trace]]
             [clojure.core.async :as async :refer [>! go]]
             [clojure.edn :as edn]
             [clojure.java.io :as io])
@@ -26,20 +27,16 @@
   (unsubscribe [_]
     (async/close! ch)))
 
-(defrecord LiveSubscription [client ch ticker-id
+(defrecord LiveSubscription [client ticker-id
                              ^Contract contract
                              ^String generic-tick-list
                              ^Boolean snapshot?
                              options]
   Subscription
   (subscribe [_]
-    #_(let [regulatorySnaphsot false]
-        (.reqMktData client (int ticker-id)
-                     contract generic-tick-list (boolean snapshot?)
-                     regulatorySnaphsot options))
+    (trace [client ticker-id contract generic-tick-list snapshot? options])
     (.reqMktData client (int ticker-id)
-                 contract generic-tick-list (boolean snapshot?) options)
-    ch)
+                 contract generic-tick-list (boolean snapshot?) options))
   (unsubscribe [_] (.cancelMktData client (int ticker-id))))
 
 

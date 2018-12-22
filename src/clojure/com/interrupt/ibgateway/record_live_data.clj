@@ -5,8 +5,10 @@
              [clojure.tools.namespace.repl :as tn]
              [clojure.tools.logging :refer [info]]
              [clojure.tools.cli :refer [parse-opts]]
+             [clojure.tools.trace :refer [trace]]
              [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
              [com.interrupt.ibgateway.component.ewrapper :as ew]
+             [com.interrupt.ibgateway.component.account :as ac]
              [com.interrupt.ibgateway.component.repl-server]
              [com.interrupt.ibgateway.component.switchboard :as switchboard])
   (:import [org.apache.commons.daemon Daemon DaemonContext])
@@ -34,8 +36,7 @@
 
 
 (defn init [_]
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-               #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.repl-server/server))
 
 (defn start []
@@ -43,8 +44,7 @@
 
 (defn stop [client live-subscriptions]
   (switchboard/record-live-data-stop client live-subscriptions)
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-              #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.repl-server/server))
 
 (defn go' []
@@ -85,8 +85,8 @@
     (info "parsed-options: " parsed-options)
     (cond
       (-> parsed-options :options :record)
-      (let [client (:client ew/ewrapper)
-            publisher (:publisher ew/default-chs-map)
+      (let [client (-> ew/ewrapper :ewrapper :client)
+            publisher (-> ew/ewrapper :default-channels :publisher)
             publisher-dupl (chan (sliding-buffer 100))]
 
         (bind-channels->mult publisher publisher-dupl)
@@ -98,8 +98,31 @@
 
 (comment
 
-  (let [client (:client ew/ewrapper)]
+
+  (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
+  (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account/account)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.account/account)
+
+
+  ;; START
+  (let [publisher (-> ew/ewrapper :default-channels :publisher)
+        publisher-dupl (chan (sliding-buffer 100))]
+
+    (bind-channels->mult publisher publisher-dupl)
+    (switchboard/record-live-data ew/ewrapper switchboard/stock-scans publisher-dupl))
+
+
+  ;; STOP
+  (let [client (-> ew/ewrapper :ewrapper :client)]
     (stop client switchboard/live-subscriptions))
 
-  (let [client (:client ew/ewrapper)]
+  ;; RESET
+  (let [client (-> ew/ewrapper :ewrapper :client)]
     (reset client switchboard/live-subscriptions)))

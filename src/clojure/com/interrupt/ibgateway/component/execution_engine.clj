@@ -222,7 +222,8 @@
                    valid-order-id
                    (contract/create symbol)
                    (doto (Order.)
-                     (.action action)
+                     (.action
+                       action)
                      (.orderType "TRAIL")
                      (.auxPrice auxPrice)
                      (.trailStopPrice trailStopPrice)
