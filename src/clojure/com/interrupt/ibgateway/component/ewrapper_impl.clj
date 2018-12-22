@@ -7,14 +7,15 @@
             [com.interrupt.ibgateway.component.account.summary :as acct-summary]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.ibgateway.component.account.contract :as contract]
+
+            [com.interrupt.ibgateway.component.common :refer :all :as common]
+            [com.interrupt.ibgateway.component.account :as account]
+
             [com.interrupt.edgar.obj-convert :as obj-convert]
             [com.interrupt.edgar.scanner :as scanner])
   (:import [com.ib.client Contract Order OrderState Execution
             EReader EWrapperMsgGenerator CommissionReport]
            [com.interrupt.ibgateway EWrapperImpl]))
-
-
-(def valid-order-id (atom -1))
 
 (def datetime-formatter (tf/formatter "yyyyMMdd HH:mm:ss"))
 
@@ -57,10 +58,13 @@
 ;; client.reqPositions();
 ;; client.cancelPositions();
 
+(declare client*)
+
 (defn ewrapper-impl
   [{tick-updates :publisher
     account-updates :account-updates
-    order-updates :order-updates}]
+    order-updates :order-updates
+    valid-order-ids :valid-order-ids}]
 
   (proxy [EWrapperImpl] []
 
@@ -69,7 +73,11 @@
       (info "nextValidId / " order-id)
       (let [val {:topic :next-valid-id
                  :order-id order-id}]
-        (async/put! order-updates val)))
+
+        ;; (deliver common/next-valid-order-id order-id)
+        (async/put! order-updates val)
+
+        ))
 
 
     ;; ========
@@ -80,6 +88,7 @@
                  :field field
                  :price price
                  :can-auto-execute can-auto-execute?}]
+        (debug "tickPrice / " val)
         (async/put! tick-updates val)))
 
     (tickSize [^Integer ticker-id ^Integer field ^Integer size]
@@ -87,6 +96,7 @@
                  :ticker-id ticker-id
                  :field field
                  :size size}]
+        (debug "tickSize / " val)
         (async/put! tick-updates val)))
 
     (tickString [^Integer ticker-id ^Integer tickType ^String value]
@@ -94,6 +104,8 @@
                  :ticker-id ticker-id
                  :tick-type tickType
                  :value value}]
+
+        (debug "tickString / " val)
         (async/put! tick-updates val)))
 
     (tickGeneric [^Integer ticker-id ^Integer tickType ^Double value]
@@ -101,7 +113,7 @@
                  :ticker-id ticker-id
                  :tick-type tickType
                  :value value}]
-        (info "New - Tick Generic. Ticker Id:"  ticker-id  ", Field: " tickType  ", Value: "  value)
+        (debug "New - Tick Generic. Ticker Id:"  ticker-id  ", Field: " tickType  ", Value: "  value)
         (async/put! tick-updates val)))
 
 
@@ -158,7 +170,7 @@
                  :key key
                  :value value
                  :currency currency}]
-        (info "updateAccountValue / val / " val)
+        (debug "updateAccountValue / val / " val)
         (async/put! account-updates val)))
 
     (updatePortfolio [^Contract contract
@@ -178,19 +190,19 @@
                  :unrealized-pnl unrealized-pnl
                  :realized-pnl realized-pnl
                  :account-name account-name}]
-        (info "updatePortfolio / val / " val)
+        (debug "updatePortfolio / val / " val)
         (async/put! account-updates val)))
 
     (updateAccountTime [^String timeStamp]
       (let [val {:topic :update-account-time
                  :time-stamp timeStamp}]
-        (info "updateAccountTime / timeStamp /" val)
+        (debug "updateAccountTime / timeStamp /" val)
         (async/put! account-updates val)))
 
     (accountDownloadEnd [^String account]
       (let [val {:topic :account-download-end
                  :account account}]
-        (info "accountDownloadEnd / account /" val)
+        (debug "accountDownloadEnd / account /" val)
         (async/put! account-updates val)))
 
 
@@ -203,13 +215,13 @@
                  :tag tag
                  :value (acct-summary/parse-tag-value tag value)
                  :currency currency}]
-        (info "accountSummary / val / " val)
+        (debug "accountSummary / val / " val)
         (async/put! account-updates val)))
 
     (accountSummaryEnd [^Integer reqId]
       (let [val {:topic :account-summary-end
                  :req-id reqId}]
-        (info "accountSummaryEnd / reqId /" reqId)
+        (debug "accountSummaryEnd / reqId /" reqId)
         (async/put! account-updates val)))
 
 
@@ -225,7 +237,7 @@
                  :pos pos
                  :avg-cost avgCost}]
 
-        (info "position / "
+        (debug "position / "
               " Account / " account
               " Symbol / " (.symbol contract)
               " SecType / " (.secType contract)
@@ -236,7 +248,7 @@
 
     (positionEnd []
       (let [val {:topic :position-end}]
-        (info "PositionEnd \n")
+        (debug "PositionEnd \n")
         (async/put! account-updates val)))
 
 
@@ -267,7 +279,9 @@
               " Order::orderType / " orderType
               " Order::totalQuantity / " totalQuantity
               " OrderState::status / " status)
-        (async/put! order-updates val)))
+
+        ;; (async/put! order-updates val)
+        (account/handle-open-order val)))
 
     (orderStatus [^Integer orderId
                   ^String status
@@ -305,7 +319,10 @@
               " LastFillPrice / " lastFillPrice
               " ClientId / " clientId
               " WhyHeld / " whyHeld)
-        (async/put! order-updates val)))
+
+        ;; (async/put! order-updates val)
+        (account/handle-order-status val account/account)))
+
 
     (openOrderEnd [] (info "OpenOrderEnd"))
 
@@ -334,7 +351,9 @@
               " execId /" execId
               " orderId /" orderId
               " shares /" shares)
-        (async/put! order-updates val)))
+
+        ;; (async/put! order-updates val)
+        (account/handle-exec-details val account/account)))
 
     (commissionReport [^CommissionReport commissionReport]
 
@@ -350,7 +369,13 @@
               " commission /" commission
               " currency /" currency
               " realizedPNL /" realizedPNL)
-        (async/put! order-updates val)))
+
+        ;; (async/put! order-updates val)
+
+        (let [stock+order (account/process-commission-report val account/account)]
+
+          ;; (info "commissionReport / stock+order / " stock+order)
+          (common/process-order-filled-notifications client* stock+order valid-order-ids))))
 
     (execDetailsEnd [^Integer reqId]
       (info "execDetailsEnd / reqId / " reqId))))
@@ -378,6 +403,9 @@
    (let [wrapper (ewrapper-impl chs-map)
          client (.getClient wrapper)
          signal (.getSignal wrapper)]
+
+     (def client* client)
+
      (.eConnect client host port client-id)
      (let [ereader (EReader. client signal)]
        (.start ereader)

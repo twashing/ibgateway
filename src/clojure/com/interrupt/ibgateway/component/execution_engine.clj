@@ -1,23 +1,28 @@
 (ns com.interrupt.ibgateway.component.execution-engine
   (:require [clojure.core.async
-             :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
-                     sliding-buffer mult tap pipeline] :as async]
+             :refer [chan >! >!! <! <!! close! go-loop
+                     sliding-buffer thread] :as async]
             [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [debug info]]
             [clojure.tools.trace :refer [trace]]
             [clojure.set :as s]
             [com.rpl.specter :refer :all]
+            [environ.core :refer [env]]
             [mount.core :refer [defstate] :as mount]
-            [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
+            [com.interrupt.edgar.scanner :as scanner]
+            [com.interrupt.ibgateway.component.common :refer :all :as common]
             [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
             [com.interrupt.ibgateway.component.account :refer [account account-name consume-order-updates]]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
+            [com.interrupt.ibgateway.component.switchboard :as sw]
             [com.interrupt.edgar.ib.market :as market])
   (:import [com.ib.client Order]))
 
 
-(def latest-standard-deviation (atom -1))
+(def minimum-cash-level (let [a (env :minimum-cash-level 1000)]
+                          (if (number? a)
+                            a (read-string a))))
 
 (def lagging-signals #{:moving-average-crossover
                        :bollinger-divergence-overbought
@@ -69,7 +74,6 @@
        ((juxt has-lagging-signal? has-leading-signal? has-confirming-signal?))
        (map identity-or-empty)))
 
-
 (def one
   {:signal-stochastic-oscillator {:last-trade-time 1534782057122 :last-trade-price 297.79 :highest-price 298.76 :lowest-price 297.78 :K 0.010204081632701595 :D 0.03316326530614967 :signals [{:signal :up :why :stochastic-oversold}]}
    :signal-on-balance-volume {:obv -112131 :total-volume 112307 :last-trade-price 297.79 :last-trade-time 1534782057122}
@@ -112,7 +116,7 @@
 
     (map all-ups? [lags leads confs])))
 
-(defn ->next-valid-order-id
+#_(defn ->next-valid-order-id
   ([client valid-order-id-ch]
    (->next-valid-order-id
      client valid-order-id-ch (fn [] (.reqIds client -1))))
@@ -154,143 +158,133 @@
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
         price (-> joined-tick :sma-list :last-trade-price)
-        qty (derive-order-quantity
-              (-> client (->account-cash-level account-updates-ch) :value)
-              price)
+
+        cash-level (-> client (->account-cash-level account-updates-ch) :value)
+        _ (info "3 - buy-stock / account-updates-ch channel-open? / " (channel-open? account-updates-ch)
+                " / cash-level / " cash-level)
+
+        qty (derive-order-quantity cash-level price)
 
         ;; TODO make a mock version of this
-        order-id (->next-valid-order-id client valid-order-id-ch)]
+        order-id (->next-valid-order-id client valid-order-id-ch)
+        _ (info "3 - buy-stock / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
+                " / order-id / " order-id)]
 
-    (info "buy-stock / client, " [order-id order-type account-name instrm qty price])
-    (market/buy-stock client order-id order-type account-name instrm qty price)))
+    (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
+    (market/buy-stock client order-id order-type account-name instrm qty price)
 
-(defn extract-signals+decide-order [client joined-tick account-name {account-updates-ch :account-updates} valid-order-id-ch]
+    #_(info "3 - buy-stock / @minimum cash level / " (>= cash-level minimum-cash-level)
+          " / [client " [order-id order-type account-name instrm qty price])
+    #_(when (>= cash-level minimum-cash-level)
+      (market/buy-stock client order-id order-type account-name instrm qty price))))
 
-  (let [instrm "AAPL" ;; TODO pull from joined-tick
-        [laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
+(defn extract-signals+decide-order [client joined-tick instrm account-name
+                                    {account-updates-ch :account-updates
+                                     order-updates-ch :order-updates
+                                     valid-order-ids-ch :valid-order-ids
+                                     order-filled-notifications-ch :order-filled-notifications}]
+  {:pre [(channel-open? order-updates-ch)
+         (channel-open? valid-order-ids-ch)
+         (channel-open? order-filled-notifications-ch)]}
 
-    (info "extract-signals+decide-order / " [laggingS leadingS confirmingS])
+  (let [[laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
+
+    (info "2 - extract-signals+decide-order / " [laggingS leadingS confirmingS])
     (match [laggingS leadingS confirmingS]
-           [true true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
-           [true true _] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
-           [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-id-ch account-name instrm)
+           [true true true] (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
+           [true true _] (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
+           [_ true true] (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
            :else :noop)))
 
-(comment
+#_(defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
 
-  (which-signals? one)
-  (which-signals? three)
-  (which-signals? four)
-
-  (let [[laggingS leadingS confirmingS] (-> one which-signals? which-ups?)]
-    (match [laggingS leadingS confirmingS]
-           [true true _] :a
-           :else :b))
-
-  (do
-    (mount/stop #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
-    (mount/start #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
-
-    (def client (:client ewrapper/ewrapper))
-    (def wrapper (:wrapper ewrapper/ewrapper))
-    (def valid-order-id-ch (chan))
-    (def order-filled-notification-ch (chan))
-    (def account-updates-ch (:account-updates ewrapper/default-chs-map))
-
-    (consume-order-updates ewrapper/default-chs-map valid-order-id-ch order-filled-notification-ch))
-
-  (->next-valid-order-id client valid-order-id-ch)
-  (->account-cash-level client account-updates-ch))
-
-(defn consume-order-filled-notifications [client order-filled-notification-ch valid-order-id-ch]
-
-  (go-loop [{:keys [stock order]} (<! order-filled-notification-ch)]
-    (info "consume-order-filled-notifications LOOPED")
+  (go-loop [{:keys [stock order] :as val} (<! order-filled-notification-ch)]
+    (info "1 - consume-order-filled-notifications LOOP / " (exists? val))
     (let [symbol (:symbol stock)
           action "SELL"
           quantity (:quantity order)
           valid-order-id (->next-valid-order-id client valid-order-id-ch)
-          ;; trailingPercent 1
-          ;; trail-price (if (< @latest-standard-deviation 0.5) 0.5 @latest-standard-deviation)
+          _ (info "1 - consume-order-filled-notifications / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
+                  " / order-id / " valid-order-id)
 
-          ;; (clojure.pprint/cl-format nil "~,2f" 23.456)
-          ;; (clojure.pprint/cl-format nil "~,2f" 0.0057683)
-          ;; (clojure.pprint/cl-format nil "~,2f" 66.2)
+          auxPrice (->> @latest-standard-deviation
+                        (clojure.pprint/cl-format nil "~,2f")
+                        read-string
+                        (Double.)
+                        (* 1.75)
+                        (clojure.pprint/cl-format nil "~,2f")
+                        read-string)
 
-          auxPrice (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
           trailStopPrice (- (:price order) auxPrice)]
 
-      (info "(balancing) sell-stock / client, " [quantity valid-order-id auxPrice #_trailingPercent trailStopPrice])
+      (info "1 - (balancing) sell-stock / client, " [quantity valid-order-id auxPrice trailStopPrice])
       (.placeOrder client
                    valid-order-id
                    (contract/create symbol)
                    (doto (Order.)
-                     (.action action)
+                     (.action
+                       action)
                      (.orderType "TRAIL")
-                     ;; (.trailingPercent trailingPercent)
                      (.auxPrice auxPrice)
                      (.trailStopPrice trailStopPrice)
                      (.totalQuantity quantity))))
 
     (recur (<! order-filled-notification-ch))))
 
-(defn consume-joined-channel [joined-channel-tapped account+order-updates-map valid-order-id-ch client account-name]
+(defn consume-joined-channel [joined-channel-tapped default-channels client instrm account-name]
 
   (go-loop [c 0 joined-tick (<! joined-channel-tapped)]
     (if-not joined-tick
       joined-tick
-      (let [sr (update-in joined-tick [:sma-list] dissoc :population)
-            account-updates-ch (:account-updates account+order-updates-map)]
+      (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
 
         ;; (info "count: " c " / sr: " sr)
-        (info "count: " c)
+        (info "1 - count: " c)
 
 
         ;; TODO design a better way to capture running standard-deviation
-        (reset! latest-standard-deviation
+        (reset! common/latest-standard-deviation
                 (-> joined-tick :bollinger-band :standard-deviation))
 
         (when (:sma-list joined-tick)
-          (extract-signals+decide-order client joined-tick account-name account+order-updates-map valid-order-id-ch))
+          (extract-signals+decide-order client joined-tick instrm account-name default-channels))
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
-(defn setup-execution-engine [processing-pipeline wrapper default-chs account-name]
-
-  (let [client (:client wrapper)
-        account+order-updates-map default-chs
-        valid-order-id-ch (chan)
-        order-filled-notification-ch (chan)
-
-        {joined-channel :joined-channel} processing-pipeline
-        joined-channel-tapped (chan (sliding-buffer 100))]
+(defn setup-execution-engine [joined-channel
+                              joined-channel-tapped
+                              {{valid-order-id-ch :valid-order-ids
+                                order-filled-notification-ch :order-filled-notifications
+                                :as default-channels} :default-channels
+                               {client :client} :ewrapper}
+                              instrm account-name]
 
 
-    (bind-channels->mult joined-channel joined-channel-tapped)
+  (bind-channels->mult joined-channel joined-channel-tapped)
 
 
-    ;; CONSUME ORDER UPDATES
+  ;; CONSUME ORDER UPDATES
 
-    ;; TODO mock
-    ;;   account+order-updates-map (->account-cash-level)
-    ;;   valid-order-id-ch (->next-valid-order-id)
-    ;;   order-filled-notification-ch
-    (consume-order-updates account+order-updates-map valid-order-id-ch order-filled-notification-ch)
-
-
-    ;; CONSUME ORDER FILLED NOTIFICATIONS
-
-    ;; TODO mock
-    ;;   order-filled-notification-ch
-    ;;   valid-order-id-ch (->next-valid-order-id)
-    (consume-order-filled-notifications client order-filled-notification-ch valid-order-id-ch)
+  ;; TODO mock
+  ;;   default-channels (->account-cash-level)
+  ;;   valid-order-id-ch (->next-valid-order-id)
+  ;;   order-filled-notification-ch
+  (consume-order-updates default-channels)
 
 
-    ;; CONSUME JOINED TICK STREAM
-    (consume-joined-channel joined-channel-tapped account+order-updates-map valid-order-id-ch client account-name)
+  ;; CONSUME ORDER FILLED NOTIFICATIONS
+
+  ;; TODO mock
+  ;;   order-filled-notification-ch
+  ;;   valid-order-id-ch (->next-valid-order-id)
+  ;; (consume-order-filled-notifications client order-filled-notification-ch valid-order-id-ch)
 
 
-    joined-channel-tapped)
+  ;; CONSUME JOINED TICK STREAM
+  (consume-joined-channel joined-channel-tapped default-channels client instrm account-name)
+
+
+  joined-channel-tapped
 
 
   ;; TODO
@@ -312,22 +306,26 @@
   ;;   none - just need to round the value to 2 decimal places
   ;; [ok] round trailing stop price to 2 decimal places
   ;; [ok] test with a sine wave
+  ;; [ok] dynamically change log levels
+  ;; [ok] turn logging on/off per namespace
+  ;; [ok] upstream scanner
+  ;; [ok] track many (n) stocks
+  ;; [ok] track instrument symbol with stream
+  ;; [ok] put processing-pipeline and execution-engine on different threads (order callbacks running slow)
+
+  ;; [~] Scheduled health check for input channels
+  ;;   Error. Id: 55, Code: 103, Msg: Duplicate order id
 
 
-  ;; mock(s) for ->account-cash-level + ->next-valid-order-id
-  ;; workbench
-  ;;   -> joined-ticks (place orders)
-  ;;   -> order-updates (notify order filled)
-  ;;   -> order-filled (place opposite TRAIL sell)
+  ;; Onyx
+  ;;   stream joined
+  ;;   aggregation
 
 
-  ;; upstream scanner
-
-
-  ;; track many (n) stocks
-  ;;   track instrument symbol with stream
-  ;;   track bid / ask with stream
-
+  ;; kkinnear/zpst
+  ;;   Library to show source code and arguments in stack backtraces
+  ;;   https://mail.google.com/mail/u/0/#label/**+Clojure/FMfcgxvwzcLlWljQvGlldvvpzTQFJHpr
+  ;;   https://github.com/kkinnear/zpst
 
   ;; only purchase more if
   ;;   we're gaining (over last 3 ticks)
@@ -335,7 +333,7 @@
 
 
   ;; BUY if
-  ;;   :up signal from lagging + leading (or more)
+  ;;   [ok] :up signal from lagging + leading (or more)
   ;;   standard deviation is at least 0.5
   ;;   within last 3 ticks
   ;;   we have enough money
@@ -344,6 +342,58 @@
 
   ;; (in processing pipeline) bollinger-band signals should be fleshed out more
   ;;   also look at RSI divergence
+  ;;   Day Trading Interactive Lessons - Bollinger Bands Squeeze
+  ;;   https://www.youtube.com/watch?v=mnFpLRxxB5o
+
+  ;; track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
+  ;;   These are the only tickString types I see coming in
+  ;;   48 45 33 32
+
+  ;; Bid Size	0	IBApi.EWrapper.tickSize
+  ;; Bid Price	1	IBApi.EWrapper.tickPrice
+  ;; Ask Price	2	IBApi.EWrapper.tickPrice
+  ;; Ask Size	3	IBApi.EWrapper.tickSize
+  ;; Last Price	4	IBApi.EWrapper.tickPrice
+  ;; Last Size	5	IBApi.EWrapper.tickSize
+  ;; High	6 IBApi.EWrapper.tickPrice
+  ;; Low	7	IBApi.EWrapper.tickPrice
+  ;; Volume	8	IBApi.EWrapper.tickSize
+  ;; Close Price	9, IBApi.EWrapper.tickPrice
+
+
+  ;; Failure of bind-channels->mult (tick-list -> tick-list->obv)... Onyx
+  ;; FAILING: time-increases-left-to-right? tick-list
+  ;; java.lang.AssertionError: Assert failed: (time-increases-left-to-right? tick-list)
+  ;;  at com.interrupt.edgar.core.analysis.confirming$on_balance_volume.invokeStatic(confirming.clj:24)
+  ;;  at com.interrupt.edgar.core.analysis.confirming$on_balance_volume.invoke(confirming.clj:24)
+  ;;  at clojure.core$map$fn__5583$fn__5584.invoke(core.clj:2734)
+  ;;  at clojure.core.async.impl.channels$chan$fn__16761.invoke(channels.clj:300)
+  ;;  at clojure.core.async.impl.channels.ManyToManyChannel.put_BANG_(channels.clj:143)
+  ;;  at clojure.core.async$_GT__BANG__BANG_.invokeStatic(async.clj:142)
+  ;;  at clojure.core.async$_GT__BANG__BANG_.invoke(async.clj:137)
+  ;;  at clojure.core.async$pipeline_STAR_$process__22477.invoke(async.clj:491)
+  ;;  at clojure.core.async$pipeline_STAR_$fn__22658$state_machine__22137__auto____22687$fn__22689.invoke(async.clj:508)
+  ;;  at clojure.core.async$pipeline_STAR_$fn__22658$state_machine__22137__auto____22687.invoke(async.clj:508)
+  ;;  at clojure.core.async.impl.ioc_macros$run_state_machine.invokeStatic(ioc_macros.clj:973)
+  ;;  at clojure.core.async.impl.ioc_macros$run_state_machine.invoke(ioc_macros.clj:972)
+  ;;  at clojure.core.async.impl.ioc_macros$run_state_machine_wrapped.invokeStatic(ioc_macros.clj:977)
+  ;;  at clojure.core.async.impl.ioc_macros$run_state_machine_wrapped.invoke(ioc_macros.clj:975)
+  ;;  at clojure.core.async.impl.ioc_macros$take_BANG_$fn__22155.invoke(ioc_macros.clj:986)
+  ;;  at clojure.core.async.impl.channels.ManyToManyChannel$fn__16667$fn__16668.invoke(channels.clj:95)
+  ;;  at clojure.lang.AFn.run(AFn.java:22)
+  ;;  at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+  ;;  at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+  ;;    at java.lang.Thread.run(Thread.java:745)
+
+  ;; workbench
+  ;;   -> joined-ticks (place orders)
+  ;;   -> order-updates (notify order filled)
+  ;;   -> order-filled (place opposite TRAIL sell)
+
+
+  ;; mock(s) for ->account-cash-level + ->next-valid-order-id
+
+
   ;; fix tests
   ;; host on AWS
   ;; after some time - memory lag
@@ -421,6 +471,132 @@
   (when-not (nil? ee)
     (close! ee)))
 
-(defstate execution-engine
-  :start (setup-execution-engine pp/processing-pipeline ewrapper/ewrapper ewrapper/default-chs-map account-name)
-  :stop (teardown-execution-engine execution-engine))
+(comment
+
+  (which-signals? one)
+  (which-signals? three)
+  (which-signals? four)
+
+  (let [[laggingS leadingS confirmingS] (-> one which-signals? which-ups?)]
+    (match [laggingS leadingS confirmingS]
+           [true true _] :a
+           :else :b))
+
+  (do
+    (mount/stop #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
+    (mount/start #'ewrapper/default-chs-map #'ewrapper/ewrapper #'account)
+
+    (def client (-> ewrapper/ewrapper :ewrapper :client))
+    (def wrapper (-> ewrapper/ewrapper :ewrapper :wrapper))
+    (def valid-order-id-ch (-> ewrapper/ewrapper :default-channels :valid-order-ids) )
+    (def order-filled-notification-ch (-> ewrapper/ewrapper :default-channels :order-filled-notifications-ch))
+    (def account-updates-ch (-> ewrapper/ewrapper :default-channels :account-updates))
+
+    (consume-order-updates ewrapper/default-chs-map valid-order-id-ch order-filled-notification-ch))
+
+  (->next-valid-order-id client valid-order-id-ch)
+  (->account-cash-level client account-updates-ch))
+
+;; 0 : {:symbol OVOL, :sec-type STK}
+;; 1 : {:symbol RPUT, :sec-type STK}
+;; 2 : {:symbol BNED, :sec-type STK}
+;; 3 : {:symbol DHDG, :sec-type STK}
+;; 4 : {:symbol AMZN, :sec-type STK}
+;; 5 : {:symbol HTAB, :sec-type STK}
+;; 6 : {:symbol GOOGL, :sec-type STK}
+;; 7 : {:symbol SPY, :sec-type STK}
+;; 8 : {:symbol UBT, :sec-type STK}
+;; 9 : {:symbol FTV PRA, :sec-type STK}
+;; 10 : {:symbol VXZB, :sec-type STK}
+;; 11 : {:symbol PMO, :sec-type STK}
+;; 12 : {:symbol NVR, :sec-type STK}
+;; 13 : {:symbol IWM, :sec-type STK}
+;; 14 : {:symbol AZO, :sec-type STK}
+;; 15 : {:symbol BRK A, :sec-type STK}
+;; 16 : {:symbol AAPL, :sec-type STK}
+;; 17 : {:symbol DIAL, :sec-type STK}
+;; 18 : {:symbol EEM, :sec-type STK}
+;; 19 : {:symbol BABA, :sec-type STK}
+
+(comment  ;; Scanner + Processing Pipeline + Execution Engine
+
+
+  ;; SCAN SET CHANGES
+  (require '[clojure.set :as s])
+
+  (do
+    (def one #{:a :b :c})
+    (def two #{:b :c :d})
+    (def three #{:c :d}))
+
+  (defn ->removed [orig princ]
+    (s/difference orig princ))
+
+  (defn ->added [orig princ]
+    (s/difference princ orig))
+
+
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account/account)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.account/account)
+
+  (do
+
+    (def client (-> com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper :client))
+
+    ;; Subscribe
+    (scanner/start client)
+
+    (when-let [leaderboard (scanner/scanner-decide)]
+      (doseq [[i m] (map-indexed vector leaderboard)]
+        (println i ":" m))))
+
+
+  ;; (-> ewrapper/ewrapper :default-channels :order-filled-notifications channel-open?)
+  ;; (-> ewrapper/ewrapper :default-channels :order-updates channel-open?)
+
+  ;; START
+  (do
+    (def instrument "AMZN")
+    (def concurrency 1)
+    (def ticker-id 1003)
+
+    ;; Next valid Id
+    ;; (.reqIds client -1)
+
+    (def client (-> ewrapper/ewrapper :ewrapper :client))
+    (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
+    (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
+    (def execution-engine-output-ch (chan (sliding-buffer 100))))
+
+  (thread (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency ticker-id))
+  (thread (setup-execution-engine processing-pipeline-output-ch execution-engine-output-ch
+                                  ewrapper/ewrapper instrument account-name))
+
+  (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
+
+  (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
+  (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
+
+  (set-log-level :warn "com.interrupt.ibgateway.component.execution-engine")
+  (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")
+
+
+
+  (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))
+
+
+  ;; STOP
+  (do
+    (scanner/stop client)
+    (sw/stop-stream-live live-subscription)
+    (pp/teardown-publisher-channel processing-pipeline-output-ch)
+    (teardown-execution-engine execution-engine-output-ch))
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account/account))

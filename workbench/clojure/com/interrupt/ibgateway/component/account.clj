@@ -218,14 +218,15 @@
 (comment  ;; MKT (buy w/ order-filled-notification)
 
   (do
-    (mount/stop #'ew/default-chs-map #'ew/ewrapper #'account)
-    (mount/start #'ew/default-chs-map #'ew/ewrapper #'account)
-    (def wrapper (:wrapper ew/ewrapper))
+    (mount/stop #'ew/ewrapper #'account)
+    (mount/start #'ew/ewrapper #'account)
+
+    (def wrapper (-> ew/ewrapper :ewrapper :wrapper))
     (def account-name "DU542121")
     (def valid-order-id-ch (chan))
     (def order-filled-notification-ch (chan))
 
-    (consume-order-updates ew/default-chs-map valid-order-id-ch order-filled-notification-ch)
+    (consume-order-updates (:default-channels ew/ewrapper) valid-order-id-ch order-filled-notification-ch)
     (go-loop [{:keys [stock order] :as stock+order} (<! order-filled-notification-ch)]
       (info "stock+order / " stock+order)
       (recur (<! order-filled-notification-ch))))

@@ -12,18 +12,29 @@
 
 (def tws-host (env :tws-host "tws"))
 (def tws-port (env :tws-port 4002))
-(def client-id (atom (next-reqid!)))
+(def client-id (atom nil))
 
-(defstate default-chs-map
-  :start {:publisher (-> 1000 async/sliding-buffer async/chan)
-          :account-updates (-> 1000 async/sliding-buffer async/chan)
-          :order-updates (-> 1000 async/sliding-buffer async/chan)}
-  :stop (->> default-chs-map vals (map close!)))
+(defn setup-default-channels []
+  {:publisher (-> 100 async/sliding-buffer async/chan)
+   :account-updates (-> 100 async/sliding-buffer async/chan)
+   :order-updates (-> 100 async/sliding-buffer async/chan)
+   :valid-order-ids (async/chan)
+   :order-filled-notifications (async/chan)})
+
+(defn teardown-default-channels [default-channels]
+  (->> default-channels vals (map close!)))
 
 (defstate ewrapper
-  :start (ewi/ewrapper tws-host tws-port @client-id default-chs-map)
-  :stop (let [{client :client} ewrapper]
+  :start (let [dchans (setup-default-channels)]
+           {:default-channels dchans
+            :ewrapper (ewi/ewrapper tws-host tws-port (reset! client-id (next-reqid!)) dchans)})
+  :stop (let [client (-> ewrapper :ewrapper :client)]
+
+          ;; disconnect client
           (when (.isConnected client)
             (.eDisconnect client))
           (release-reqid! @client-id)
-          (reset! client-id -1)))
+          (reset! client-id -1)
+
+          ;; teardown channels
+          (teardown-default-channels (-> ewrapper :default-channels))))

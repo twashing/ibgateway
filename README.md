@@ -45,7 +45,24 @@ Troubleshoot with
 docker run -it --entrypoint /bin/bash edgarly/ibgateway-app:latest
 ```
 
+
+## Installing TWS API locally
+
+This in the "Guide to installing 3rd party JARs", taken from [maven's documentation](https://maven.apache.org/guides/mini/guide-3rd-party-jars-local.html).
+```
+mvn install:install-file -Dfile=TwsApi.jar -DgroupId=com.interactivebrokers.tws \
+  -DartifactId=tws-api -Dversion=9.74.01 -Dpackaging=jar
+```
+
+
 ## TODO
+
+- Check for Down or Sideways markets
+- Support Resistance
+- Fibonacci Retracement (https://www.youtube.com/watch?v=878iiQ4yQOk)
+- MACD Stair Step pattern
+- RSI
+
 
 - UI Performance
 https://www.highcharts.com/docs/advanced-chart-features/boost-module
@@ -74,6 +91,33 @@ https://api.highcharts.com/highstock/boost
 Stock Market Strategy is a good resource
 https://www.stock-market-strategy.com/
 https://www.youtube.com/user/StockMarketStrategy/videos
+
+
+
+* IB Gateway logs can be enabled at the TWS Workstation.
+
+"Configure / Settings /  API / Settings"
+
+- logging level to “detail”
+- tick box to create API message log file
+- include market data in API message log file
+
+
+* Those logs can then be submitted to IB. Ctl-Alt-Q to submit log files or
+i) "Help / Upload Diagnostics"
+
+Or they can be inspected
+ii) in the TWS container, for example
+/root/Jts/ejgchndohachibackpapmhjjoonckeikdkkndegd/api.1.Fri.log
+
+
+* Copying files from Docker container to host
+(https://stackoverflow.com/questions/22049212/copying-files-from-docker-container-to-host)
+
+```
+docker cp <containerId>:/file/path/within/container /host/path/target
+docker cp ibgateway_tws_1:/root/Jts/ejgchndohachibackpapmhjjoonckeikdkkndegd/api.1.Fri.log api.1.Fri.log
+```
 
 
 ## Change Log

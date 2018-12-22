@@ -1,7 +1,10 @@
 (ns com.interrupt.edgar.core.utils
   (:require [clojure.reflect :refer [reflect]]
             [clojure.string :refer [join]]
-            [com.interrupt.edgar.core.analysis.lagging :as lag]))
+            [com.interrupt.edgar.core.analysis.lagging :as lag]
+            [clojure.tools.logging.impl :as impl]
+            [clojure.tools.logging :as log])
+  (:import [ch.qos.logback.classic Level]))
 
 
 (defn inspect [obj]
@@ -82,3 +85,50 @@
 
       (with-open [out-file (clojure.java.io/writer "exponential-faster-than-simple-moving-average.csv")]
         (csv/write-csv out-file (concat [headers] values))))))
+
+(def log-level-map
+  {:trace ch.qos.logback.classic.Level/TRACE
+   :debug ch.qos.logback.classic.Level/DEBUG
+   :info ch.qos.logback.classic.Level/INFO
+   :warn ch.qos.logback.classic.Level/WARN
+   :error ch.qos.logback.classic.Level/ERROR})
+
+(defn set-log-level [level namesp]
+  (let [logger (impl/get-logger log/*logger-factory* namesp)]
+    (.setLevel logger (log-level-map level))))
+
+(comment
+
+  (defn log-messages []
+    (log/trace "trace message")
+    (log/debug "debug message")
+    (log/info "info message")
+    (log/warn "warn message")
+    (log/error "error message"))
+
+  (set-log-level :debug "com.interrupt.ibgateway.core")
+
+  (do
+    (println "\n")
+    (set-log-level :trace "com.interrupt.edgar.core.utils")
+    (log-messages))
+
+  (do
+    (println "\n")
+    (set-log-level :debug "com.interrupt.edgar.core.utils")
+    (log-messages))
+
+  (do
+    (println "\n")
+    (set-log-level :info "com.interrupt.edgar.core.utils")
+    (log-messages))
+
+  (do
+    (println "\n")
+    (set-log-level :warn "com.interrupt.edgar.core.utils")
+    (log-messages))
+
+  (do
+    (println "\n")
+    (set-log-level :error "com.interrupt.edgar.core.utils")
+    (log-messages)))

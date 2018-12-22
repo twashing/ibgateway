@@ -58,6 +58,22 @@
 (defn empty-last-trade-price? [event]
   (-> event :last-trade-price (<= 0)))
 
+
+;; track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
+;;   These are the only tickString types I see coming in
+;;   48 45 33 32
+
+;; Bid Size	0	IBApi.EWrapper.tickSize
+;; Bid Price	1	IBApi.EWrapper.tickPrice
+;; Ask Price	2	IBApi.EWrapper.tickPrice
+;; Ask Size	3	IBApi.EWrapper.tickSize
+;; Last Price	4	IBApi.EWrapper.tickPrice
+;; Last Size	5	IBApi.EWrapper.tickSize
+;; High	6 IBApi.EWrapper.tickPrice
+;; Low	7	IBApi.EWrapper.tickPrice
+;; Volume	8	IBApi.EWrapper.tickSize
+;; Close Price	9, IBApi.EWrapper.tickPrice
+
 (def handler-xform
     (comp (filter rtvolume-time-and-sales?)
        (map parse-tick-string)
@@ -271,7 +287,7 @@
     (stream/connect @result bollinger-band-connector-ch)
     bollinger-band-connector-ch))
 
-(defn join-analytics [tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+(defn join-analytics [output-ch tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
                       macd->SIGNAL stochastic-oscillator->SIGNAL
                       on-balance-volume->SIGNAL relative-strength->SIGNAL
 
@@ -301,7 +317,6 @@
                          signal-stochastic-oscillator->SIGNAL
                          signal-on-balance-volume->SIGNAL)
 
-        analytic-connector-ch (chan (sliding-buffer 100))
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
                                                 :skey-streams {:tick-list tick-list->CROSS
 
@@ -326,10 +341,10 @@
                                                                :signal-on-balance-volume signal-on-balance-volume->CROSS
                                                                }})]
 
-    (stream/connect @result analytic-connector-ch)
-    analytic-connector-ch))
+    (stream/connect @result output-ch)
+    output-ch))
 
-(defn setup-publisher-channel [stock-name concurrency ticker-id-filter]
+(defn setup-publisher-channel [source-ch output-ch stock-name concurrency ticker-id-filter]
 
   (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
 
@@ -391,17 +406,17 @@
                 signal-macd->SIGNAL
                 signal-stochastic-oscillator->SIGNAL
                 signal-on-balance-volume->SIGNAL]}
-        (signal-join-mults)
+        (signal-join-mults)]
 
-        analytic-connector-ch (join-analytics tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
-                                              macd->SIGNAL stochastic-oscillator->SIGNAL
-                                              on-balance-volume->SIGNAL relative-strength->SIGNAL
+    (join-analytics output-ch tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
+                    macd->SIGNAL stochastic-oscillator->SIGNAL
+                    on-balance-volume->SIGNAL relative-strength->SIGNAL
 
-                                              signal-moving-averages->SIGNAL
-                                              signal-bollinger-band->SIGNAL
-                                              signal-macd->SIGNAL
-                                              signal-stochastic-oscillator->SIGNAL
-                                              signal-on-balance-volume->SIGNAL)]
+                    signal-moving-averages->SIGNAL
+                    signal-bollinger-band->SIGNAL
+                    signal-macd->SIGNAL
+                    signal-stochastic-oscillator->SIGNAL
+                    signal-on-balance-volume->SIGNAL)
 
     (doseq [source+mults [[source-list-ch tick-list-ch]
                           [tick-list-ch tick-list->sma-ch tick-list->macd-ch
@@ -429,7 +444,7 @@
 
 
     ;; TICK LIST
-    (pipeline concurrency source-list-ch handler-xform (ew/ewrapper :publisher))
+    (pipeline concurrency source-list-ch handler-xform source-ch)
     (pipeline concurrency tick-list-ch handler-xform source-list-ch)
 
 
@@ -493,19 +508,12 @@
       (when r
         (recur (inc c) (<! signal-on-balance-volume-ch))))
 
-    #_(go-loop [c 0 r (<! analytic-connector-ch)]
+    #_(go-loop [c 0 r (<! output-ch)]
         (info "count: " c " / r: " r)
       (when r
-        (recur (inc c) (<! analytic-connector-ch))))
+        (recur (inc c) (<! output-ch))))
 
-    {:joined-channel analytic-connector-ch}))
-
-  (def instrument "AAPL")
+    {:joined-channel output-ch}))
 
 (defn teardown-publisher-channel [processing-pipeline]
-  (doseq [vl (vals processing-pipeline)]
-    (close! vl)))
-
-(defstate processing-pipeline
-  :start (setup-publisher-channel instrument 1 0)
-  :stop (teardown-publisher-channel processing-pipeline))
+  (close! processing-pipeline))

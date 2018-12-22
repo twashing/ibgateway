@@ -20,11 +20,22 @@
                                     :max-size 5120}
                 :file     "logs/ibgateway.log"}]
    :overrides  {"org.apache.http"      :debug
-                "org.apache.http.wire" :error}})
+                "org.apache.http.wire" :error
+                "org.apache.zookeeper" :info
+                "org.apache.kafka.clients.consumer.internals" :info
+                "org.apache.kafka.common.network.Selector" :info
+                "org.apache.kafka.clients.NetworkClient" :info
+                "org.apache.kafka.clients.Metadata" :info
+                "org.apache.kafka.clients.producer.KafkaProducer" :info
+                "org.apache.kafka.common.metrics.Metrics" :info
+                "org.apache.kafka.clients.consumer.KafkaConsumer" :info
+                "org.I0Itec.zkclient.ZkConnection" :info
+                "org.I0Itec.zkclient.ZkClient" :info
+                "ChocoRP" :info}})
 
 (start-logging! logging-config)
 
-(defstate state
+#_(defstate state
   :start {:running true}
   :stop (assoc state :running false))
 
@@ -32,7 +43,7 @@
   (mount/start #'com.interrupt.ibgateway.component.repl-server/server))
 
 (defn start []
-  (while (:running state)))
+  #_(while (:running state)))
 
 (defn stop []
   (mount/stop #'com.interrupt.ibgateway.component.repl-server/server))

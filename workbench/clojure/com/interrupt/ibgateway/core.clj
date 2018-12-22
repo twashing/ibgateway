@@ -3,6 +3,7 @@
              :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
                      sliding-buffer mult tap pipeline] :as async]
             [clojure.tools.logging :refer [debug info warn error]]
+            [com.interrupt.ibgateway.component.account :refer [account-name]]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.ibgateway.component.account.summary :as acct-summary]
             [com.interrupt.ibgateway.component.account.updates :as acct-updates]
@@ -110,17 +111,9 @@
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
-  (mount/start #'com.interrupt.ibgateway.component.vase/server)
-
   (mount/start)
   (mount/stop)
   (mount/find-all-states))
-
-
-(comment
-
-  (mount/start #'com.interrupt.ibgateway.component.vase/server)
-  (mount/stop #'com.interrupt.ibgateway.component.vase/server))
 
 
 (comment
@@ -140,90 +133,89 @@
 (comment ;; processing-pipeline workbench
 
 
-  (def one (flatten (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")))
-  (def two (atom (-> (sw/read-seq-from-file "live-recordings/2018-08-20-TSLA.edn")
-                     flatten)))
-
-  (mount/find-all-states)
-
-  ;; STOP
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
-              #'com.interrupt.ibgateway.component.switchboard.store/conn
-              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-              ;; #'com.interrupt.ibgateway.component.repl-server/server
-              ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
-              ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
-              #'com.interrupt.ibgateway.component.vase/server
-              ;; #'com.interrupt.ibgateway.cloud.storage/s3
-              #'com.interrupt.ibgateway.core/state)
-
-
-  (sw/stop-stream-workbench)
-
-
   ;; 1. START
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
-               #'com.interrupt.ibgateway.component.switchboard.store/conn
-               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-               ;; #'com.interrupt.ibgateway.component.repl-server/server
-               ;; #'com.interrupt.ibgateway.component.figwheel.repl-server/server
-               ;; #'com.interrupt.ibgateway.component.figwheel.figwheel/figwheel
-               #'com.interrupt.ibgateway.component.vase/server
-               ;; #'com.interrupt.ibgateway.cloud.storage/s3
-               #'com.interrupt.ibgateway.core/state)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (do
+    (def control-channel (chan))
+    (def instrument "TSLA")
+    (def concurrency 1)
+    (def ticker-id 0)
+
+    ;; "live-recordings/2018-08-20-TSLA.edn"
+    ;; "live-recordings/2018-08-27-TSLA.edn"
+    (def fname "live-recordings/2018-08-20-TSLA.edn")
+    (def source-ch (-> ew/ewrapper :ewrapper :publisher))
+    (def joined-channel-map (pp/setup-publisher-channel source-ch instrument concurrency ticker-id)))
+
 
   ;; 2. Point your browser to http://localhost:8080
 
 
-  ;; 3. Start streaming
-  (sw/kickoff-stream-workbench)
+  ;; 3. Capture output channels and send to browser
+  (let [{jch :joined-channel} joined-channel-map]
 
-
-  ;; 4. Capture output channels and send to browser
-  (let [{joined-channel :joined-channel} pp/processing-pipeline]
-
-    (go-loop [c 0 r (<! joined-channel)]
+    (go-loop [c 0 r (<! jch)]
       (if-not r
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
           (info "count: " c " / sr: " r)
-          (send-message-to-all! sr)
-          (recur (inc c) (<! joined-channel)))))))
+          ;; (send-message-to-all! sr)
+          (recur (inc c) (<! jch))))))
+
+
+  ;; 4. Start streaming
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
+                               control-channel
+                               fname)
+
+
+  ;; STOP
+  (do
+    (sw/stop-stream-workbench control-channel)
+    (pp/teardown-publisher-channel joined-channel-map))
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper))
 
 
 (comment ;; execution-engine workbench
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-              #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
-              ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
-              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-              #'com.interrupt.ibgateway.component.execution-engine/execution-engine
-              ;; #'com.interrupt.ibgateway.component.vase/server
-              #'com.interrupt.ibgateway.core/state)
 
-  (sw/stop-stream-workbench)
+  ;; START
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-               #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.switchboard/workbench-control-channel
-               ;; #'com.interrupt.ibgateway.component.switchboard.store/conn
-               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-               #'com.interrupt.ibgateway.component.execution-engine/execution-engine
-               ;; #'com.interrupt.ibgateway.component.vase/server
-               #'com.interrupt.ibgateway.core/state)
 
-  ;; "live-recordings/2018-08-20-TSLA.edn"
-  ;; "live-recordings/2018-08-27-TSLA.edn"
-  (let [fname "live-recordings/2018-08-20-TSLA.edn"]
-    (sw/kickoff-stream-workbench fname)))
+  (do
+    (def control-channel (chan))
+    (def instrument "TSLA")
+    (def concurrency 1)
+    (def ticker-id 0)
+
+    ;; "live-recordings/2018-08-20-TSLA.edn"
+    ;; "live-recordings/2018-08-27-TSLA.edn"
+    (def fname "live-recordings/2018-08-20-TSLA.edn")
+    (def source-ch (-> ew/ewrapper :ewrapper :publisher))
+    (def joined-channel-map (pp/setup-publisher-channel source-ch instrument concurrency ticker-id))
+    (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname))
+
+
+  (def joined-channel-tapped
+    (ee/setup-execution-engine joined-channel-map ew/ewrapper instrument account-name))
+
+
+  ;; STOP
+  (do
+    (sw/stop-stream-workbench control-channel)
+    (pp/teardown-publisher-channel joined-channel-map)
+    (ee/teardown-execution-engine joined-channel-tapped))
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper))
 
 
 (comment ;; stream live workbench
 
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+  (mount/start
                #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
                #'com.interrupt.ibgateway.component.execution-engine/execution-engine
@@ -234,11 +226,31 @@
 
   (sw/stop-stream-live live-subscription)
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
+  (mount/stop
               #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
               #'com.interrupt.ibgateway.component.execution-engine/execution-engine
               #'com.interrupt.ibgateway.core/state))
+
+
+(comment  ;; A scanner workbench
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (do
+
+    (def client (:client ew/ewrapper))
+
+    ;; Subscribe
+    (scanner/start client)
+
+    ;; Unsubscribe
+    (scanner/stop client)
+
+    (when-let [leaderboard (scanner/scanner-decide)]
+      (doseq [[i m] (map-indexed vector leaderboard)]
+        (println i ":" m)))))
 
 
 (comment ;; from com.interrupt.ibgateway.component.processing-pipeline
@@ -474,28 +486,6 @@
                    [?e :switchboard/state ?s]
                    [?s :db/ident :stock-historical-state/off]]
                  (d/db conn))))
-
-
-(comment  ;; A scanner workbench
-
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-              #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/default-chs-map
-               #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-
-  (do
-
-    (def client (:client ew/ewrapper))
-
-    ;; Subscribe
-    (scanner/start client)
-
-    ;; Unsubscribe
-    (scanner/stop client)
-
-    (when-let [leaderboard (scanner/scanner-decide)]
-      (doseq [[i m] (map-indexed vector leaderboard)]
-        (println i ":" m)))))
 
 
 (comment  ;; from com.interrupt.ibgateway.component.ewrapper-impl
