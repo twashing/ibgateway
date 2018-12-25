@@ -5,8 +5,9 @@
             [clojure.set :as cs]
             [clojure.tools.logging :refer [debug info warn error]]
             [clojure.tools.trace :refer [trace]]
-            [clj-time.format :as f]
             [clj-time.core :as t]
+            [clj-time.format :as f]
+            [clj-time.coerce :as c]
             [com.interrupt.edgar.ib.market :as market]
             [com.interrupt.edgar.subscription :as sub]
             [com.interrupt.ibgateway.component.account.contract :as contract]
@@ -1285,7 +1286,9 @@
   (go-loop [{tid :ticker-id topic :topic :as tick-record} (<! publisher)]
 
     (when [(= ticker-id tid)]
-      (spit fname tick-record :append true))
+      (as-> tick-record tr
+        (assoc tr :timestamp (-> (t/now) c/to-long))
+        (spit fname tr :append true)))
     (recur (<! publisher))))
 
 (defn record-live-data [{{client :client

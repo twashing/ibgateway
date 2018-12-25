@@ -1,6 +1,7 @@
 (ns com.interrupt.ibgateway.component.processing-pipeline
   (:require [clojure.core.async :refer [chan to-chan sliding-buffer close! <! >!
                                         go-loop mult tap mix pipeline onto-chan] :as async]
+            [clojure.tools.trace :refer [trace]]
             [clojure.set :refer [subset?]]
             [mount.core :refer [defstate] :as mount]
             [clojure.tools.logging :refer [debug info warn error] :as log]
@@ -24,36 +25,113 @@
 (def moving-average-increment 1)
 (def rt-volume-time-and-sales-type 48)
 (def tick-string-type :tick-string)
+(def tick-price-type :tick-price)
+(def tick-size-type :tick-size)
 
-(defn rtvolume-time-and-sales? [event]
-  (and (= rt-volume-time-and-sales-type (:tick-type event))
-       (= tick-string-type (:topic event))))
 
-(defn parse-tick-string
-  "Input format:
+(defn rtvolume-time-and-sales? [{:keys [topic tick-type]}]
+  (and (= tick-string-type topic)
+       (= rt-volume-time-and-sales-type tick-type)))
 
-   {:type tickString, :tickerId 0, :tickType 48, :value 412.14;1;1367429375742;1196;410.39618025;true}
+(defn tick-string? [{topic :topic}]
+  (= tick-string-type topic))
 
-   Value format:
+(defn tick-price? [{topic :topic}]
+  (= tick-price-type topic))
 
-   :value       ;0;1522337866199;67085;253.23364232;true
-   :value 255.59;1;1522337865948;67077;253.23335428;true"
-  [event]
+(defn tick-size? [{topic :topic}]
+  (= tick-size-type topic))
+
+
+(defmulti parse-tick-string (fn [{tick-type :tick-type}] tick-type))
+
+;; Bid Exchange 32	For stock and options, identifies the exchange(s) posting the bid price.
+;; {:topic :tick-string :ticker-id 0 :tick-type 32 :value W}
+(defmethod parse-tick-string 32 [event]
+  (clojure.set/rename-keys event {:topic :type}))
+
+;; Ask Exchange 33	For stock and options, identifies the exchange(s) posting the ask price.
+;; {:topic :tick-string :ticker-id 0 :tick-type 33 :value E}
+(defmethod parse-tick-string 33 [event]
+  (clojure.set/rename-keys event {:topic :type}))
+
+;; Last Timestamp 45	Time of the last trade (in UNIX time).
+;; {:topic :tick-string :ticker-id 0 :tick-type 45 :value 1534781337}
+(defmethod parse-tick-string 45 [event]
+  (clojure.set/rename-keys event {:topic :type}))
+
+
+;; RT Volume (Time & Sales) 48	Last trade details (Including both "Last" and "Unreportable Last" trades).
+;;
+;; "Input format:
+;;    {:type tickString, :tickerId 0, :tickType 48, :value 412.14;1;1367429375742;1196;410.39618025;true}
+;;
+;;    Value format:
+;;    :value       ;0;1522337866199;67085;253.23364232;true
+;;    :value 255.59;1;1522337865948;67077;253.23335428;true"
+(defmethod parse-tick-string 48 [event]
 
   (let [tvalues (cs/split (:value event) #";")
         tkeys [:last-trade-price :last-trade-size :last-trade-time :total-volume :vwap :single-trade-flag]]
 
     (as-> (zipmap tkeys tvalues) rm
+      (clojure.set/rename-keys rm {:topic :type})
       (merge rm {:ticker-id (:ticker-id event)
-                 :type (:topic event)
                  :uuid (str (uuid/make-random))})
       (assoc rm
              :last-trade-price (if (not (empty? (:last-trade-price rm)))
                                  (read-string (:last-trade-price rm)) 0)
              :last-trade-time (Long/parseLong (:last-trade-time rm))
+
              :last-trade-size (read-string (:last-trade-size rm))
              :total-volume (read-string (:total-volume rm))
              :vwap (read-string (:vwap rm))))))
+
+(defn parse-tick-price
+  "Input format:
+  {:topic :tick-price :ticker-id 0 :field 1 :price 316.19 :can-auto-execute 1} - Bid Price
+  {:topic :tick-price :ticker-id 0 :field 2 :price 314.7 :can-auto-execute 1} - Ask PRice
+  {:topic :tick-price :ticker-id 0 :field 4 :price 314.42 :can-auto-execute 0} - Last Price
+  {:topic :tick-price :ticker-id 0 :field 6 :price 311.4 :can-auto-execute 0} - High price for the day
+  {:topic :tick-price :ticker-id 0 :field 7 :price 306.56 :can-auto-execute 0} - Low price for the day
+  {:topic :tick-price :ticker-id 0 :field 9 :price 311.86 :can-auto-execute 0} - Close Price	(last available) for the previous day"
+  [event]
+
+  (letfn [(assoc-price [{:keys [field price] :as event}]
+            (case field
+              1 (assoc event :last-bid-price (if (string? price) (read-string price) price))
+              2 (assoc event :last-ask-price (if (string? price) (read-string price) price))
+              4 (assoc event :last-trade-price (if (string? price) (read-string price) price))
+
+              6 (assoc event :last-high-price (if (string? price) (read-string price) price))
+              7 (assoc event :last-low-price (if (string? price) (read-string price) price))
+              9 (assoc event :last-close-price (if (string? price) (read-string price) price))))]
+
+    (-> (clojure.set/rename-keys event {:topic :type})
+        (assoc :uuid (str (uuid/make-random)))
+        assoc-price
+        (dissoc :field :price))))
+
+(defn parse-tick-size
+  "Input format:
+  {:topic :tick-size :ticker-id 0 :field 0 :size 1} - Bid Size
+  {:topic :tick-size :ticker-id 0 :field 3 :size 1} - Ask Size
+  {:topic :tick-size :ticker-id 0 :field 5 :size 1} - Last Size
+  {:topic :tick-size :ticker-id 0 :field 8 :size 29924} - Trading volume for the day for the selected contract (US Stocks: multiplier 100)"
+  [event]
+
+  (letfn [(assoc-size [{:keys [field size] :as event}]
+            (case field
+              0 (assoc event :last-bid-size size)
+              3 (assoc event :last-ask-size size)
+              5 (assoc event :last-size size)
+              8 (assoc event :last-volume size)))]
+
+    (-> (clojure.set/rename-keys event {:topic :type})
+        (assoc :uuid (str (uuid/make-random)))
+        assoc-size
+        (dissoc :field :size))))
+
 
 (defn empty-last-trade-price? [event]
   (-> event :last-trade-price (<= 0)))
@@ -74,7 +152,17 @@
 ;; Volume	8	IBApi.EWrapper.tickSize
 ;; Close Price	9, IBApi.EWrapper.tickPrice
 
+(defn parse-tick [event]
+  (cond
+    (tick-string? event) (parse-tick-string event)
+    (tick-price? event) (parse-tick-price event)
+    (tick-size? event) (parse-tick-size event)))
+
 (def handler-xform
+  (comp (map parse-tick)
+     (map trace)))
+
+#_(def handler-xform
     (comp (filter rtvolume-time-and-sales?)
        (map parse-tick-string)
 

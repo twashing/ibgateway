@@ -130,6 +130,47 @@
   (get-file s3 bucket-name file-name))
 
 
+(comment  ;; Record live data
+
+  ;; A
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  ;; B
+  (do
+    (def control-channel (chan))
+    (def instrument "TSLA")
+    (def concurrency 1)
+    (def ticker-id 0)
+
+    (def fname "live-recordings/2018-08-20-TSLA.edn")
+    (def source-ch (-> ew/ewrapper :ewrapper :publisher))
+    (def source-list-ch (chan (sliding-buffer 100)))
+
+    ;; (pipeline concurrency source-list-ch pp/handler-xform source-ch)
+
+    (go-loop [c 0 r (<! source-ch)]
+      (do
+        (info "count:" c " / r:" r " / parsed :" (pp/parse-tick r))
+        (recur (inc c) (<! source-ch))))
+
+    #_(go-loop [c 0 r (<! source-list-ch)]
+      (if-not r
+        r
+        (do
+          (info "count: " c " / r: " r)
+          (recur (inc c) (<! source-list-ch))))))
+
+  ;; C
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
+                               control-channel
+                               fname)
+
+  ;; D
+  (sw/stop-stream-workbench control-channel)
+  )
+
+
 (comment ;; processing-pipeline workbench
 
 
