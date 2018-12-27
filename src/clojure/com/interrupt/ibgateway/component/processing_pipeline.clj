@@ -1,12 +1,14 @@
 (ns com.interrupt.ibgateway.component.processing-pipeline
   (:require [clojure.core.async :refer [chan to-chan sliding-buffer close! <! >!
                                         go-loop mult tap mix pipeline onto-chan] :as async]
+            [clojure.tools.logging :refer [debug info warn error] :as log]
             [clojure.tools.trace :refer [trace]]
             [clojure.set :refer [subset?]]
-            [mount.core :refer [defstate] :as mount]
-            [clojure.tools.logging :refer [debug info warn error] :as log]
-            [net.cgrand.xforms :as x]
             [clojure.string :as cs]
+            [clj-time.core :as t]
+            [clj-time.coerce :as c]
+            [mount.core :refer [defstate] :as mount]
+            [net.cgrand.xforms :as x]
             [cljs-uuid.core :as uuid]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
@@ -29,8 +31,8 @@
 (def tick-size-type :tick-size)
 
 
-(defn rtvolume-time-and-sales? [{:keys [topic tick-type]}]
-  (and (= tick-string-type topic)
+(defn rtvolume-time-and-sales? [{:keys [type tick-type]}]
+  (and (= tick-string-type type)
        (= rt-volume-time-and-sales-type tick-type)))
 
 (defn tick-string? [{topic :topic}]
@@ -60,7 +62,6 @@
 (defmethod parse-tick-string 45 [event]
   (clojure.set/rename-keys event {:topic :type}))
 
-
 ;; RT Volume (Time & Sales) 48	Last trade details (Including both "Last" and "Unreportable Last" trades).
 ;;
 ;; "Input format:
@@ -76,12 +77,16 @@
 
     (as-> (zipmap tkeys tvalues) rm
       (clojure.set/rename-keys rm {:topic :type})
-      (merge rm {:ticker-id (:ticker-id event)
-                 :uuid (str (uuid/make-random))})
       (assoc rm
+             :ticker-id (:ticker-id event)
+             :uuid (str (uuid/make-random))
+             :type :tick-string
+             :tick-type 48
+
              :last-trade-price (if (not (empty? (:last-trade-price rm)))
                                  (read-string (:last-trade-price rm)) 0)
-             :last-trade-time (Long/parseLong (:last-trade-time rm))
+             ;; :last-trade-time (Long/parseLong (:last-trade-time rm))
+             :last-trade-time (:timestamp event)
 
              :last-trade-size (read-string (:last-trade-size rm))
              :total-volume (read-string (:total-volume rm))
@@ -105,7 +110,8 @@
 
               6 (assoc event :last-high-price (if (string? price) (read-string price) price))
               7 (assoc event :last-low-price (if (string? price) (read-string price) price))
-              9 (assoc event :last-close-price (if (string? price) (read-string price) price))))]
+              9 (assoc event :last-close-price (if (string? price) (read-string price) price))
+              (assoc event :unknown-type :noop)))]
 
     (-> (clojure.set/rename-keys event {:topic :type})
         (assoc :uuid (str (uuid/make-random)))
@@ -125,7 +131,8 @@
               0 (assoc event :last-bid-size size)
               3 (assoc event :last-ask-size size)
               5 (assoc event :last-size size)
-              8 (assoc event :last-volume size)))]
+              8 (assoc event :last-volume size)
+              (assoc event :unknown-type :noop)))]
 
     (-> (clojure.set/rename-keys event {:topic :type})
         (assoc :uuid (str (uuid/make-random)))
@@ -157,17 +164,6 @@
     (tick-string? event) (parse-tick-string event)
     (tick-price? event) (parse-tick-price event)
     (tick-size? event) (parse-tick-size event)))
-
-(def handler-xform
-  (comp (map parse-tick)
-     (map trace)))
-
-#_(def handler-xform
-    (comp (filter rtvolume-time-and-sales?)
-       (map parse-tick-string)
-
-       ;; NOTE For now, ignore empty lots
-       (remove empty-last-trade-price?)))
 
 (defn pipeline-stochastic-oscillator [n stochastic-oscillator-ch tick-list->stochastic-osc-ch]
   (let [stochastic-tick-window 14
@@ -281,8 +277,11 @@
   (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
             stochastic-oscillator->stochastic-oscillator-signal))
 
+(def partition-xform (x/partition moving-average-window moving-average-increment (x/into [])))
+
 (defn channel-analytics []
   {:source-list-ch (chan (sliding-buffer 100))
+   :parsed-list-ch (chan (sliding-buffer 100))
    :tick-list-ch (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
    :sma-list-ch (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
    :ema-list-ch (chan (sliding-buffer 100))
@@ -432,13 +431,18 @@
     (stream/connect @result output-ch)
     output-ch))
 
+#_(def parse-xform (map parse-tick))
+(def parse-xform (comp (map #(assoc % :timestamp (-> (t/now) c/to-long)))
+                    (map parse-tick)))
+(def filter-xform (filter rtvolume-time-and-sales?))
+
 (defn setup-publisher-channel [source-ch output-ch stock-name concurrency ticker-id-filter]
 
   (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
 
 
         ;; Channels Analytics
-        {:keys [source-list-ch tick-list-ch sma-list-ch ema-list-ch
+        {:keys [source-list-ch parsed-list-ch tick-list-ch sma-list-ch ema-list-ch
                 bollinger-band-ch macd-ch stochastic-oscillator-ch
                 on-balance-volume-ch relative-strength-ch]}
         (channel-analytics)
@@ -506,7 +510,7 @@
                     signal-stochastic-oscillator->SIGNAL
                     signal-on-balance-volume->SIGNAL)
 
-    (doseq [source+mults [[source-list-ch tick-list-ch]
+    (doseq [source+mults [[source-list-ch parsed-list-ch]
                           [tick-list-ch tick-list->sma-ch tick-list->macd-ch
                            tick-list->stochastic-osc-ch tick-list->obv-ch
                            tick-list->relative-strength-ch tick-list->JOIN tick-list->SIGNAL]
@@ -531,9 +535,14 @@
       (apply bind-channels->mult source+mults))
 
 
+    ;; a parse-xform source-ch
+    ;; copy a
+    ;;
+    ;; b filter-xform a
+
     ;; TICK LIST
-    (pipeline concurrency source-list-ch handler-xform source-ch)
-    (pipeline concurrency tick-list-ch handler-xform source-list-ch)
+    (pipeline concurrency source-list-ch parse-xform source-ch)
+    (pipeline concurrency tick-list-ch filter-xform source-list-ch)
 
 
     ;; ANALYSIS
@@ -565,6 +574,11 @@
     (pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
               on-balance-volume->on-balance-volume-ch)
 
+
+    #_(go-loop [c 0 r (<! tick-list-ch)]
+      (info "count: " c " / tick-list-ch INPUT " r)
+      (when r
+        (recur (inc c) (<! tick-list-ch))))
 
     #_(go-loop [c 0 r (<! lagging-signals-moving-averages-ch)]
       (info "count: " c " / lagging-signals-moving-averages INPUT " r)
@@ -603,5 +617,6 @@
 
     {:joined-channel output-ch}))
 
-(defn teardown-publisher-channel [processing-pipeline]
-  (close! processing-pipeline))
+(defn teardown-publisher-channel [joined-channel-map]
+  (doseq [v (vals joined-channel-map)]
+    (close! v)))

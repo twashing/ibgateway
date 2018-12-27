@@ -1,3 +1,4 @@
+
 (ns com.interrupt.ibgateway.core
   (:require [clojure.core.async
              :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
@@ -20,7 +21,8 @@
             [com.interrupt.ibgateway.component.vase]
             [com.interrupt.ibgateway.component.vase.service
              :refer [send-message-to-all!]]
-            [mount.core :refer [defstate] :as mount])
+            [mount.core :refer [defstate] :as mount]
+            [net.cgrand.xforms :as x])
   (:import [com.ib.client EClient ExecutionFilter Order]))
 
 
@@ -130,7 +132,7 @@
   (get-file s3 bucket-name file-name))
 
 
-(comment  ;; Record live data
+(comment ;; processing-pipeline
 
   ;; A
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
@@ -145,21 +147,20 @@
 
     (def fname "live-recordings/2018-08-20-TSLA.edn")
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def source-list-ch (chan (sliding-buffer 100)))
+    (let [{:keys [source-list-ch parsed-list-ch tick-list-ch sma-list-ch ema-list-ch
+                  bollinger-band-ch macd-ch stochastic-oscillator-ch
+                  on-balance-volume-ch relative-strength-ch]}
+          (pp/channel-analytics)]
 
-    ;; (pipeline concurrency source-list-ch pp/handler-xform source-ch)
+      (pipeline concurrency source-list-ch pp/parse-xform source-ch)
+      (pipeline concurrency tick-list-ch pp/filter-xform source-list-ch)
 
-    (go-loop [c 0 r (<! source-ch)]
-      (do
-        (info "count:" c " / r:" r " / parsed :" (pp/parse-tick r))
-        (recur (inc c) (<! source-ch))))
-
-    #_(go-loop [c 0 r (<! source-list-ch)]
-      (if-not r
-        r
-        (do
-          (info "count: " c " / r: " r)
-          (recur (inc c) (<! source-list-ch))))))
+      (go-loop [c 0 r (<! tick-list-ch)]
+        (if-not r
+          r
+          (do
+            (info "count:" c "/ r:" r)
+            (recur (inc c) (<! tick-list-ch)))))))
 
   ;; C
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
@@ -167,16 +168,15 @@
                                fname)
 
   ;; D
-  (sw/stop-stream-workbench control-channel)
-  )
+  (sw/stop-stream-workbench control-channel))
 
 
 (comment ;; processing-pipeline workbench
 
 
   ;; 1. START
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
   (do
     (def control-channel (chan))
@@ -188,7 +188,8 @@
     ;; "live-recordings/2018-08-27-TSLA.edn"
     (def fname "live-recordings/2018-08-20-TSLA.edn")
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def joined-channel-map (pp/setup-publisher-channel source-ch instrument concurrency ticker-id)))
+    (def output-ch (chan (sliding-buffer 100)))
+    (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
 
   ;; 2. Point your browser to http://localhost:8080
@@ -201,7 +202,7 @@
       (if-not r
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "count: " c " / sr: " r)
+          (info "count:" c " / sr:" r)
           ;; (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
 
@@ -215,9 +216,7 @@
   ;; STOP
   (do
     (sw/stop-stream-workbench control-channel)
-    (pp/teardown-publisher-channel joined-channel-map))
-
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper))
+    (pp/teardown-publisher-channel joined-channel-map)))
 
 
 (comment ;; execution-engine workbench
