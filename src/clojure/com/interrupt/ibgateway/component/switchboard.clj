@@ -1297,7 +1297,7 @@
 
   (let [custom-formatter (f/formatter "yyyy-MM-dd")
         date-string (f/unparse custom-formatter (t/now))
-        generic-tick-list "225, 233, 236"
+        generic-tick-list "233"
         snapshot? false
         options nil]
 
@@ -1339,16 +1339,15 @@
   (sub/unsubscribe live-subscription))
 
 (defn start-stream-live [{{client :client
-                           wrapper :wrapper} :ewrapper
-                          {tick-ch :publisher} :default-channels}
+                           wrapper :wrapper} :ewrapper}
                          instrm ticker-id]
 
   (let [contract (contract/create instrm)
-        generic-tick-list "225, 233, 236"
+        generic-tick-list "233"
         snapshot? false
         options nil
         live-subscription (sub/->LiveSubscription
-                            client tick-ch ticker-id contract
+                            client ticker-id contract
                             generic-tick-list snapshot? options)]
 
     (sub/subscribe live-subscription)

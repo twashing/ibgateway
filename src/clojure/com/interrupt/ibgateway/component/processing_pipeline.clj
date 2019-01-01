@@ -85,8 +85,8 @@
 
              :last-trade-price (if (not (empty? (:last-trade-price rm)))
                                  (read-string (:last-trade-price rm)) 0)
-             ;; :last-trade-time (Long/parseLong (:last-trade-time rm))
-             :last-trade-time (:timestamp event)
+             :last-trade-time (Long/parseLong (:last-trade-time rm))
+             ;; :last-trade-time (:timestamp event)
 
              :last-trade-size (read-string (:last-trade-size rm))
              :total-volume (read-string (:total-volume rm))
@@ -141,7 +141,8 @@
 
 
 (defn empty-last-trade-price? [event]
-  (-> event :last-trade-price (<= 0)))
+  (or (-> event :last-trade-price nil?)
+      (-> event :last-trade-price (<= 0))))
 
 
 ;; track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
@@ -425,16 +426,15 @@
                                                                :signal-bollinger-band signal-bollinger-band->CROSS
                                                                :signal-macd signal-macd->CROSS
                                                                :signal-stochastic-oscillator signal-stochastic-oscillator->CROSS
-                                                               :signal-on-balance-volume signal-on-balance-volume->CROSS
-                                                               }})]
+                                                               :signal-on-balance-volume signal-on-balance-volume->CROSS}})]
 
     (stream/connect @result output-ch)
     output-ch))
 
-#_(def parse-xform (map parse-tick))
 (def parse-xform (comp (map #(assoc % :timestamp (-> (t/now) c/to-long)))
                     (map parse-tick)))
-(def filter-xform (filter rtvolume-time-and-sales?))
+(def filter-xform (comp (remove empty-last-trade-price?)
+                     (filter rtvolume-time-and-sales?)))
 
 (defn setup-publisher-channel [source-ch output-ch stock-name concurrency ticker-id-filter]
 
@@ -535,11 +535,6 @@
       (apply bind-channels->mult source+mults))
 
 
-    ;; a parse-xform source-ch
-    ;; copy a
-    ;;
-    ;; b filter-xform a
-
     ;; TICK LIST
     (pipeline concurrency source-list-ch parse-xform source-ch)
     (pipeline concurrency tick-list-ch filter-xform source-list-ch)
@@ -615,7 +610,8 @@
       (when r
         (recur (inc c) (<! output-ch))))
 
-    {:joined-channel output-ch}))
+    {:joined-channel output-ch
+     :input-channel parsed-list-ch}))
 
 (defn teardown-publisher-channel [joined-channel-map]
   (doseq [v (vals joined-channel-map)]

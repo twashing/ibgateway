@@ -1,14 +1,13 @@
-
 (ns com.interrupt.ibgateway.core
   (:require [clojure.core.async
              :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
                      sliding-buffer mult tap pipeline] :as async]
             [clojure.tools.logging :refer [debug info warn error]]
+            [com.interrupt.edgar.core.utils :refer [set-log-level]]
             [com.interrupt.ibgateway.component.account :refer [account-name]]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.ibgateway.component.account.summary :as acct-summary]
             [com.interrupt.ibgateway.component.account.updates :as acct-updates]
-            [com.interrupt.edgar.scanner :as scanner]
             [com.interrupt.ibgateway.cloud.storage]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
@@ -21,6 +20,9 @@
             [com.interrupt.ibgateway.component.vase]
             [com.interrupt.ibgateway.component.vase.service
              :refer [send-message-to-all!]]
+            [com.interrupt.edgar.core.analysis.common :as acomm]
+            [com.interrupt.edgar.scanner :as scanner]
+
             [mount.core :refer [defstate] :as mount]
             [net.cgrand.xforms :as x])
   (:import [com.ib.client EClient ExecutionFilter Order]))
@@ -202,7 +204,7 @@
       (if-not r
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "count:" c " / sr:" r)
+          (info "count:" c " / sr:" sr)
           ;; (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
 
@@ -216,6 +218,85 @@
   ;; STOP
   (do
     (sw/stop-stream-workbench control-channel)
+    (pp/teardown-publisher-channel joined-channel-map)))
+
+
+(comment ;; processing-pipeline live A
+
+
+  ;; START
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+  (do
+
+    (def instrument "TSLA")
+    (def concurrency 1)
+    (def ticker-id 0)
+    (def source-ch (-> ew/ewrapper :ewrapper :publisher)))
+
+  (let [{:keys [source-list-ch parsed-list-ch tick-list-ch sma-list-ch ema-list-ch
+                bollinger-band-ch macd-ch stochastic-oscillator-ch
+                on-balance-volume-ch relative-strength-ch]}
+        (pp/channel-analytics)]
+
+    (pipeline concurrency source-list-ch pp/parse-xform source-ch)
+    (pipeline concurrency tick-list-ch pp/filter-xform source-list-ch)
+
+    (go-loop [c 0 r (<! tick-list-ch)]
+      (if-not r
+        r
+        (do
+          (info "count:" c
+                "/ r:" r
+                "/ time increases? :" (map :last-trade-time r) "|" (acomm/time-increases-left-to-right? r))
+          (recur (inc c) (<! tick-list-ch))))))
+
+  (def live-subscription (sw/start-stream-live ew/ewrapper instrument ticker-id))
+
+
+  ;; STOP
+  (sw/stop-stream-live live-subscription))
+
+
+(comment ;; processing-pipeline live B
+
+
+  (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
+
+
+  ;; 1. START
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+
+  (do
+    (def instrument "TSLA")
+    (def concurrency 1)
+    (def ticker-id 0)
+    (def source-ch (-> ew/ewrapper :ewrapper :publisher))
+
+    (def output-ch (chan (sliding-buffer 100)))
+    (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
+
+
+  (let [{jch :joined-channel} joined-channel-map]
+
+    (go-loop [c 0 r (<! jch)]
+      (if-not r
+        r
+        (let [sr (update-in r [:sma-list] dissoc :population)]
+          (info "count:" c " / sr:" sr)
+          (recur (inc c) (<! jch))))))
+
+
+  (def live-subscription (sw/start-stream-live ew/ewrapper instrument ticker-id))
+
+
+  ;; STOP
+  (do
+    (sw/stop-stream-live live-subscription)
     (pp/teardown-publisher-channel joined-channel-map)))
 
 
@@ -251,26 +332,6 @@
     (ee/teardown-execution-engine joined-channel-tapped))
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper))
-
-
-(comment ;; stream live workbench
-
-  (mount/start
-               #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-               #'com.interrupt.ibgateway.component.execution-engine/execution-engine
-               #'com.interrupt.ibgateway.core/state)
-
-  (let [ticker-id 1003]
-    (def live-subscription (sw/start-stream-live ew/ewrapper ew/default-chs-map "AAPL" ticker-id)))
-
-  (sw/stop-stream-live live-subscription)
-
-  (mount/stop
-              #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.processing-pipeline/processing-pipeline
-              #'com.interrupt.ibgateway.component.execution-engine/execution-engine
-              #'com.interrupt.ibgateway.core/state))
 
 
 (comment  ;; A scanner workbench

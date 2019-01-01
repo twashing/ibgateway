@@ -157,7 +157,11 @@
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
-        price (-> joined-tick :sma-list :last-trade-price)
+
+        latest-price (-> joined-tick :sma-list :last-trade-price)
+        latest-bid @common/latest-bid
+        price (if (< latest-price latest-bid)
+                latest-price latest-bid)
 
         cash-level (-> client (->account-cash-level account-updates-ch) :value)
         _ (info "3 - buy-stock / account-updates-ch channel-open? / " (channel-open? account-updates-ch)
@@ -251,7 +255,14 @@
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
-(defn setup-execution-engine [joined-channel
+(defn consume-processing-pipeline-input-channel [input-ch]
+  (go-loop [tick (<! input-ch)]
+    (when (:last-bid-price tick)
+      (reset! common/latest-bid (:last-bid-price tick)))
+    (recur (<! input-ch))))
+
+(defn setup-execution-engine [{joined-channel :joined-channel
+                               processing-pipeline-input-channel :input-channel}
                               joined-channel-tapped
                               {{valid-order-id-ch :valid-order-ids
                                 order-filled-notification-ch :order-filled-notifications
@@ -261,6 +272,10 @@
 
 
   (bind-channels->mult joined-channel joined-channel-tapped)
+
+
+
+  (consume-processing-pipeline-input-channel processing-pipeline-input-channel)
 
 
   ;; CONSUME ORDER UPDATES
@@ -316,6 +331,26 @@
   ;; [~] Scheduled health check for input channels
   ;;   Error. Id: 55, Code: 103, Msg: Duplicate order id
 
+  ;; [ok] track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
+  ;;   These are the only tickString types I see coming in
+  ;;   48 45 33 32
+
+
+  ;; only purchase more if
+  ;;   we're gaining (over last 3 ticks)
+  ;;   we have enough money
+
+  ;; (in processing pipeline) should be fleshed out more:
+  ;;   Bollinger-band signals
+  ;;     Day Trading Interactive Lessons - Bollinger Bands Squeeze
+  ;;     https://www.youtube.com/watch?v=mnFpLRxxB5o
+  ;;   RSI divergence
+  ;;   MACD Histogram
+
+  ;; guard against down (or sideways) markets
+  ;;  only buy in up markets
+
+
 
   ;; Onyx
   ;;   stream joined
@@ -327,10 +362,6 @@
   ;;   https://mail.google.com/mail/u/0/#label/**+Clojure/FMfcgxvwzcLlWljQvGlldvvpzTQFJHpr
   ;;   https://github.com/kkinnear/zpst
 
-  ;; only purchase more if
-  ;;   we're gaining (over last 3 ticks)
-  ;;   we have enough money
-
 
   ;; BUY if
   ;;   [ok] :up signal from lagging + leading (or more)
@@ -339,15 +370,6 @@
   ;;   we have enough money
   ;;   * buy up to $1000 or 50% of cash (whichever is less)
 
-
-  ;; (in processing pipeline) bollinger-band signals should be fleshed out more
-  ;;   also look at RSI divergence
-  ;;   Day Trading Interactive Lessons - Bollinger Bands Squeeze
-  ;;   https://www.youtube.com/watch?v=mnFpLRxxB5o
-
-  ;; track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
-  ;;   These are the only tickString types I see coming in
-  ;;   48 45 33 32
 
   ;; Bid Size	0	IBApi.EWrapper.tickSize
   ;; Bid Price	1	IBApi.EWrapper.tickPrice
@@ -522,19 +544,19 @@
 
 
   ;; SCAN SET CHANGES
-  (require '[clojure.set :as s])
-
   (do
-    (def one #{:a :b :c})
-    (def two #{:b :c :d})
-    (def three #{:c :d}))
+    (require '[clojure.set :as s])
 
-  (defn ->removed [orig princ]
-    (s/difference orig princ))
+    (do
+      (def one #{:a :b :c})
+      (def two #{:b :c :d})
+      (def three #{:c :d}))
 
-  (defn ->added [orig princ]
-    (s/difference princ orig))
+    (defn ->removed [orig princ]
+      (s/difference orig princ))
 
+    (defn ->added [orig princ]
+      (s/difference princ orig)))
 
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
@@ -542,6 +564,7 @@
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.account/account)
+
 
   (do
 
@@ -561,8 +584,11 @@
   ;; START
   (do
     (def instrument "AMZN")
+    (def instrument2 "TSLA")
+
     (def concurrency 1)
     (def ticker-id 1003)
+    (def ticker-id2 1004)
 
     ;; Next valid Id
     ;; (.reqIds client -1)
@@ -570,11 +596,28 @@
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
     (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
-    (def execution-engine-output-ch (chan (sliding-buffer 100))))
+    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+    (def joined-channel-map (promise)))
 
-  (thread (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency ticker-id))
-  (thread (setup-execution-engine processing-pipeline-output-ch execution-engine-output-ch
-                                  ewrapper/ewrapper instrument account-name))
+  (thread
+    (deliver joined-channel-map
+             (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency)))
+  (thread
+    (setup-execution-engine @joined-channel-map execution-engine-output-ch ewrapper/ewrapper instrument account-name))
+
+
+  #_(let [{jch :joined-channel
+         ich :input-channel} @joined-channel-map]
+
+    (go-loop [r (<! jch)]
+      (when r
+        (let [sr (update-in r [:sma-list] dissoc :population)]
+          (info "joined-channel:" sr)
+          (recur (<! jch)))))
+
+    #_(go-loop [r (<! ich)]
+      (info "input-channel:" r)
+      (recur (<! ich))))
 
   (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
 
@@ -587,15 +630,15 @@
   (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")
 
 
-
   (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))
 
 
   ;; STOP
   (do
     (scanner/stop client)
+
     (sw/stop-stream-live live-subscription)
-    (pp/teardown-publisher-channel processing-pipeline-output-ch)
+    (pp/teardown-publisher-channel @joined-channel-map)
     (teardown-execution-engine execution-engine-output-ch))
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper

@@ -13,6 +13,7 @@
 (def channel-open? (comp not closed?))
 (def exists? (comp not empty?))
 (def latest-standard-deviation (atom -1))
+(def latest-bid (atom -1))
 (def valid-order-id (atom 100))
 
 (defn ->next-valid-order-id
@@ -30,6 +31,29 @@
    ;; KLUDGE
    (swap! valid-order-id inc)))
 
+(defn sell-limit [client stock order valid-order-id-ch]
+
+  (let [action "SELL"
+        symbol (:symbol stock)
+        quantity (:quantity order)
+        valid-order-id (->next-valid-order-id client valid-order-id-ch)
+        threshold (->> @latest-standard-deviation
+                       (clojure.pprint/cl-format nil "~,2f")
+                       read-string
+                       (Double.)
+                       (* 2.5))
+        limitPrice (+ (:price order) threshold)]
+
+    (info "3 - (balancing) sell-stock / sell-limit / " [quantity valid-order-id limitPrice])
+    (.placeOrder client
+                 valid-order-id
+                 (contract/create symbol)
+                 (doto (Order.)
+                   (.action action)
+                   (.orderType "LMT")
+                   (.totalQuantity quantity)
+                   (.lmtPrice limitPrice)))))
+
 (defn sell-trailing [client stock order valid-order-id-ch]
 
   (let [action "SELL"
@@ -40,7 +64,7 @@
                       (clojure.pprint/cl-format nil "~,2f")
                       read-string
                       (Double.)
-                      (* 1.75)
+                      (* 10)
                       (clojure.pprint/cl-format nil "~,2f")
                       read-string)
         trailStopPrice (- (:price order) auxPrice)]
@@ -83,4 +107,5 @@
 (defn process-order-filled-notifications [client {:keys [stock order] :as val} valid-order-id-ch]
 
   (info "3 - process-order-filled-notifications LOOP / " (exists? val))
+  ;; (sell-limit client stock order valid-order-id-ch)
   (sell-trailing client stock order valid-order-id-ch))
