@@ -16,7 +16,8 @@
 
 (defn setup-default-channels []
   {:publisher (-> 100 async/sliding-buffer async/chan)
-   :account-updates (-> 100 async/sliding-buffer async/chan)
+   :account-updates (-> 1 async/sliding-buffer async/chan)
+   :position-updates (-> 1 async/sliding-buffer async/chan)
    :order-updates (-> 100 async/sliding-buffer async/chan)
    :valid-order-ids (async/chan)
    :order-filled-notifications (async/chan)})

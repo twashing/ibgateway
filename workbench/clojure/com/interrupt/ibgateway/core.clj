@@ -177,8 +177,13 @@
 
 
   ;; 1. START
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.vase/server)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.vase/server)
+
+  (send-message-to-all! "{:foo :bar}")
 
   (do
     (def control-channel (chan))
@@ -188,6 +193,8 @@
 
     ;; "live-recordings/2018-08-20-TSLA.edn"
     ;; "live-recordings/2018-08-27-TSLA.edn"
+    ;; "live-recordings/2018-12-24-AMZN.edn"
+
     (def fname "live-recordings/2018-08-20-TSLA.edn")
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 100)))
@@ -205,7 +212,7 @@
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
           (info "count:" c " / sr:" sr)
-          ;; (send-message-to-all! sr)
+          (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
 
 

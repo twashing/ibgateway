@@ -1372,7 +1372,8 @@
             (let [f (case topic
                       :tick-string #(.tickString wrapper %1 %2 %3)
                       :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
-                      :tick-size #(.tickSize wrapper %1 %2 %3))]
+                      :tick-size #(.tickSize wrapper %1 %2 %3)
+                      :tick-generic #(.tickGeneric wrapper %1 %2 %3))]
               (->> (dissoc v :topic)
                    vals
                    (apply f)))

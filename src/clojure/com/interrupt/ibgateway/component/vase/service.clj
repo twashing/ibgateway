@@ -1,6 +1,7 @@
 (ns com.interrupt.ibgateway.component.vase.service
   (:require [clojure.core.async :refer [go-loop <! chan sliding-buffer] :as async]
             [clojure.java.io :as io]
+            [clojure.tools.trace :refer [trace]]
             [io.pedestal.http :as http]
             [io.pedestal.log :as log]
             [io.pedestal.http.route :as route]
@@ -13,7 +14,8 @@
             [cognitect.transit :as transit]
             [com.interrupt.ibgateway.component.switchboard :as sw]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
-            [com.interrupt.ibgateway.component.figwheel.figwheel])
+            [com.interrupt.ibgateway.component.figwheel.figwheel]
+            [com.interrupt.ibgateway.component.common :refer [channel-open?]])
   (:import [org.eclipse.jetty.websocket.api Session]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
@@ -59,21 +61,29 @@
 
 
 (def ws-clients (atom {}))
+;; (def ws-clients {})
 
 (defn new-ws-client [ws-session send-ch]
 
   (log/info :msg (str "new-ws-client CALLED: " ws-session send-ch))
-  ;; (async/put! send-ch "This will be a text message")
-  (swap! ws-clients assoc ws-session send-ch))
+  (log/info :msg (str "channel open: " (channel-open? send-ch)))
+  (log/info :msg (str "session open: " (.isOpen ws-session)))
+
+  ;; (async/put! send-ch "on-connect text message")
+  (swap! ws-clients assoc ws-session send-ch)
+  ;; (alter-var-root #'ws-clients #(assoc % ws-session send-ch))
+  )
 
 ;; This is just for demo purposes
 (defn send-and-close! []
-  (let [[ws-session send-ch] (first @ws-clients)]
+  (let [[ws-session send-ch] (first ws-clients)]
     (async/put! send-ch "A message from the server")
     ;; And now let's close it down...
     (async/close! send-ch)
     ;; And now clean up
-    (swap! ws-clients dissoc ws-session)))
+    (swap! ws-clients dissoc ws-session)
+    ;; (alter-var-root #'ws-clients #(dissoc % ws-session))
+    ))
 
 ;; Also for demo purposes...
 #_(defn send-message-to-all!
@@ -84,8 +94,7 @@
     (transit/write writer message)
     (.toString out)))
 
-(defn send-message-to-all!
-  [message]
+(defn send-message-to-all! [message]
   (doseq [[^Session session channel] @ws-clients]
 
     (let [out (ByteArrayOutputStream. 4096)
@@ -97,12 +106,36 @@
       ;;  like `.isOpen`, but this example shows you can make calls directly on
       ;;  on the Session object if you need to
       (when (.isOpen session)
-        (async/put! channel (.toString out))))))
+        (let [output (.toString out)]
+          ;; (trace "Session is open /" output)
+          (async/put! channel output))))))
 
-(defn send-message-to-all-2!
-  [message]
+#_(defn send-message-to-all-2! [message]
   (doseq [[^Session session channel] @ws-clients]
     (async/put! channel message)))
+
+
+(comment
+
+  (-> @ws-clients vals first channel-open?)
+  (-> @ws-clients keys first .isOpen)
+
+  (async/put! (-> @ws-clients vals first)
+              "asdf")
+
+  (async/put! (-> @ws-clients vals first)
+              "[\"~#'\",\"{:foo :bar}\"]")
+
+  (async/put! (-> @ws-clients vals first) [1 2 3])
+
+  (async/put! (-> @ws-clients vals first) "a")
+
+
+
+  (-> @ws-clients keys first (.send "foo"))
+
+  )
+
 
 (def ws-paths
   {"/ws" {:on-connect (ws/start-ws-connection new-ws-client)

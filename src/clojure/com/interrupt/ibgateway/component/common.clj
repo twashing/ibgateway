@@ -31,6 +31,23 @@
    ;; KLUDGE
    (swap! valid-order-id inc)))
 
+(defn sell-market [client stock order valid-order-id-ch account-name]
+
+  (let [action "SELL"
+        valid-order-id (->next-valid-order-id client valid-order-id-ch)
+        symbol (:symbol stock)
+        quantity (:quantity order)]
+
+    (info "3 - (balancing) sell-stock / sell-market / " [quantity valid-order-id])
+    (.placeOrder client
+                 valid-order-id
+                 (contract/create symbol)
+                 (doto (Order.)
+                   (.action action)
+                   (.orderType "MKT")
+                   (.totalQuantity quantity)
+                   (.account account-name)))))
+
 (defn sell-limit [client stock order valid-order-id-ch]
 
   (let [action "SELL"
@@ -108,4 +125,5 @@
 
   (info "3 - process-order-filled-notifications LOOP / " (exists? val))
   ;; (sell-limit client stock order valid-order-id-ch)
-  (sell-trailing client stock order valid-order-id-ch))
+  ;; (sell-trailing client stock order valid-order-id-ch)
+  )

@@ -46,6 +46,29 @@
                        (concat rslt (list lst))))) [])
          first)))
 
+(defn macd-histogram-crosses-negative? [macd-list]
+  (let [[x y] (->> (take-last 2 macd-list)
+                   (map :histogram))]
+    (and (> x y)
+         (> x 0)
+         (<= y 0))))
+
+(defn macd-histogram-troughs? [macd-list]
+  (let [[x y z] (->> (take-last 3 macd-list)
+                     (map :histogram))]
+    (and (every? true? (map neg? [x y z]))
+         (> x y)
+         (or (= y z)
+             (< y z)))))
+
+(defn macd-histogram-crests? [macd-list]
+  (let [[x y z] (->> (take-last 3 macd-list)
+                     (map :histogram))]
+    (and (every? true? (map pos? [x y z]))
+         (< x y)
+         (or (= y z)
+             (> y z)))))
+
 (defn macd-divergence
   "** This function assumes the latest tick is on the right"
   [view-window macd-list]
@@ -120,10 +143,17 @@
   [macd-list]
 
   (let [macd-sc (:signals (macd-signal-crossover 2 macd-list))
-        macd-d (:signals (macd-divergence 10 macd-list))]
+        macd-d (:signals (macd-divergence 10 macd-list))
+        ;; macd-neg? (macd-histogram-crosses-negative? macd-list)
+        macd-troughs? (macd-histogram-troughs? macd-list)
+        macd-crests? (macd-histogram-crests? macd-list)]
 
     (let [m (last macd-list)]
       (cond
+        macd-troughs? (assoc m :signals [{:signal :up
+                                          :why :macd-histogram-troughs}])
+        macd-crests? (assoc m :signals [{:signal :down
+                                         :why :macd-histogram-crests}])
         (and macd-sc macd-d) (assoc m :signals (concat macd-sc macd-d))
         macd-sc (assoc m :signals macd-sc)
         macd-d (assoc m :signals macd-d)

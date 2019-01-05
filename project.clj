@@ -37,9 +37,9 @@
 
                  [ring/ring-core "1.6.3" :exclusions [javax.servlet/servlet-api]]
                  [spootnik/unilog "0.7.22"]
-                 [io.pedestal/pedestal.service "0.5.2"]
-                 [io.pedestal/pedestal.jetty "0.5.2"]
-                 [io.pedestal/pedestal.log "0.5.2"]
+                 [io.pedestal/pedestal.service "0.5.5"]
+                 [io.pedestal/pedestal.jetty "0.5.5"]
+                 [io.pedestal/pedestal.log "0.5.5"]
                  [com.cognitect/pedestal.vase "0.9.3"]
                  [org.clojure/tools.cli "0.3.7"]
                  [automata "0.2.0-SNAPSHOT"]

@@ -12,7 +12,8 @@
             [com.interrupt.edgar.scanner :as scanner]
             [com.interrupt.ibgateway.component.common :refer :all :as common]
             [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
-            [com.interrupt.ibgateway.component.account :refer [account account-name consume-order-updates]]
+            [com.interrupt.ibgateway.component.account :refer [account account-name account-summary-tags
+                                                               consume-order-updates]]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
             [com.interrupt.ibgateway.component.switchboard :as sw]
@@ -65,6 +66,18 @@
   (let [f (set->has-signal-fn confirming-signals)]
     (filter f a)))
 
+(defn macd-histogram-crosses-negative? [a]
+  (let [f (set->has-signal-fn #{:macd-histogram-crosses-negative})]
+    (filter f a)))
+
+(defn macd-histogram-troughs? [a]
+  (let [f (set->has-signal-fn #{:macd-histogram-troughs})]
+    (filter f a)))
+
+(defn macd-histogram-crests? [a]
+  (let [f (set->has-signal-fn #{:macd-histogram-crests})]
+    (filter f a)))
+
 (defn which-signals? [joined-ticked]
   (->> joined-ticked
        vals
@@ -73,6 +86,7 @@
        flatten
        ((juxt has-lagging-signal? has-leading-signal? has-confirming-signal?))
        (map identity-or-empty)))
+
 
 (def one
   {:signal-stochastic-oscillator {:last-trade-time 1534782057122 :last-trade-price 297.79 :highest-price 298.76 :lowest-price 297.78 :K 0.010204081632701595 :D 0.03316326530614967 :signals [{:signal :up :why :stochastic-oversold}]}
@@ -103,6 +117,11 @@
                  {:signal :down :why :moving-average-crossover}]}
    :b {:signals [{:signal :up, :why :macd-divergence}]}})
 
+(def five
+  {:a {:signals [{:signal :up, :why :moving-average-crossover}]}
+   :b {:signals [{:signal :up, :why :stochastic-oversold}]}
+   :c {:signals [{:signal :up, :why :macd-histogram-trough}]}})
+
 (defn which-ups? [which-signals]
   (let [[lags leads confs] (transform
                              [ALL #(and ((comp not false?) %)
@@ -127,14 +146,25 @@
 (defn ->account-cash-level
 
   ([client account-updates-ch]
-   (->account-cash-level
-     client account-updates-ch
+   (->account-cash-level client account-updates-ch
      (fn []
        (.reqAccountSummary client 9001 "All" "TotalCashValue"))))
 
   ([_ account-updates-ch f]
    (f)
    (<!! account-updates-ch)))
+
+(defn ->account-positions
+
+  ([client position-updates-ch]
+   (->account-positions client position-updates-ch
+     (fn []
+       (.reqPositions client))))
+
+  ([_ position-updates-ch f]
+   (f)
+   (<!! position-updates-ch)))
+
 
 ;; TODO pick a better way to cap-order-quantity
 (defn cap-order-quantity [quantity]
@@ -184,6 +214,7 @@
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
                                     {account-updates-ch :account-updates
+                                     position-updates-ch :position-updates
                                      order-updates-ch :order-updates
                                      valid-order-ids-ch :valid-order-ids
                                      order-filled-notifications-ch :order-filled-notifications}]
@@ -191,7 +222,57 @@
          (channel-open? valid-order-ids-ch)
          (channel-open? order-filled-notifications-ch)]}
 
-  (let [[laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
+  (let [[macd-histogram-troughs
+         macd-histogram-crests] (->> joined-tick
+                                     vals
+                                     (map :signals)
+                                     (keep identity)
+                                     flatten
+                                     ((juxt macd-histogram-troughs? macd-histogram-crests?))
+                                     (map
+                                       (fn [a]
+                                         (if-not (empty? a)
+                                           (-> a first :why)
+                                           false))))
+
+        {{last-trade-price-average :last-trade-price-average
+          last-trade-price-exponential :last-trade-price-exponential} :signal-moving-averages} joined-tick
+
+        moving-average-signals-exist? (and (:signal-moving-averages joined-tick)
+                                           (-> joined-tick :signal-moving-averages :last-trade-price-average)
+                                           (-> joined-tick :signal-moving-averages :last-trade-price-exponential))
+
+        exponential-abouve-simple? (and moving-average-signals-exist?
+                                        (> last-trade-price-exponential last-trade-price-average))
+
+        exponential-below-simple? (and moving-average-signals-exist?
+                                       (< last-trade-price-exponential last-trade-price-average))
+
+        stock {:symbol instrm}]
+
+
+    (info "2 - extract-signals+decide-order / " [macd-histogram-troughs macd-histogram-crests]
+          " /" [exponential-abouve-simple? exponential-below-simple?])
+    (match [macd-histogram-troughs macd-histogram-crests]
+
+           [:macd-histogram-troughs false]
+           (when exponential-below-simple?
+             (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+
+           [false :macd-histogram-crests]
+           (when exponential-abouve-simple?
+             #_(sell-market client stock order valid-order-ids-ch account-name)
+             (let [{sym :symbol posn :position :as position} (->account-positions client position-updates-ch)
+                   order {:quantity posn}
+                   execute-sell? (and posn (> posn 0))]
+
+               (info "BEFORE sell-market / position /" position " / execute-sell? /" execute-sell?)
+               (when execute-sell?
+                 (sell-market client stock order valid-order-ids-ch account-name))))
+
+           :else :noop))
+
+  #_(let [[laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
 
     (info "2 - extract-signals+decide-order / " [laggingS leadingS confirmingS])
     (match [laggingS leadingS confirmingS]
@@ -335,6 +416,15 @@
   ;;   These are the only tickString types I see coming in
   ;;   48 45 33 32
 
+
+  ;; [ok] [buy] MACD Histogram crossover from + to -
+  ;; [x] [sell] MACD Histogram crests in + territory
+
+  ;; [buy] MACD Histogram
+  ;;   i. has crossed from + to -
+  ;;   ii. is negative
+  ;;   iii. is in a trough
+  ;; [buy] Exponential MA has crossed below Simple MA?
 
   ;; only purchase more if
   ;;   we're gaining (over last 3 ticks)
@@ -495,6 +585,22 @@
 
 (comment
 
+  (->> five
+       vals
+       (map :signals)
+       (keep identity)
+       flatten
+       ((juxt macd-histogram-troughs? macd-histogram-crests?))
+       (map identity-or-empty))
+
+  (->> one
+       vals
+       (map :signals)
+       (keep identity)
+       flatten
+       ((juxt macd-histogram-troughs? macd-histogram-crests?))
+       (map identity-or-empty))
+
   (which-signals? one)
   (which-signals? three)
   (which-signals? four)
@@ -601,7 +707,7 @@
 
   (thread
     (deliver joined-channel-map
-             (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency)))
+             (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency ticker-id)))
   (thread
     (setup-execution-engine @joined-channel-map execution-engine-output-ch ewrapper/ewrapper instrument account-name))
 
@@ -631,7 +737,9 @@
 
 
   (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))
+  (->account-positions client (-> ewrapper/ewrapper :default-channels :position-updates))
 
+  (.reqPositions client)
 
   ;; STOP
   (do
