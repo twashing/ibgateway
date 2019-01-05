@@ -69,7 +69,6 @@
 (defn -destroy [this])
 
 
-
 (def cli-options
   [["-R" "--record" :default true]])
 
@@ -125,4 +124,17 @@
 
   ;; RESET
   (let [client (-> ew/ewrapper :ewrapper :client)]
-    (reset client switchboard/live-subscriptions)))
+    (reset client switchboard/live-subscriptions))
+
+
+
+  ;; Update contents of a file
+  (with-open [r (java.io.PushbackReader. (clojure.java.io/reader "live-recordings/2018-12-24-AMZN.edn"))]
+    (loop []
+      (when-let [v (clojure.edn/read {:eof nil} r)]
+        (spit "live-recordings/2018-12-24-AMZN.2.edn"
+              (dissoc v :timestamp)
+              :append true)
+        (recur))))
+
+  )

@@ -5,8 +5,9 @@
             [clojure.set :as cs]
             [clojure.tools.logging :refer [debug info warn error]]
             [clojure.tools.trace :refer [trace]]
-            [clj-time.format :as f]
             [clj-time.core :as t]
+            [clj-time.format :as f]
+            [clj-time.coerce :as c]
             [com.interrupt.edgar.ib.market :as market]
             [com.interrupt.edgar.subscription :as sub]
             [com.interrupt.ibgateway.component.account.contract :as contract]
@@ -1285,7 +1286,9 @@
   (go-loop [{tid :ticker-id topic :topic :as tick-record} (<! publisher)]
 
     (when [(= ticker-id tid)]
-      (spit fname tick-record :append true))
+      (as-> tick-record tr
+        (assoc tr :timestamp (-> (t/now) c/to-long))
+        (spit fname tr :append true)))
     (recur (<! publisher))))
 
 (defn record-live-data [{{client :client
@@ -1294,7 +1297,7 @@
 
   (let [custom-formatter (f/formatter "yyyy-MM-dd")
         date-string (f/unparse custom-formatter (t/now))
-        generic-tick-list "225, 233, 236"
+        generic-tick-list "233"
         snapshot? false
         options nil]
 
@@ -1336,16 +1339,15 @@
   (sub/unsubscribe live-subscription))
 
 (defn start-stream-live [{{client :client
-                           wrapper :wrapper} :ewrapper
-                          {tick-ch :publisher} :default-channels}
+                           wrapper :wrapper} :ewrapper}
                          instrm ticker-id]
 
   (let [contract (contract/create instrm)
-        generic-tick-list "225, 233, 236"
+        generic-tick-list "233"
         snapshot? false
         options nil
         live-subscription (sub/->LiveSubscription
-                            client tick-ch ticker-id contract
+                            client ticker-id contract
                             generic-tick-list snapshot? options)]
 
     (sub/subscribe live-subscription)
@@ -1370,7 +1372,8 @@
             (let [f (case topic
                       :tick-string #(.tickString wrapper %1 %2 %3)
                       :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
-                      :tick-size #(.tickSize wrapper %1 %2 %3))]
+                      :tick-size #(.tickSize wrapper %1 %2 %3)
+                      :tick-generic #(.tickGeneric wrapper %1 %2 %3))]
               (->> (dissoc v :topic)
                    vals
                    (apply f)))

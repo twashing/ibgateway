@@ -12,7 +12,8 @@
             [com.interrupt.edgar.scanner :as scanner]
             [com.interrupt.ibgateway.component.common :refer :all :as common]
             [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
-            [com.interrupt.ibgateway.component.account :refer [account account-name consume-order-updates]]
+            [com.interrupt.ibgateway.component.account :refer [account account-name account-summary-tags
+                                                               consume-order-updates]]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
             [com.interrupt.ibgateway.component.switchboard :as sw]
@@ -65,6 +66,18 @@
   (let [f (set->has-signal-fn confirming-signals)]
     (filter f a)))
 
+(defn macd-histogram-crosses-negative? [a]
+  (let [f (set->has-signal-fn #{:macd-histogram-crosses-negative})]
+    (filter f a)))
+
+(defn macd-histogram-troughs? [a]
+  (let [f (set->has-signal-fn #{:macd-histogram-troughs})]
+    (filter f a)))
+
+(defn macd-histogram-crests? [a]
+  (let [f (set->has-signal-fn #{:macd-histogram-crests})]
+    (filter f a)))
+
 (defn which-signals? [joined-ticked]
   (->> joined-ticked
        vals
@@ -73,6 +86,7 @@
        flatten
        ((juxt has-lagging-signal? has-leading-signal? has-confirming-signal?))
        (map identity-or-empty)))
+
 
 (def one
   {:signal-stochastic-oscillator {:last-trade-time 1534782057122 :last-trade-price 297.79 :highest-price 298.76 :lowest-price 297.78 :K 0.010204081632701595 :D 0.03316326530614967 :signals [{:signal :up :why :stochastic-oversold}]}
@@ -103,6 +117,11 @@
                  {:signal :down :why :moving-average-crossover}]}
    :b {:signals [{:signal :up, :why :macd-divergence}]}})
 
+(def five
+  {:a {:signals [{:signal :up, :why :moving-average-crossover}]}
+   :b {:signals [{:signal :up, :why :stochastic-oversold}]}
+   :c {:signals [{:signal :up, :why :macd-histogram-trough}]}})
+
 (defn which-ups? [which-signals]
   (let [[lags leads confs] (transform
                              [ALL #(and ((comp not false?) %)
@@ -127,14 +146,25 @@
 (defn ->account-cash-level
 
   ([client account-updates-ch]
-   (->account-cash-level
-     client account-updates-ch
+   (->account-cash-level client account-updates-ch
      (fn []
        (.reqAccountSummary client 9001 "All" "TotalCashValue"))))
 
   ([_ account-updates-ch f]
    (f)
    (<!! account-updates-ch)))
+
+(defn ->account-positions
+
+  ([client position-updates-ch]
+   (->account-positions client position-updates-ch
+     (fn []
+       (.reqPositions client))))
+
+  ([_ position-updates-ch f]
+   (f)
+   (<!! position-updates-ch)))
+
 
 ;; TODO pick a better way to cap-order-quantity
 (defn cap-order-quantity [quantity]
@@ -157,7 +187,11 @@
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
-        price (-> joined-tick :sma-list :last-trade-price)
+
+        latest-price (-> joined-tick :sma-list :last-trade-price)
+        latest-bid @common/latest-bid
+        price (if (< latest-price latest-bid)
+                latest-price latest-bid)
 
         cash-level (-> client (->account-cash-level account-updates-ch) :value)
         _ (info "3 - buy-stock / account-updates-ch channel-open? / " (channel-open? account-updates-ch)
@@ -180,6 +214,7 @@
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
                                     {account-updates-ch :account-updates
+                                     position-updates-ch :position-updates
                                      order-updates-ch :order-updates
                                      valid-order-ids-ch :valid-order-ids
                                      order-filled-notifications-ch :order-filled-notifications}]
@@ -187,7 +222,57 @@
          (channel-open? valid-order-ids-ch)
          (channel-open? order-filled-notifications-ch)]}
 
-  (let [[laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
+  (let [[macd-histogram-troughs
+         macd-histogram-crests] (->> joined-tick
+                                     vals
+                                     (map :signals)
+                                     (keep identity)
+                                     flatten
+                                     ((juxt macd-histogram-troughs? macd-histogram-crests?))
+                                     (map
+                                       (fn [a]
+                                         (if-not (empty? a)
+                                           (-> a first :why)
+                                           false))))
+
+        {{last-trade-price-average :last-trade-price-average
+          last-trade-price-exponential :last-trade-price-exponential} :signal-moving-averages} joined-tick
+
+        moving-average-signals-exist? (and (:signal-moving-averages joined-tick)
+                                           (-> joined-tick :signal-moving-averages :last-trade-price-average)
+                                           (-> joined-tick :signal-moving-averages :last-trade-price-exponential))
+
+        exponential-abouve-simple? (and moving-average-signals-exist?
+                                        (> last-trade-price-exponential last-trade-price-average))
+
+        exponential-below-simple? (and moving-average-signals-exist?
+                                       (< last-trade-price-exponential last-trade-price-average))
+
+        stock {:symbol instrm}]
+
+
+    (info "2 - extract-signals+decide-order / " [macd-histogram-troughs macd-histogram-crests]
+          " /" [exponential-abouve-simple? exponential-below-simple?])
+    (match [macd-histogram-troughs macd-histogram-crests]
+
+           [:macd-histogram-troughs false]
+           (when exponential-below-simple?
+             (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+
+           [false :macd-histogram-crests]
+           (when exponential-abouve-simple?
+             #_(sell-market client stock order valid-order-ids-ch account-name)
+             (let [{sym :symbol posn :position :as position} (->account-positions client position-updates-ch)
+                   order {:quantity posn}
+                   execute-sell? (and posn (> posn 0))]
+
+               (info "BEFORE sell-market / position /" position " / execute-sell? /" execute-sell?)
+               (when execute-sell?
+                 (sell-market client stock order valid-order-ids-ch account-name))))
+
+           :else :noop))
+
+  #_(let [[laggingS leadingS confirmingS] (-> joined-tick which-signals? which-ups?)]
 
     (info "2 - extract-signals+decide-order / " [laggingS leadingS confirmingS])
     (match [laggingS leadingS confirmingS]
@@ -251,7 +336,14 @@
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
-(defn setup-execution-engine [joined-channel
+(defn consume-processing-pipeline-input-channel [input-ch]
+  (go-loop [tick (<! input-ch)]
+    (when (:last-bid-price tick)
+      (reset! common/latest-bid (:last-bid-price tick)))
+    (recur (<! input-ch))))
+
+(defn setup-execution-engine [{joined-channel :joined-channel
+                               processing-pipeline-input-channel :input-channel}
                               joined-channel-tapped
                               {{valid-order-id-ch :valid-order-ids
                                 order-filled-notification-ch :order-filled-notifications
@@ -261,6 +353,10 @@
 
 
   (bind-channels->mult joined-channel joined-channel-tapped)
+
+
+
+  (consume-processing-pipeline-input-channel processing-pipeline-input-channel)
 
 
   ;; CONSUME ORDER UPDATES
@@ -316,6 +412,35 @@
   ;; [~] Scheduled health check for input channels
   ;;   Error. Id: 55, Code: 103, Msg: Duplicate order id
 
+  ;; [ok] track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
+  ;;   These are the only tickString types I see coming in
+  ;;   48 45 33 32
+
+
+  ;; [ok] [buy] MACD Histogram crossover from + to -
+  ;; [x] [sell] MACD Histogram crests in + territory
+
+  ;; [buy] MACD Histogram
+  ;;   i. has crossed from + to -
+  ;;   ii. is negative
+  ;;   iii. is in a trough
+  ;; [buy] Exponential MA has crossed below Simple MA?
+
+  ;; only purchase more if
+  ;;   we're gaining (over last 3 ticks)
+  ;;   we have enough money
+
+  ;; (in processing pipeline) should be fleshed out more:
+  ;;   Bollinger-band signals
+  ;;     Day Trading Interactive Lessons - Bollinger Bands Squeeze
+  ;;     https://www.youtube.com/watch?v=mnFpLRxxB5o
+  ;;   RSI divergence
+  ;;   MACD Histogram
+
+  ;; guard against down (or sideways) markets
+  ;;  only buy in up markets
+
+
 
   ;; Onyx
   ;;   stream joined
@@ -327,10 +452,6 @@
   ;;   https://mail.google.com/mail/u/0/#label/**+Clojure/FMfcgxvwzcLlWljQvGlldvvpzTQFJHpr
   ;;   https://github.com/kkinnear/zpst
 
-  ;; only purchase more if
-  ;;   we're gaining (over last 3 ticks)
-  ;;   we have enough money
-
 
   ;; BUY if
   ;;   [ok] :up signal from lagging + leading (or more)
@@ -339,15 +460,6 @@
   ;;   we have enough money
   ;;   * buy up to $1000 or 50% of cash (whichever is less)
 
-
-  ;; (in processing pipeline) bollinger-band signals should be fleshed out more
-  ;;   also look at RSI divergence
-  ;;   Day Trading Interactive Lessons - Bollinger Bands Squeeze
-  ;;   https://www.youtube.com/watch?v=mnFpLRxxB5o
-
-  ;; track bid / ask with stream (https://interactivebrokers.github.io/tws-api/tick_types.html)
-  ;;   These are the only tickString types I see coming in
-  ;;   48 45 33 32
 
   ;; Bid Size	0	IBApi.EWrapper.tickSize
   ;; Bid Price	1	IBApi.EWrapper.tickPrice
@@ -473,6 +585,22 @@
 
 (comment
 
+  (->> five
+       vals
+       (map :signals)
+       (keep identity)
+       flatten
+       ((juxt macd-histogram-troughs? macd-histogram-crests?))
+       (map identity-or-empty))
+
+  (->> one
+       vals
+       (map :signals)
+       (keep identity)
+       flatten
+       ((juxt macd-histogram-troughs? macd-histogram-crests?))
+       (map identity-or-empty))
+
   (which-signals? one)
   (which-signals? three)
   (which-signals? four)
@@ -522,19 +650,19 @@
 
 
   ;; SCAN SET CHANGES
-  (require '[clojure.set :as s])
-
   (do
-    (def one #{:a :b :c})
-    (def two #{:b :c :d})
-    (def three #{:c :d}))
+    (require '[clojure.set :as s])
 
-  (defn ->removed [orig princ]
-    (s/difference orig princ))
+    (do
+      (def one #{:a :b :c})
+      (def two #{:b :c :d})
+      (def three #{:c :d}))
 
-  (defn ->added [orig princ]
-    (s/difference princ orig))
+    (defn ->removed [orig princ]
+      (s/difference orig princ))
 
+    (defn ->added [orig princ]
+      (s/difference princ orig)))
 
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
@@ -542,6 +670,7 @@
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.account/account)
+
 
   (do
 
@@ -561,8 +690,11 @@
   ;; START
   (do
     (def instrument "AMZN")
+    (def instrument2 "TSLA")
+
     (def concurrency 1)
     (def ticker-id 1003)
+    (def ticker-id2 1004)
 
     ;; Next valid Id
     ;; (.reqIds client -1)
@@ -570,11 +702,28 @@
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
     (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
-    (def execution-engine-output-ch (chan (sliding-buffer 100))))
+    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+    (def joined-channel-map (promise)))
 
-  (thread (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency ticker-id))
-  (thread (setup-execution-engine processing-pipeline-output-ch execution-engine-output-ch
-                                  ewrapper/ewrapper instrument account-name))
+  (thread
+    (deliver joined-channel-map
+             (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency ticker-id)))
+  (thread
+    (setup-execution-engine @joined-channel-map execution-engine-output-ch ewrapper/ewrapper instrument account-name))
+
+
+  #_(let [{jch :joined-channel
+         ich :input-channel} @joined-channel-map]
+
+    (go-loop [r (<! jch)]
+      (when r
+        (let [sr (update-in r [:sma-list] dissoc :population)]
+          (info "joined-channel:" sr)
+          (recur (<! jch)))))
+
+    #_(go-loop [r (<! ich)]
+      (info "input-channel:" r)
+      (recur (<! ich))))
 
   (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
 
@@ -587,15 +736,17 @@
   (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")
 
 
-
   (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))
+  (->account-positions client (-> ewrapper/ewrapper :default-channels :position-updates))
 
+  (.reqPositions client)
 
   ;; STOP
   (do
     (scanner/stop client)
+
     (sw/stop-stream-live live-subscription)
-    (pp/teardown-publisher-channel processing-pipeline-output-ch)
+    (pp/teardown-publisher-channel @joined-channel-map)
     (teardown-execution-engine execution-engine-output-ch))
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper

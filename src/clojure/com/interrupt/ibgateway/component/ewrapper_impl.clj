@@ -63,6 +63,7 @@
 (defn ewrapper-impl
   [{tick-updates :publisher
     account-updates :account-updates
+    position-updates :position-updates
     order-updates :order-updates
     valid-order-ids :valid-order-ids}]
 
@@ -222,7 +223,8 @@
       (let [val {:topic :account-summary-end
                  :req-id reqId}]
         (debug "accountSummaryEnd / reqId /" reqId)
-        (async/put! account-updates val)))
+        ;; (async/put! account-updates val)
+        ))
 
 
     ;; ========
@@ -234,7 +236,8 @@
       (let [val {:topic :position
                  :account account
                  :contract contract
-                 :pos pos
+                 :symbol (.symbol contract)
+                 :position pos
                  :avg-cost avgCost}]
 
         (debug "position / "
@@ -244,12 +247,13 @@
               " Currency / " (.currency contract)
               " Position / " pos
               " Avg cost / " avgCost)
-        (async/put! account-updates val)))
+        (async/put! position-updates val)))
 
     (positionEnd []
       (let [val {:topic :position-end}]
         (debug "PositionEnd \n")
-        (async/put! account-updates val)))
+        ;; (async/put! account-updates val)
+        ))
 
 
     ;; ========

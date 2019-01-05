@@ -170,8 +170,11 @@
 (defn onmessage-handler [e]
 
   (let [charts (aget (.-charts js/Highcharts) 0)
+        ;; _ (.log js/console "charts: " charts)
 
         tick-series (aget (.-series charts) 0)
+        ;; _ (.log js/console "tick-series: " tick-series)
+
         sma-series (aget (.-series charts) 1)
         ema-series (aget (.-series charts) 2)
         bband-series (aget (.-series charts) 3)
@@ -206,7 +209,6 @@
         macd-signal [last-trade-time ema-signal]
         macd-histogram [last-trade-time histogram]
 
-
         stochastic-oscillator-k [last-trade-time K]
         stochastic-oscillator-d [last-trade-time D]
         on-balance-volume [last-trade-time obv]
@@ -224,7 +226,9 @@
 
     ;; (.log js/console (js/eval (clj->js message)))
     ;; (.log js/console "----")
-    ;; (.log js/console (str "macd-price-series / " (js/eval (clj->js macd-price ))))
+
+    ;; (.log js/console (str "tick-series / " (clj->js tick)))
+    ;; (.log js/console (str "macd-price-series / " (js/eval (clj->js macd-price))))
     ;; (.log js/console (str "macd-signal-series / " (js/eval (clj->js macd-signal))))
     ;; (.log js/console (str "macd-histogram-series / " (js/eval (clj->js macd-histogram))))
     ;; (.log js/console (str "stochastic-kseries / " (js/eval (clj->js stochastic-oscillator-k))))
@@ -240,12 +244,15 @@
     (when macd-signal (.addPoint macd-signal-series (js/eval (clj->js macd-signal)) true false))
     (when macd-histogram (.addPoint macd-histogram-series (js/eval (clj->js macd-histogram)) true false))
 
-    (when stochastic-oscillator-k (.addPoint stochastic-kseries (js/eval (clj->js stochastic-oscillator-k)) true false))
-    (when stochastic-oscillator-d (.addPoint stochastic-dseries (js/eval (clj->js stochastic-oscillator-d)) true false))
-    (when on-balance-volume (.addPoint on-balance-volume-series (js/eval (clj->js on-balance-volume)) true false))))
+    (when stochastic-oscillator-k
+      (.addPoint stochastic-kseries (js/eval (clj->js stochastic-oscillator-k)) true false))
+    (when stochastic-oscillator-d
+      (.addPoint stochastic-dseries (js/eval (clj->js stochastic-oscillator-d)) true false))
+    (when on-balance-volume
+      (.addPoint on-balance-volume-series (js/eval (clj->js on-balance-volume)) true false))))
 
 (defn doc-ready-handler []
-  (let[ready-state (. js/document -readyState)]
+  (let [ready-state (. js/document -readyState)]
     (when (= "complete" ready-state)
 
       (.log js/console "DOMContentLoaded callback")
@@ -253,11 +260,9 @@
       (loadData)
 
       (let [w (js/WebSocket. "ws://localhost:8080/ws")]
-
-        (set! (.-onmessage w) onmessage-handler)
-        (set! (.-onclose w)
-              (fn [e]
-                (.log js/console "The connection to the server has closed.")))))))
+        (aset w "onmessage" onmessage-handler)
+        (aset w "onclose"
+              (fn [e] (.log js/console "The connection to the server has closed.")))))))
 
 
-(aset  js/document "onreadystatechange" doc-ready-handler )
+(aset js/document "onreadystatechange" doc-ready-handler)
