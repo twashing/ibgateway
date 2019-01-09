@@ -426,6 +426,32 @@
   ;;   iii. is in a trough
   ;; [buy] Exponential MA has crossed below Simple MA?
 
+
+  ;; query buy / sell profit + loss
+  ;; run historical
+  ;; clean up code base
+
+
+  ;; consider magnitude of MACD Histogram troughs + crests
+  ;; combine with RSI
+  ;; combine with Bollinger Band squeeze + price going outside top or bottom bands
+
+  ;; The Top 5 Technical Indicators for Profitable Trading
+  ;; https://www.youtube.com/watch?v=C-770uuFILM
+
+  ;; MACD Indicator Secrets
+  ;; https://www.youtube.com/watch?v=eob4wv2v--k
+
+  ;; Trading strategy - Learn about the power of moving averages
+  ;; https://www.youtube.com/watch?v=vyUpJlzCdqc
+
+  ;; Bollinger Bands Squeeze
+  ;; https://www.youtube.com/watch?v=E2h-LLIC6yc
+
+  ;; Stochastic Technical Analysis
+  ;; https://www.youtube.com/watch?v=88n-a3rUmJQ
+
+
   ;; only purchase more if
   ;;   we're gaining (over last 3 ticks)
   ;;   we have enough money
