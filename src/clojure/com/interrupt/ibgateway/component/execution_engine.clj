@@ -427,6 +427,22 @@
   ;; [buy] Exponential MA has crossed below Simple MA?
 
 
+  ;; REFACTOR
+  ;;   howto write generators
+  ;;   can we write generators that execute in a prescribed sequence (automaton)
+  ;;   later verify that messages were received in either
+  ;;     i) the right sequence and ii) within a time threshold (automaton)
+
+  ;; [~] go through onyx-platform/learn-onyx
+  ;;   [~] break stream into a sliding window of 20
+  ;;   [~] fan out & apply analytic
+  ;;   [~] join results based on :timestamp
+  ;;     :onyx.windowing.aggregation/collect-by-key (in Aggregation) OR
+  ;;     (Grouping)
+
+  ;; build out onyx stream join for i) order updates, ii) order filled and iii) joined tick messages
+  ;;   join on timestamp
+
   ;; query buy / sell profit + loss
   ;; run historical
   ;; clean up code base
