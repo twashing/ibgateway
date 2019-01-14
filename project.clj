@@ -44,6 +44,9 @@
                  [org.clojure/tools.cli "0.3.7"]
                  [automata "0.2.0-SNAPSHOT"]
 
+                 [org.onyxplatform/onyx "0.14.1"]
+                 [com.codahale.metrics/metrics-core "3.0.2"]
+
                  ;; Java Libraries
                  [manifold "0.1.7-alpha6"]
                  [net.cgrand/xforms "0.17.0"]
