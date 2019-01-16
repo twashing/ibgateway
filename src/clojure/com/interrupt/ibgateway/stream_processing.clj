@@ -24,7 +24,8 @@
 
 (def workflow
   [[:in :identity]
-   [:identity :out]])
+   [:identity :dosomething]
+   [:dosomething :out]])
 
 (def catalog
   [{:onyx/name :in
@@ -37,6 +38,11 @@
 
    {:onyx/name :identity
     :onyx/fn :clojure.core/identity
+    :onyx/type :function
+    :onyx/batch-size batch-size}
+
+   {:onyx/name :dosomething
+    :onyx/fn ::dosomething
     :onyx/type :function
     :onyx/batch-size batch-size}
 
@@ -53,16 +59,8 @@
 (def input-buffer (atom {}))
 (def output-chan (chan capacity))
 
-#_(def input-segments
-    [{:n 0 :event-time #inst "2015-09-13T03:00:00.829-00:00"}
-     {:n 1 :event-time #inst "2015-09-13T03:03:00.829-00:00"}
-     {:n 2 :event-time #inst "2015-09-13T03:07:00.829-00:00"}
-     {:n 3 :event-time #inst "2015-09-13T03:11:00.829-00:00"}
-     {:n 4 :event-time #inst "2015-09-13T03:15:00.829-00:00"}
-     {:n 5 :event-time #inst "2015-09-13T03:02:00.829-00:00"}])
-
 (def input-segments
-  (map (fn [a] {:event-time a}) (range 22)))
+  (map (fn [a] {:event-time a}) (range 25)))
 
 (doseq [segment input-segments]
   (>!! input-chan segment))
@@ -111,13 +109,19 @@
   [{:trigger/window-id :collect-segments
     :trigger/id :sync
     :trigger/on :onyx.triggers/segment
+    :trigger/fire-all-extents? true
     :trigger/threshold [20 :elements]
-    :trigger/sync ::dump-window!}])
+    :trigger/emit ::relay-message}])
 
-(defn dump-window!
+(defn relay-message
   [event window trigger {:keys [lower-bound upper-bound] :as window-data} state]
-  (println (format "Window extent [%s - %s] contents: %s"
-                   lower-bound upper-bound state)))
+  (println (format "Window extent [%s - %s] / contents: %s" lower-bound upper-bound state))
+  state)
+
+(defn dosomething [segment]
+  (println (format "dosomething / segment: %s" segment))
+  segment)
+
 
 (defn -main
   [& args]
@@ -134,11 +138,11 @@
         _ (close! input-chan)]
      (onyx.api/await-job-completion peer-config (:job-id submission)))
 
-  (take-segments! output-chan 50)
+  (println "FINAL")
+  (println (take-segments! output-chan 50))
 
   (doseq [v-peer v-peers]
     (onyx.api/shutdown-peer v-peer))
 
   (onyx.api/shutdown-peer-group peer-group)
-
   (onyx.api/shutdown-env env))
