@@ -212,7 +212,7 @@
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
           (info "count:" c " / sr:" sr)
-          (send-message-to-all! sr)
+          ;; (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
 
 

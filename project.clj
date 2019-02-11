@@ -42,7 +42,7 @@
                  [io.pedestal/pedestal.log "0.5.5"]
                  [com.cognitect/pedestal.vase "0.9.3"]
                  [org.clojure/tools.cli "0.3.7"]
-                 [automata "0.2.0-SNAPSHOT"]
+                 [automata "0.2.0"]
 
                  [org.onyxplatform/onyx "0.14.1"]
                  [com.codahale.metrics/metrics-core "3.0.2"]

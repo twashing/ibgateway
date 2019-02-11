@@ -336,7 +336,7 @@
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
-(defn consume-processing-pipeline-input-channel [input-ch]
+(defn scan-for-latest-bid [input-ch]
   (go-loop [tick (<! input-ch)]
     (when (:last-bid-price tick)
       (reset! common/latest-bid (:last-bid-price tick)))
@@ -352,11 +352,8 @@
                               instrm account-name]
 
 
-  (bind-channels->mult joined-channel joined-channel-tapped)
-
-
-
-  (consume-processing-pipeline-input-channel processing-pipeline-input-channel)
+  ;; (bind-channels->mult joined-channel joined-channel-tapped)
+  (scan-for-latest-bid processing-pipeline-input-channel)
 
 
   ;; CONSUME ORDER UPDATES
@@ -377,7 +374,7 @@
 
 
   ;; CONSUME JOINED TICK STREAM
-  (consume-joined-channel joined-channel-tapped default-channels client instrm account-name)
+  (consume-joined-channel joined-channel default-channels client instrm account-name)
 
 
   joined-channel-tapped
@@ -416,15 +413,24 @@
   ;;   These are the only tickString types I see coming in
   ;;   48 45 33 32
 
+  ;; [x] go through onyx-platform/learn-onyx
+  ;;   [~] break stream into a sliding window of 20
+  ;;   [~] fan out & apply analytic
+  ;;   [~] join results based on :timestamp
+  ;;     :onyx.windowing.aggregation/collect-by-key (in Aggregation) OR
+  ;;     (Grouping)
+  ;; [x] build out onyx stream join for i) order updates, ii) order filled and iii) joined tick messages
+  ;;   join on timestamp
 
   ;; [ok] [buy] MACD Histogram crossover from + to -
   ;; [x] [sell] MACD Histogram crests in + territory
-
   ;; [buy] MACD Histogram
   ;;   i. has crossed from + to -
   ;;   ii. is negative
   ;;   iii. is in a trough
   ;; [buy] Exponential MA has crossed below Simple MA?
+
+
 
 
   ;; REFACTOR
@@ -433,27 +439,28 @@
   ;;   later verify that messages were received in either
   ;;     i) the right sequence and ii) within a time threshold (automaton)
 
-  ;; [~] go through onyx-platform/learn-onyx
-  ;;   [~] break stream into a sliding window of 20
-  ;;   [~] fan out & apply analytic
-  ;;   [~] join results based on :timestamp
-  ;;     :onyx.windowing.aggregation/collect-by-key (in Aggregation) OR
-  ;;     (Grouping)
 
-  ;; build out onyx stream join for i) order updates, ii) order filled and iii) joined tick messages
-  ;;   join on timestamp
+  ;; query buy / sell profit + loss (within next 5 - 10 ticks)
+  ;;   extract extract-signals+decide-order
+  ;;   automata: (RSI+ | MACD+ | BollingerBand+ | Supertrend+)
 
-  ;; query buy / sell profit + loss
+  ;;   Exponential MA has crossed below / abouve Simple MA?
+  ;;   MACD troughs / crests - consider magnitude of MACD Histogram troughs + crests
+  ;;   combine with RSI
+  ;;   combine with Bollinger Band squeeze + price going outside top or bottom bands
+
   ;; run historical
   ;; clean up code base
 
 
-  ;; consider magnitude of MACD Histogram troughs + crests
-  ;; combine with RSI
-  ;; combine with Bollinger Band squeeze + price going outside top or bottom bands
-
   ;; The Top 5 Technical Indicators for Profitable Trading
   ;; https://www.youtube.com/watch?v=C-770uuFILM
+
+  ;;   Indicator 1: RSI
+  ;;   Indicator 2: MACD
+  ;;   Indicator 3: Bollinger band
+  ;;   Indicator 4: Supertrend indicator
+  ;;   Indicator 5: Indicator confluence
 
   ;; MACD Indicator Secrets
   ;; https://www.youtube.com/watch?v=eob4wv2v--k

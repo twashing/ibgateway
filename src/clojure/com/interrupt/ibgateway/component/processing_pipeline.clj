@@ -557,7 +557,25 @@
     (pipeline-signals-moving-average concurrency lagging-signals-moving-averages-ch
                                      signal-moving-averages-ch)
 
-    ;; TODO bollinger-band signals should be fleshed out more
+    ;; TODO bollinger-band signals should be fleshed out more (https://www.youtube.com/watch?v=E2h-LLIC6yc)
+
+    ;; measure squeeze over entire tick window (20 ticks)
+
+    ;; A) BandWidth is considered
+    ;;   narrow as it approaches the lows of range
+    ;;   wide as it approaches the high end.
+
+    ;; B) The width of the bands is equal to 10% of the middle band.
+
+    ;; ? Average of last 5, below average of last 20
+    ;; ? low variance (not moving a lot)
+
+    ;; TODO track volume increase
+
+    ;; TODO bollinger-band %B analytic and chart.
+    ;; Where price is in reltion to the band
+    ;; 80, 50, 20 - whether price is closer to upper or lower band.
+    ;; TODO track supports over the last 20 ticks
     (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
                                      signal-bollinger-band-ch)
 
@@ -568,6 +586,15 @@
     ;; TODO on balance volume signals are all down (not up)
     (pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
               on-balance-volume->on-balance-volume-ch)
+
+    ;; TODO put aggregate signals here
+    '[:exponential-ma-has-crossed-below
+      :macd-troughs
+      (or :rsi :bollinger-band-squeeze)]
+
+    '[:exponential-ma-has-crossed-abouve
+      :macd-peaks
+      (or :rsi :bollinger-band-squeeze)]
 
 
     #_(go-loop [c 0 r (<! tick-list-ch)]
