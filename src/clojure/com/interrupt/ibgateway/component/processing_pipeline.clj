@@ -139,7 +139,6 @@
         assoc-size
         (dissoc :field :size))))
 
-
 (defn empty-last-trade-price? [event]
   (or (-> event :last-trade-price nil?)
       (-> event :last-trade-price (<= 0))))
@@ -255,9 +254,11 @@
         bollinger-band-exists-xf (filter #(->> (filter :bollinger-band %)
                                                matches-window-size?))
         join-xf (map (fn [e]
-                       (let [ks [:tick-list :bollinger-band]]
+                       (let [ks [:tick-list :sma-list :bollinger-band]]
                          (->> e
-                              ((juxt #(map (first ks) %) #(map (second ks) %)))
+                              ((juxt #(map (first ks) %)
+                                     #(map (second ks) %)
+                                     #(map (nth ks 2) %)))
                               (zipmap ks)))))
 
         partitioned-ch (chan (sliding-buffer 100) partition-xf)
@@ -309,6 +310,8 @@
    :sma-list->JOIN (chan (sliding-buffer 100) (map last))
    :ema-list->JOIN (chan (sliding-buffer 100) (map last))
    :bollinger-band->JOIN (chan (sliding-buffer 100) (map last))
+   :sma-list->JOIN->bollinger (chan (sliding-buffer 100) (map last))
+
    :macd->JOIN (chan (sliding-buffer 100) (map last))
    :stochastic-oscillator->JOIN (chan (sliding-buffer 100) (map last))
    :on-balance-volume->JOIN (chan (sliding-buffer 100) (map last))
@@ -364,12 +367,15 @@
     (stream/connect @result moving-averages-connector-ch)
     moving-averages-connector-ch))
 
-(defn join-analytics->bollinger-band [tick-list->JOIN bollinger-band->JOIN]
+(defn join-analytics->bollinger-band [tick-list->JOIN bollinger-band->JOIN sma-list->JOIN->bollinger]
 
-  (let [[tick-list->CROSS bollinger-band->CROSS] (channel->stream tick-list->JOIN bollinger-band->JOIN)
+  (let [[tick-list->CROSS bollinger-band->CROSS sma-list->CROSS]
+        (channel->stream tick-list->JOIN bollinger-band->JOIN sma-list->JOIN->bollinger)
+
         bollinger-band-connector-ch (chan (sliding-buffer 100))
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
                                                 :skey-streams {:tick-list tick-list->CROSS
+                                                               :sma-list sma-list->CROSS
                                                                :bollinger-band bollinger-band->CROSS}})]
 
     (stream/connect @result bollinger-band-connector-ch)
@@ -463,7 +469,7 @@
 
         ;; Channel JOIN Mults
         {:keys [sma-list->JOIN ema-list->JOIN
-                tick-list->JOIN bollinger-band->JOIN
+                tick-list->JOIN bollinger-band->JOIN sma-list->JOIN->bollinger
                 ;; macd->JOIN stochastic-oscillator->JOIN
                 ;; on-balance-volume->JOIN relative-strength->JOIN
                 ]}
@@ -484,7 +490,10 @@
         signal-on-balance-volume-ch (chan (sliding-buffer 100))
 
         lagging-signals-moving-averages-ch (join-analytics->moving-averages sma-list->JOIN ema-list->JOIN)
-        lagging-signals-bollinger-band-connector-ch (join-analytics->bollinger-band tick-list->JOIN bollinger-band->JOIN)
+        lagging-signals-bollinger-band-connector-ch (join-analytics->bollinger-band
+                                                      tick-list->JOIN
+                                                      bollinger-band->JOIN
+                                                      sma-list->JOIN->bollinger)
 
 
         ;; Signal JOIN Mults
@@ -515,7 +524,7 @@
                            tick-list->stochastic-osc-ch tick-list->obv-ch
                            tick-list->relative-strength-ch tick-list->JOIN tick-list->SIGNAL]
                           [sma-list-ch sma-list->ema-ch sma-list->bollinger-band-ch
-                           sma-list->macd-ch sma-list->JOIN sma-list->SIGNAL]
+                           sma-list->macd-ch sma-list->JOIN sma-list->SIGNAL sma-list->JOIN->bollinger]
                           [ema-list-ch ema-list->moving-averages-signal
                            ema-list->JOIN ema-list->SIGNAL]
                           [bollinger-band-ch bollinger-band->JOIN bollinger-band->SIGNAL]
@@ -557,7 +566,7 @@
     (pipeline-signals-moving-average concurrency lagging-signals-moving-averages-ch
                                      signal-moving-averages-ch)
 
-    ;; TODO bollinger-band signals should be fleshed out more (https://www.youtube.com/watch?v=E2h-LLIC6yc)
+    ;; TODO bollinger-band signals should be fleshed out more ( https://www.youtube.com/watch?v=E2h-LLIC6yc )
 
     ;; measure squeeze over entire tick window (20 ticks)
 
@@ -565,10 +574,8 @@
     ;;   narrow as it approaches the lows of range
     ;;   wide as it approaches the high end.
 
-    ;; B) The width of the bands is equal to 10% of the middle band.
+    ;; B) The width of the bands (last 4) is equal to 10% of the middle band.
 
-    ;; ? Average of last 5, below average of last 20
-    ;; ? low variance (not moving a lot)
 
     ;; TODO track volume increase
 

@@ -2,7 +2,9 @@
   (:require [com.interrupt.edgar.core.analysis.lagging :as analysis]
             [com.interrupt.edgar.core.analysis.confirming :as confirming]
             [com.interrupt.edgar.core.signal.common :as common]
-            [clojure.tools.logging :refer [info] :as log]))
+            [com.interrupt.edgar.math :refer [mean]]
+            [clojure.tools.logging :refer [info] :as log]
+            [clojure.tools.trace :refer [trace]]))
 
 
 (defn moving-averages
@@ -187,6 +189,12 @@
 
       :else (-> bollinger-band last ((partial bind-result item))))))
 
+(defn analysis-bollinger-band-squeeze [{:keys [bollinger-band] :as item}]
+  (assoc item :signals [{:signal :up
+                         :why :bollinger-band-squeeze}
+                        {:signal :down
+                         :why :bollinger-band-squeeze}]))
+
 (defn analysis-up-market+bollinger-band-squeeze [{:keys [bollinger-band] :as item} valleys]
 
   (if (valley-inside-lower+price-below-lower? bollinger-band valleys)
@@ -232,7 +240,7 @@
       iv. entry signal -> check if one of next 3 closes are underneath the priors (or are in the opposite direction)
 
    ** This function assumes the latest tick is on the right"
-  [tick-window {:keys [tick-list bollinger-band] :as item}]
+  [tick-window {:keys [tick-list sma-list bollinger-band] :as item}]
 
   ;; TODO up-market definition includes an MA that is abouve the tick line
   ;; TODO - determine how far back to look (defaults to 5 ticks) to decide on an UP or DOWN market
@@ -272,6 +280,45 @@
         latest-diff (- (-> bollinger-band last :upper-band)
                        (-> bollinger-band last :lower-band))
 
+
+        ;; TRY A - are difference of last 4 under 11% of the middle band
+        last-four-averages (->> sma-list
+                                (take-last 4)
+                                (map #(select-keys % [:last-trade-price-average])))
+
+        last-four-differences (->> bollinger-band
+                                   (take-last 4)
+                                   (map #(select-keys % [:upper-band :lower-band]))
+                                   (map #(assoc % :difference (- (:upper-band %) (:lower-band %)))))
+
+        difference-below-11-percent?
+        (->> (map #(merge (select-keys %1 [:last-trade-price-average])
+                          (select-keys %2 [:upper-band :lower-band :difference]))
+                  last-four-averages last-four-differences)
+
+             (map #(assoc % :difference-to-average
+                          (/ (:difference %) (:last-trade-price-average %))))
+
+             (map #(assoc % :difference-below-11-percent?
+                          (< (:difference-to-average %) (:last-trade-price-average %)))))
+
+
+        ;; TRY B - are the last 4 ticks under 20% of the average of the last 20
+        [mean-lhs mean-rhs]
+        (->> bollinger-band
+             (map #(select-keys % [:upper-band :lower-band]))
+             (map #(assoc % :difference (- (:upper-band %) (:lower-band %))))
+             (split-at 16)
+             ;; (map (comp mean (map :difference)))
+             ;; (map (fn [a] (mean (map :difference a))))
+             (map #(mean (map :difference %)))
+             trace)
+
+        last-4-differences-lowest? (trace (< mean-rhs mean-lhs))
+
+
+        
+
         bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
 
         ;; Find last 3 peaks and valleys
@@ -292,6 +339,7 @@
 
     (cond-> payload
       ;; any-market? (analysis-rsi-divergence most-wide peaks-valleys)
+      ;; bollinger-band-squeeze? analysis-bollinger-band-squeeze
       sideways-market? (analysis-overbought-oversold peaks-valleys)
       (and up-market? bollinger-band-squeeze?) (analysis-up-market+bollinger-band-squeeze valleys)
       (and down-market? bollinger-band-squeeze?) (analysis-down-market+bollinger-band-squeeze peaks)
