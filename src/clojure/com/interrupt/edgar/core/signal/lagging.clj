@@ -282,25 +282,25 @@
 
 
         ;; TRY A - are difference of last 4 under 11% of the middle band
-        last-four-averages (->> sma-list
-                                (take-last 4)
-                                (map #(select-keys % [:last-trade-price-average])))
-
-        last-four-differences (->> bollinger-band
-                                   (take-last 4)
-                                   (map #(select-keys % [:upper-band :lower-band]))
-                                   (map #(assoc % :difference (- (:upper-band %) (:lower-band %)))))
-
-        difference-below-11-percent?
-        (->> (map #(merge (select-keys %1 [:last-trade-price-average])
-                          (select-keys %2 [:upper-band :lower-band :difference]))
-                  last-four-averages last-four-differences)
-
-             (map #(assoc % :difference-to-average
-                          (/ (:difference %) (:last-trade-price-average %))))
-
-             (map #(assoc % :difference-below-11-percent?
-                          (< (:difference-to-average %) (:last-trade-price-average %)))))
+        ;; last-four-averages (->> sma-list
+        ;;                         (take-last 4)
+        ;;                         (map #(select-keys % [:last-trade-price-average])))
+        ;;
+        ;; last-four-differences (->> bollinger-band
+        ;;                            (take-last 4)
+        ;;                            (map #(select-keys % [:upper-band :lower-band]))
+        ;;                            (map #(assoc % :difference (- (:upper-band %) (:lower-band %)))))
+        ;;
+        ;; difference-below-11-percent?
+        ;; (->> (map #(merge (select-keys %1 [:last-trade-price-average])
+        ;;                   (select-keys %2 [:upper-band :lower-band :difference]))
+        ;;           last-four-averages last-four-differences)
+        ;;
+        ;;      (map #(assoc % :difference-to-average
+        ;;                   (/ (:difference %) (:last-trade-price-average %))))
+        ;;
+        ;;      (map #(assoc % :difference-below-11-percent?
+        ;;                   (< (:difference-to-average %) (:last-trade-price-average %)))))
 
 
         ;; TRY B - are the last 4 ticks under 20% of the average of the last 20
@@ -309,15 +309,13 @@
              (map #(select-keys % [:upper-band :lower-band]))
              (map #(assoc % :difference (- (:upper-band %) (:lower-band %))))
              (split-at 16)
-             ;; (map (comp mean (map :difference)))
-             ;; (map (fn [a] (mean (map :difference a))))
              (map #(mean (map :difference %)))
              trace)
 
-        last-4-differences-lowest? (trace (< mean-rhs mean-lhs))
+        last-4-differences-lowest? (trace (< (/ mean-rhs mean-lhs) 0.3))
 
 
-        
+
 
         bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
 
