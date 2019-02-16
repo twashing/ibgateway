@@ -82,12 +82,9 @@
              :uuid (str (uuid/make-random))
              :type :tick-string
              :tick-type 48
-
              :last-trade-price (if (not (empty? (:last-trade-price rm)))
                                  (read-string (:last-trade-price rm)) 0)
              :last-trade-time (Long/parseLong (:last-trade-time rm))
-             ;; :last-trade-time (:timestamp event)
-
              :last-trade-size (read-string (:last-trade-size rm))
              :total-volume (read-string (:total-volume rm))
              :vwap (read-string (:vwap rm))))))
@@ -568,20 +565,48 @@
 
     ;; TODO bollinger-band signals should be fleshed out more ( https://www.youtube.com/watch?v=E2h-LLIC6yc )
 
-    ;; measure squeeze over entire tick window (20 ticks)
+    ;; > Entry (long @ 6m50s)
+    ;;   BBs contract
+    ;;   Band width showing squeeze
+    ;;   %B > 0.5 before breakout
+    ;;   volume increase
+    ;;   breaking resistance
 
-    ;; A) BandWidth is considered
+    ;; > Exit
+    ;;   Pulling away from Upper Band
+    ;;   Initial stop below base
+    ;;   Hard trailing stop - closes below 20 MA
+
+    ;; > Entry (short @ 5m25s)
+    ;;   BBs contract
+    ;;   Band width showing squeeze
+    ;;   %B < 0.5 before breakout
+    ;;   volume increase
+    ;;   breaking support
+
+    ;; > Exit
+    ;;   Pulling away from Lower Band
+    ;;   Initial stop abouve base
+    ;;   Hard trailing stop - closes abouve 20 MA
+
+
+    ;; [ok] measure squeeze over entire tick window (20 ticks)
+    ;; [ok] BandWidth is considered
     ;;   narrow as it approaches the lows of range
     ;;   wide as it approaches the high end.
 
-    ;; B) The width of the bands (last 4) is equal to 10% of the middle band.
+    ;; [x] The width of the bands (last 4) is equal to 10% of the middle band.
 
 
-    ;; TODO track volume increase
+    ;; [ok] track volume increase (@ 2m45s , 6m05s)
+    ;;   we want to see volume increase on breakout (or break down)
+    ;;   [x] try an exponential moving average, cross over a simple moving average
+    ;;   [ok] volume spike of over 1.5% 
 
     ;; TODO bollinger-band %B analytic and chart.
-    ;; Where price is in reltion to the band
-    ;; 80, 50, 20 - whether price is closer to upper or lower band.
+    ;;   Where price is in reltion to the band
+    ;;   80, 50, 20 - whether price is closer to upper or lower band.
+
     ;; TODO track supports over the last 20 ticks
     (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
                                      signal-bollinger-band-ch)

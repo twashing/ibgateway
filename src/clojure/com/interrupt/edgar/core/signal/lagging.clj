@@ -309,10 +309,16 @@
              (map #(select-keys % [:upper-band :lower-band]))
              (map #(assoc % :difference (- (:upper-band %) (:lower-band %))))
              (split-at 16)
-             (map #(mean (map :difference %)))
-             trace)
+             (map #(mean (map :difference %))))
 
-        last-4-differences-lowest? (trace (< (/ mean-rhs mean-lhs) 0.3))
+        last-4-differences-lowest? (< (/ mean-rhs mean-lhs) 0.3)
+
+        latest-volume-increase-abouve-20? (->> (last partitioned-list)
+                                               (map (comp double :total-volume))
+                                               (apply #(/ %2 %1))
+                                               trace
+                                               (#(< 1.15 %))  ;; 1.015 seems to be the low threshold
+                                               trace)
 
 
 
