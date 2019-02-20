@@ -563,7 +563,7 @@
     (pipeline-signals-moving-average concurrency lagging-signals-moving-averages-ch
                                      signal-moving-averages-ch)
 
-    ;; TODO bollinger-band signals should be fleshed out more ( https://www.youtube.com/watch?v=E2h-LLIC6yc )
+    ;; TODO bollinger-band signals should be fleshed out more ( https://www.youtube.com/w atch?v=E2h-LLIC6yc )
 
     ;; > Entry (long @ 6m50s)
     ;;   BBs contract
@@ -594,18 +594,19 @@
     ;; [ok] BandWidth is considered
     ;;   narrow as it approaches the lows of range
     ;;   wide as it approaches the high end.
-
+    ;;   last 4 ticks under 20% of the average of the last 20
     ;; [x] The width of the bands (last 4) is equal to 10% of the middle band.
 
 
     ;; [ok] track volume increase (@ 2m45s , 6m05s)
     ;;   we want to see volume increase on breakout (or break down)
     ;;   [x] try an exponential moving average, cross over a simple moving average
-    ;;   [ok] volume spike of over 1.5% 
+    ;;   [ok] volume spike of over 1.5%
 
     ;; TODO bollinger-band %B analytic and chart.
     ;;   Where price is in reltion to the band
     ;;   80, 50, 20 - whether price is closer to upper or lower band.
+    ;;   %B = (Current Price - Lower Band) / (Upper Band - Lower Band)
 
     ;; TODO track supports over the last 20 ticks
     (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch

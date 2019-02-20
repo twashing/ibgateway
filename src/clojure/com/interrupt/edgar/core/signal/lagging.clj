@@ -281,7 +281,9 @@
                        (-> bollinger-band last :lower-band))
 
 
-        ;; TRY A - are difference of last 4 under 11% of the middle band
+        ;; A - Bollinger Band squeeze
+
+        ;; TRY i - are difference of last 4 under 11% of the middle band
         ;; last-four-averages (->> sma-list
         ;;                         (take-last 4)
         ;;                         (map #(select-keys % [:last-trade-price-average])))
@@ -303,7 +305,7 @@
         ;;                   (< (:difference-to-average %) (:last-trade-price-average %)))))
 
 
-        ;; TRY B - are the last 4 ticks under 20% of the average of the last 20
+        ;; TRY ii - are the last 4 ticks under 20% of the average of the last 20
         [mean-lhs mean-rhs]
         (->> bollinger-band
              (map #(select-keys % [:upper-band :lower-band]))
@@ -313,14 +315,23 @@
 
         last-4-differences-lowest? (< (/ mean-rhs mean-lhs) 0.3)
 
+        ;; B - Volume spike
         latest-volume-increase-abouve-20? (->> (last partitioned-list)
                                                (map (comp double :total-volume))
                                                (apply #(/ %2 %1))
-                                               trace
+                                               ;;trace
                                                (#(< 1.15 %))  ;; 1.015 seems to be the low threshold
-                                               trace)
+                                               ;;trace
+                                               )
 
-
+        ;; C - %B = (Current Price - Lower Band) / (Upper Band - Lower Band)
+        percent-b (-> bollinger-band
+                      last
+                      (select-keys [:upper-band :lower-band :last-trade-price])
+                      ((fn [{:keys [upper-band lower-band last-trade-price]}]
+                         (/ (- last-trade-price lower-band)
+                            (- upper-band lower-band))))
+                      trace)
 
 
         bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
