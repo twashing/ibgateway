@@ -563,7 +563,7 @@
     (pipeline-signals-moving-average concurrency lagging-signals-moving-averages-ch
                                      signal-moving-averages-ch)
 
-    ;; TODO bollinger-band signals should be fleshed out more ( https://www.youtube.com/w atch?v=E2h-LLIC6yc )
+    ;; NOTE bollinger-band signals should be fleshed out more ( https://www.youtube.com/watch?v=E2h-LLIC6yc )
 
     ;; > Entry (long @ 6m50s)
     ;;   BBs contract
@@ -590,7 +590,7 @@
     ;;   Hard trailing stop - closes abouve 20 MA
 
 
-    ;; [ok] measure squeeze over entire tick window (20 ticks)
+    ;; [ok] A) Measure squeeze over entire tick window (20 ticks)
     ;; [ok] BandWidth is considered
     ;;   narrow as it approaches the lows of range
     ;;   wide as it approaches the high end.
@@ -598,17 +598,31 @@
     ;; [x] The width of the bands (last 4) is equal to 10% of the middle band.
 
 
-    ;; [ok] track volume increase (@ 2m45s , 6m05s)
+    ;; [ok] B) track volume increase (@ 2m45s , 6m05s)
     ;;   we want to see volume increase on breakout (or break down)
     ;;   [x] try an exponential moving average, cross over a simple moving average
     ;;   [ok] volume spike of over 1.5%
 
-    ;; TODO bollinger-band %B analytic and chart.
+    ;; [ok] C) bollinger-band %B analytic and chart.
     ;;   Where price is in reltion to the band
     ;;   80, 50, 20 - whether price is closer to upper or lower band.
     ;;   %B = (Current Price - Lower Band) / (Upper Band - Lower Band)
 
-    ;; TODO track supports over the last 20 ticks
+    ;; TODO Is %B abouve / below the midpoint for... a while (same amount of time as BB squeeze)?
+    ;; TODO place a stop abouve a high / below a low
+    ;; TODO exit is when i. we pull away from the BB -> then ii. close abouve /below the 20 MA
+
+    ;; TODO track supports over the last 20 ticks... highest / lowest price over the last 20 ticks
+    ;;   resistance is most recent crests / troughs. https://www.youtube.com/watch?v=vJ-sRke6lzE&t=4m20s
+    ;;   peaks / troughs are 1 - 4 ticks long?
+    ;;   price move, between peaks / troughs are more than.. some threshold (fibonacci move?)
+    ;;     https://www.investopedia.com/trading/support-and-resistance-basics/
+    ;;   entry is when we take out the resistance
+
+    ;;   ! in isolation, support/resistance should be used in a sideways market (not a trend)
+
+    ;; TODO implement Trendlines (a Simple Moving Average?)
+
     (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
                                      signal-bollinger-band-ch)
 
@@ -631,44 +645,44 @@
 
 
     #_(go-loop [c 0 r (<! tick-list-ch)]
-      (info "count: " c " / tick-list-ch INPUT " r)
-      (when r
-        (recur (inc c) (<! tick-list-ch))))
+        (info "count: " c " / tick-list-ch INPUT " r)
+        (when r
+          (recur (inc c) (<! tick-list-ch))))
 
     #_(go-loop [c 0 r (<! lagging-signals-moving-averages-ch)]
-      (info "count: " c " / lagging-signals-moving-averages INPUT " r)
-      (when r
-        (recur (inc c) (<! lagging-signals-moving-averages-ch))))
+        (info "count: " c " / lagging-signals-moving-averages INPUT " r)
+        (when r
+          (recur (inc c) (<! lagging-signals-moving-averages-ch))))
 
     #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
-      (info "count: " c " / MA signals: " r)
-      (when r
-        (recur (inc c) (<! signal-moving-averages-ch))))
+        (info "count: " c " / MA signals: " r)
+        (when r
+          (recur (inc c) (<! signal-moving-averages-ch))))
 
     #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
-      (info "count: " c " / BB signals: " r)
-      (when r
-        (recur (inc c) (<! signal-bollinger-band-ch))))
+        (info "count: " c " / BB signals: " r)
+        (when r
+          (recur (inc c) (<! signal-bollinger-band-ch))))
 
     #_(go-loop [c 0 r (<! signal-macd-ch)]
-      (info "count: " c " / MACD signals: " r)
-      (when r
-        (recur (inc c) (<! signal-macd-ch))))
+        (info "count: " c " / MACD signals: " r)
+        (when r
+          (recur (inc c) (<! signal-macd-ch))))
 
     #_(go-loop [c 0 r (<! signal-stochastic-oscillator-ch)]
-      (info "count: " c " / SO signals: " r)
-      (when r
-        (recur (inc c) (<! signal-stochastic-oscillator-ch))))
+        (info "count: " c " / SO signals: " r)
+        (when r
+          (recur (inc c) (<! signal-stochastic-oscillator-ch))))
 
     #_(go-loop [c 0 r (<! signal-on-balance-volume-ch)]
-      (info "count: " c " / OBV signal: " r)
-      (when r
-        (recur (inc c) (<! signal-on-balance-volume-ch))))
+        (info "count: " c " / OBV signal: " r)
+        (when r
+          (recur (inc c) (<! signal-on-balance-volume-ch))))
 
     #_(go-loop [c 0 r (<! output-ch)]
         (info "count: " c " / r: " r)
-      (when r
-        (recur (inc c) (<! output-ch))))
+        (when r
+          (recur (inc c) (<! output-ch))))
 
     {:joined-channel output-ch
      :input-channel parsed-list-ch}))

@@ -204,7 +204,7 @@
   ;; 2. Point your browser to http://localhost:8080
 
 
-  ;; 3. Capture output channels and send to browser
+  ;; 3.A Capture output channels and send to browser
   (let [{jch :joined-channel} joined-channel-map]
 
     (go-loop [c 0 r (<! jch)]
@@ -215,11 +215,26 @@
           ;; (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
 
-
-  ;; 4. Start streaming
+  ;; 4.A Start streaming
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
                                fname)
+
+  ;; 3.B
+  (async/reduce
+    (fn [acc r]
+      (let [sr (update-in r [:sma-list] dissoc :population)]
+        (info "count:" acc " / sr:" sr)
+        (inc acc)))
+    0
+    (:joined-channel joined-channel-map))
+
+
+  ;; 4.B Start streaming
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
+                               control-channel
+                               fname
+                               nil)
 
 
   ;; STOP

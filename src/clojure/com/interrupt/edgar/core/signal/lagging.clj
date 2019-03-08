@@ -2,7 +2,9 @@
   (:require [com.interrupt.edgar.core.analysis.lagging :as analysis]
             [com.interrupt.edgar.core.analysis.confirming :as confirming]
             [com.interrupt.edgar.core.signal.common :as common]
+            [com.interrupt.edgar.core.utils :refer [not-nil? opposite-sign]]
             [com.interrupt.edgar.math :refer [mean]]
+            [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [info] :as log]
             [clojure.tools.trace :refer [trace]]))
 
@@ -331,7 +333,82 @@
                       ((fn [{:keys [upper-band lower-band last-trade-price]}]
                          (/ (- last-trade-price lower-band)
                             (- upper-band lower-band))))
-                      trace)
+                      ;; trace
+                      )
+
+
+        ;; D - Peaks / troughs
+        conditionally-track-block (fn [acc a]
+
+                                    (let [price-change (:price-change a)
+                                          previous (-> acc last)
+                                          carry (-> acc last :carry)
+                                          cnt (-> acc last :carry :count)
+                                          cnt-threshold 6
+
+                                          open-block (fn [a price-change]
+                                                       (assoc a :carry {:start price-change
+                                                                        :count 1}))
+
+                                          close-block (fn [this carry price-change]
+                                                        (->> (assoc carry :end price-change)
+                                                             (assoc this :carry)))
+
+                                          conditionally-close-block (fn [{{cnt :count
+                                                                          previous-price-change :start
+                                                                          :as carry}
+                                                                         :carry}
+                                                                        this price-change]
+
+                                                                      (if (and (opposite-sign previous-price-change price-change)
+                                                                               (< cnt cnt-threshold))
+
+                                                                        (close-block this carry price-change)
+                                                                        (open-block this price-change)))
+
+                                          update-count (fn [{carry :carry} this]
+                                                         (->> (update-in carry [:count] inc)
+                                                              (assoc this :carry)))
+
+                                          conditionally-update-count (fn [{{cnt :count end :end} :carry :as previous} this price-change]
+
+                                                                       (match [(< cnt cnt-threshold)
+                                                                               (not-nil? end)]
+
+                                                                              [true false] (update-count previous this)
+                                                                              [_ _] this
+                                                                              ;; [true true] this
+                                                                              ;; [false _] (open-block this price-change)
+                                                                              ))]
+
+                                      (match [(not-nil? price-change)
+                                              (not-nil? carry)]
+
+                                             [false false] a
+                                             [true false] (open-block a price-change)
+                                             [true true] (conditionally-close-block previous a price-change)
+                                             [false true] (conditionally-update-count previous a price-change))))
+
+        peaks-troughs (->> bollinger-band
+                           (partition 2 1)
+                           ;; last
+                           (map (fn [[{left-price :last-trade-price left-sd :standard-deviation :as left}
+                                     {right-price :last-trade-price right-sd :standard-deviation :as right}]]
+
+                                  (let [price-diff (- right-price left-price)]
+                                    (if (> (java.lang.Math/abs price-diff) (* 0.75 left-sd))
+                                      (assoc right :price-change price-diff)
+                                      right))))
+
+                           (reduce (fn [acc a]
+                                     (->> (conditionally-track-block acc a)
+                                          (conj acc)))
+                                   [])
+
+                           trace)
+
+        ;; E - Fibonacci lines
+        ;; F - Pivot points
 
 
         bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)

@@ -1359,22 +1359,30 @@
 (defn stop-stream-workbench [control-channel]
   (>!! control-channel :exit))
 
-(defn kickoff-stream-workbench [wrapper control-channel fname]
-  (let [sub (sub/->FileSubscription fname (chan 100))
-        ch (sub/subscribe sub)]
-    (go-loop []
-      (let [[v c] (alts! [ch control-channel])]
-        (if (= v :exit)
-          (sub/unsubscribe sub)
-          (let [{:keys [topic]} v]
+(defn kickoff-stream-workbench
+  ([wrapper control-channel fname]
+   (kickoff-stream-workbench wrapper control-channel fname 10))
+  ([wrapper control-channel fname consume-delay]
+   (let [sub (sub/->FileSubscription fname (chan 1000))
+         ch (sub/subscribe sub)]
+     (go-loop []
+       (let [[v c] (alts! [ch control-channel])]
+         (if (= v :exit)
+           (sub/unsubscribe sub)
+           (let [{:keys [topic]} v]
 
-            (Thread/sleep 10)
-            (let [f (case topic
-                      :tick-string #(.tickString wrapper %1 %2 %3)
-                      :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
-                      :tick-size #(.tickSize wrapper %1 %2 %3)
-                      :tick-generic #(.tickGeneric wrapper %1 %2 %3))]
-              (->> (dissoc v :topic)
-                   vals
-                   (apply f)))
-            (recur)))))))
+             (when (and consume-delay (> consume-delay 0))
+               (Thread/sleep 10))
+
+             (let [f (try (case topic
+                            :tick-string #(.tickString wrapper %1 %2 %3)
+                            :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
+                            :tick-size #(.tickSize wrapper %1 %2 %3)
+                            :tick-generic #(.tickGeneric wrapper %1 %2 %3))
+                          (catch Exception e
+                            (println (str "Exception processing: " topic " / " (.getMessage e)))
+                            (fn [& etal] :noop)))]
+               (->> (dissoc v :topic)
+                    vals
+                    (apply f)))
+             (recur))))))))
