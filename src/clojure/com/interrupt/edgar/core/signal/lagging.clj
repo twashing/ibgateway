@@ -354,6 +354,10 @@
                                                         (->> (assoc carry :end price-change)
                                                              (assoc this :carry)))
 
+                                          block-closed? (fn [{carry :carry}]
+                                                          (= (-> [:start :end :count] sort)
+                                                             (-> carry keys sort)))
+
                                           conditionally-close-block (fn [{{cnt :count
                                                                           previous-price-change :start
                                                                           :as carry}
@@ -370,7 +374,8 @@
                                                          (->> (update-in carry [:count] inc)
                                                               (assoc this :carry)))
 
-                                          conditionally-update-count (fn [{{cnt :count end :end} :carry :as previous} this price-change]
+                                          conditionally-update-count (fn [{{cnt :count end :end} :carry :as previous}
+                                                                         this price-change]
 
                                                                        (match [(< cnt cnt-threshold)
                                                                                (not-nil? end)]
@@ -382,12 +387,17 @@
                                                                               ))]
 
                                       (match [(not-nil? price-change)
-                                              (not-nil? carry)]
+                                              (not-nil? carry)
+                                              (block-closed? previous)]
 
-                                             [false false] a
-                                             [true false] (open-block a price-change)
-                                             [true true] (conditionally-close-block previous a price-change)
-                                             [false true] (conditionally-update-count previous a price-change))))
+                                             [false false _] a
+
+                                             [true false _] (open-block a price-change)
+                                             [true true false] (conditionally-close-block previous a price-change)
+                                             [true true true] a
+
+                                             [false true false] (conditionally-update-count previous a price-change)
+                                             [false true true] a)))
 
         peaks-troughs (->> bollinger-band
                            (partition 2 1)
