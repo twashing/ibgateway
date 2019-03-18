@@ -418,6 +418,11 @@
                            trace)
 
         ;; E - Fibonacci lines
+        ;;   ? Howto determine start / end points
+        ;;   ? Howto dynamically select partition points... Or do we just need to track by the last 120, 240 ticks
+        ;;   [x] Use seqs as a stand in for channels, for development
+        ;;     - don't see a way to do this; try increasing parallelism factor, reducing consum delay
+
         ;; F - Pivot points
 
 

@@ -188,7 +188,7 @@
   (do
     (def control-channel (chan))
     (def instrument "TSLA")
-    (def concurrency 1)
+    (def concurrency 4)
     (def ticker-id 0)
 
     ;; "live-recordings/2018-08-20-TSLA.edn"
@@ -218,7 +218,8 @@
   ;; 4.A Start streaming
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
-                               fname)
+                               fname
+                               7)
 
   ;; 3.B
   (async/reduce

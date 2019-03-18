@@ -1372,7 +1372,7 @@
            (let [{:keys [topic]} v]
 
              (when (and consume-delay (> consume-delay 0))
-               (Thread/sleep 10))
+               (Thread/sleep consume-delay))
 
              (let [f (try (case topic
                             :tick-string #(.tickString wrapper %1 %2 %3)
