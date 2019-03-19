@@ -281,8 +281,10 @@
 (defn channel-analytics []
   {:source-list-ch (chan (sliding-buffer 100))
    :parsed-list-ch (chan (sliding-buffer 100))
+
    :tick-list-ch (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
    :sma-list-ch (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
+
    :ema-list-ch (chan (sliding-buffer 100))
    :bollinger-band-ch (chan (sliding-buffer 100))
    :macd-ch (chan (sliding-buffer 100))

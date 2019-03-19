@@ -317,6 +317,7 @@
 
         last-4-differences-lowest? (< (/ mean-rhs mean-lhs) 0.3)
 
+
         ;; B - Volume spike
         latest-volume-increase-abouve-20? (->> (last partitioned-list)
                                                (map (comp double :total-volume))
@@ -338,6 +339,11 @@
 
 
         ;; D - Peaks / troughs
+
+        block-closed? (fn [{carry :carry}]
+                        (= (-> [:price-change-start :price-change-end :count] sort)
+                           (-> carry keys sort)))
+
         conditionally-track-block (fn [acc a]
 
                                     (let [price-change (:price-change a)
@@ -347,19 +353,15 @@
                                           cnt-threshold 6
 
                                           open-block (fn [a price-change]
-                                                       (assoc a :carry {:start price-change
+                                                       (assoc a :carry {:price-change-start price-change
                                                                         :count 1}))
 
                                           close-block (fn [this carry price-change]
-                                                        (->> (assoc carry :end price-change)
+                                                        (->> (assoc carry :price-change-end price-change)
                                                              (assoc this :carry)))
 
-                                          block-closed? (fn [{carry :carry}]
-                                                          (= (-> [:start :end :count] sort)
-                                                             (-> carry keys sort)))
-
                                           conditionally-close-block (fn [{{cnt :count
-                                                                          previous-price-change :start
+                                                                          previous-price-change :price-change-start
                                                                           :as carry}
                                                                          :carry}
                                                                         this price-change]
@@ -374,7 +376,7 @@
                                                          (->> (update-in carry [:count] inc)
                                                               (assoc this :carry)))
 
-                                          conditionally-update-count (fn [{{cnt :count end :end} :carry :as previous}
+                                          conditionally-update-count (fn [{{cnt :count end :price-change-end} :carry :as previous}
                                                                          this price-change]
 
                                                                        (match [(< cnt cnt-threshold)
@@ -399,6 +401,19 @@
                                              [false true false] (conditionally-update-count previous a price-change)
                                              [false true true] a)))
 
+        tag-peak-or-trough (fn [{{start :price-change-start
+                                 end :price-change-end} :carry :as a}]
+
+                             (cond
+                               (and (pos? start) (neg? end)) (update-in a [:carry] assoc :tag :peak)
+                               (and (neg? start) (pos? end)) (update-in a [:carry] assoc :tag :trough)
+                               :else a))
+
+        tag-peaks-troughs (fn [a]
+                            (if (block-closed? a)
+                              (tag-peak-or-trough a)
+                              (dissoc a :carry)))
+
         peaks-troughs (->> bollinger-band
                            (partition 2 1)
                            ;; last
@@ -415,13 +430,28 @@
                                           (conj acc)))
                                    [])
 
+                           (map tag-peaks-troughs)
+
                            trace)
 
         ;; E - Fibonacci lines
-        ;;   ? Howto determine start / end points
-        ;;   ? Howto dynamically select partition points... Or do we just need to track by the last 120, 240 ticks
+
+        ;;   [~] Howto determine start / end points
+        ;;     - moving peaks troughs over the last 20, 40, 100, 200
+        ;;     - dynamically query for Fibonacci retracement windows
+
+        ;;   [~] Howto dynamically select partition points... Or do we just need to track by the last 120, 240 ticks
+        ;;     - pick an extended window, and have working windows in the interim
+
         ;;   [x] Use seqs as a stand in for channels, for development
         ;;     - don't see a way to do this; try increasing parallelism factor, reducing consum delay
+
+        fibonacci-levels {:level-zero 0
+                          :level-point-two 0.238
+                          :level-point-three 0.382
+                          :level-point-five 0.5
+                          :level-point-six 0.618
+                          :level-one 1}
 
         ;; F - Pivot points
 

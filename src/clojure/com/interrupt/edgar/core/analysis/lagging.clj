@@ -151,7 +151,7 @@
    where preceding tick-list allows.
 
    ** This function assumes the latest tick is on the right"
-  [tick-window sma-list]
+  [tick-window_UNUSED sma-list]
   {:pre [(time-increases-left-to-right? sma-list)]}
 
   ;; At each step, the Standard Deviation will be:
