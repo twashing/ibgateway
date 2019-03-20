@@ -4,6 +4,8 @@
             [com.interrupt.edgar.core.signal.common :as common]
             [com.interrupt.edgar.core.utils :refer [not-nil? opposite-sign]]
             [com.interrupt.edgar.math :refer [mean]]
+            [com.interrupt.ibgateway.component.common :refer [exists?]]
+
             [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [info] :as log]
             [clojure.tools.trace :refer [trace]]))
@@ -414,25 +416,6 @@
                               (tag-peak-or-trough a)
                               (dissoc a :carry)))
 
-        peaks-troughs (->> bollinger-band
-                           (partition 2 1)
-                           ;; last
-                           (map (fn [[{left-price :last-trade-price left-sd :standard-deviation :as left}
-                                     {right-price :last-trade-price right-sd :standard-deviation :as right}]]
-
-                                  (let [price-diff (- right-price left-price)]
-                                    (if (> (java.lang.Math/abs price-diff) (* 0.75 left-sd))
-                                      (assoc right :price-change price-diff)
-                                      right))))
-
-                           (reduce (fn [acc a]
-                                     (->> (conditionally-track-block acc a)
-                                          (conj acc)))
-                                   [])
-
-                           (map tag-peaks-troughs)
-
-                           trace)
 
         ;; E - Fibonacci lines
 
@@ -452,6 +435,74 @@
                           :level-point-five 0.5
                           :level-point-six 0.618
                           :level-one 1}
+
+        apply-fibonacci-levels (fn [[{{lhs :price-change-end} :carry :as a}
+                                    {{rhs :price-change-start} :carry :as b}]]
+
+                                 (info [:sanity lhs rhs])
+                                 (let [difference (java.lang.Math/abs (- rhs lhs))
+                                       direction-positive? (pos? (- rhs lhs))
+
+                                       apply-levels (fn [[level-key level-percentage]]
+                                                      (let [change (* level-percentage difference)
+                                                            direction-fn (if direction-positive? + -)]
+                                                        {level-key {:percentage level-percentage
+                                                                    :change change
+                                                                    :amount (direction-fn rhs change)}}))]
+
+                                   (->> (select-keys fibonacci-levels [:level-point-two :level-point-three :level-point-five :level-point-six])
+                                        seq
+                                        (map apply-levels))))
+
+        ;; apply-fibonacci-levels (fn [a] (info a) a)
+
+        overlay-fibonacci-at-peaks-and-troughs (fn [bollinger-with-peaks-troughs]
+
+                                                 ;; find :carry(s)
+                                                 (let [one (->> (filter :carry bollinger-with-peaks-troughs)
+
+                                                                ;; partition 2 at a time -> fibonacci start / end points
+                                                                (partition 2 1)
+                                                                trace
+
+                                                                ;; apply fibanacci levels at each end
+                                                                (map apply-fibonacci-levels)
+
+
+                                                                ;; TODO overlay fibanacci calculations over original list
+                                                                trace
+                                                                )]
+
+                                                   ;; (info one)
+                                                   ;; (info (first one))
+                                                   ;; (info (count one))
+                                                   ;; (info (map (fn [a] (info a) a)
+                                                   ;;            one))
+                                                   ;; (info (map apply-fibonacci-levels one))
+                                                   one
+                                                   ))
+
+        peaks-troughs (->> bollinger-band
+                           (partition 2 1)
+                           ;; last
+                           (map (fn [[{left-price :last-trade-price left-sd :standard-deviation :as left}
+                                     {right-price :last-trade-price right-sd :standard-deviation :as right}]]
+
+                                  (let [price-diff (- right-price left-price)]
+                                    (if (> (java.lang.Math/abs price-diff) (* 0.75 left-sd))
+                                      (assoc right :price-change price-diff)
+                                      right))))
+
+                           (reduce (fn [acc a]
+                                     (->> (conditionally-track-block acc a)
+                                          (conj acc)))
+                                   [])
+
+                           (map tag-peaks-troughs)
+
+                           overlay-fibonacci-at-peaks-and-troughs
+                           )
+
 
         ;; F - Pivot points
 
