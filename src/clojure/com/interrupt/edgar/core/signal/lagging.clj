@@ -1,14 +1,15 @@
 (ns com.interrupt.edgar.core.signal.lagging
-  (:require [com.interrupt.edgar.core.analysis.lagging :as analysis]
+  (:require [clojure.core.match :refer [match]]
+            [clojure.tools.logging :refer [info] :as log]
+            [clojure.tools.trace :refer [trace]]
+            [com.rpl.specter :refer :all]
+
+            [com.interrupt.edgar.core.analysis.lagging :as analysis]
             [com.interrupt.edgar.core.analysis.confirming :as confirming]
             [com.interrupt.edgar.core.signal.common :as common]
             [com.interrupt.edgar.core.utils :refer [not-nil? opposite-sign]]
             [com.interrupt.edgar.math :refer [mean]]
-            [com.interrupt.ibgateway.component.common :refer [exists?]]
-
-            [clojure.core.match :refer [match]]
-            [clojure.tools.logging :refer [info] :as log]
-            [clojure.tools.trace :refer [trace]]))
+            [com.interrupt.ibgateway.component.common :refer [exists?]]))
 
 
 (defn moving-averages
@@ -258,8 +259,8 @@
   (->> (last partitioned-list)
        (map (comp double :total-volume))
        (apply #(/ %2 %1))
-       ;;trace
-       (#(< 1.15 %))  ;; 1.015 seems to be the low threshold
+       ;; trace
+       (#(< 1.015 %))  ;; 1.015 seems to be the low threshold
        ;;trace
        ))
 
@@ -443,7 +444,9 @@
                (assoc pt :fibonacci fibonacci)
                pt))
            peaks-troughs)
-      trace))
+      last
+      trace
+      ))
 
 
 (defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} partitioned-list]
@@ -471,9 +474,39 @@
 
 
         ;; F - Pivot points
-        ]
-    
-    (-> bollinger-band last ((partial bind-result item)))))
+
+
+        last-bollinger (last bollinger-band)]
+
+    (cond-> last-bollinger
+
+      (when-not (:signals last-bollinger)) (assoc :signals [])
+
+      last-4-differences-lowest? (update-in [:signals] conj {:signal :either
+                                                             :why :bollinger-band-squeeze})
+
+      latest-volume-increase-abouve-20? (update-in [:signals] conj {:signal :either
+                                                                    :why :volume-spike})
+
+      (> percent-b 0.8) (update-in [:signals] conj {:signal :down
+                                                    :why :percent-b-abouve-80})
+
+      (< percent-b 0.2) (update-in [:signals] conj {:signal :up
+                                                    :why :percent-b-below-20})
+
+      (:fibonacci bollinger-with-peaks-troughs-fibonacci) (update-in [:signals] conj {:signal :fibonacci
+                                                                                      :fibonacci (:fibonacci bollinger-with-peaks-troughs-fibonacci)})
+
+      :always ((partial bind-result item)))
+
+    #_(->> bollinger-band
+         last
+         (#(if-not (:signals %)
+             (assoc % :signals [])
+             %))
+         (#(update-in % [:signals] conj {:signal :up
+                                         :foo :bar}))
+         ((partial bind-result item)))))
 
 
 (defn bollinger-band
