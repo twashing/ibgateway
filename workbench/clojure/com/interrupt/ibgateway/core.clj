@@ -48,6 +48,7 @@
 (comment
 
 
+
   (do (def client (:client ew/ewrapper))
       (def account "DU16007")
       (def valid-order-id 1))
@@ -197,6 +198,9 @@
     ;; "live-recordings/2018-12-24-AMZN.edn"
 
     (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
+    ;; (def fname "live-recordings/2018-12-24-AMZN.edn")
+
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 100)))
     (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))

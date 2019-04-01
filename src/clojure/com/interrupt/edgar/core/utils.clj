@@ -9,6 +9,7 @@
 
 
 (def not-nil? (comp not nil?))
+(def not-empty? (comp not empty?))
 
 (defn opposite-sign [a b]
   (if (or (nil? a) (nil? b))

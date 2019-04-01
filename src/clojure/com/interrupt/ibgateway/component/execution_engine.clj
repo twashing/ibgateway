@@ -331,7 +331,14 @@
         (reset! common/latest-standard-deviation
                 (-> joined-tick :bollinger-band :standard-deviation))
 
-        (when (:sma-list joined-tick)
+        ;; TODO B) extract-signals-for-strategy-bollinger-bands-squeeze
+        ;; (extract-signals-for-strategy-bollinger-bands-squeeze)
+
+        ;; Start wiwth: com.interrupt.edgar.core.signal.lagging
+        ;; that's where the partitioned bollinger band is still reified
+        ;;   use a reduce to pull through an automaton that we transition through
+
+        #_(when (:sma-list joined-tick)
           (extract-signals+decide-order client joined-tick instrm account-name default-channels))
 
         (recur (inc c) (<! joined-channel-tapped))))))

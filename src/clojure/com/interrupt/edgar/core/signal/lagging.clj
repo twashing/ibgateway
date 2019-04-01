@@ -433,7 +433,6 @@
 
        (map (partial apply merge))))
 
-
 (defn bollinger-with-peaks-troughs-fibonacci_fn [peaks-troughs fibonacci-at-peaks-and-troughs]
   (-> (map (fn [{uuid :uuid :as pt}]
 
@@ -445,9 +444,11 @@
                pt))
            peaks-troughs)
       last
-      trace
+      ;; trace
       ))
 
+(defn extract-signals-for-strategy-bollinger-bands-squeeze [bollinger-band-with-signals]
+  )
 
 (defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} partitioned-list]
 
@@ -488,26 +489,22 @@
       latest-volume-increase-abouve-20? (update-in [:signals] conj {:signal :either
                                                                     :why :volume-spike})
 
-      (> percent-b 0.8) (update-in [:signals] conj {:signal :down
-                                                    :why :percent-b-abouve-80})
+      ;; (> percent-b 0.8) (update-in [:signals] conj {:signal :down
+      ;;                                               :why :percent-b-abouve-80})
+      ;;
+      ;; (< percent-b 0.2) (update-in [:signals] conj {:signal :up
+      ;;                                               :why :percent-b-below-20})
 
-      (< percent-b 0.2) (update-in [:signals] conj {:signal :up
-                                                    :why :percent-b-below-20})
+      (> percent-b 0.5) (update-in [:signals] conj {:signal :up
+                                                    :why :percent-b-abouve-50})
+
+      (< percent-b 0.5) (update-in [:signals] conj {:signal :down
+                                                    :why :percent-b-below-50})
 
       (:fibonacci bollinger-with-peaks-troughs-fibonacci) (update-in [:signals] conj {:signal :fibonacci
                                                                                       :fibonacci (:fibonacci bollinger-with-peaks-troughs-fibonacci)})
 
-      :always ((partial bind-result item)))
-
-    #_(->> bollinger-band
-         last
-         (#(if-not (:signals %)
-             (assoc % :signals [])
-             %))
-         (#(update-in % [:signals] conj {:signal :up
-                                         :foo :bar}))
-         ((partial bind-result item)))))
-
+      :always ((partial bind-result item)))))
 
 (defn bollinger-band
   "** This function assumes the latest tick is on the right"
@@ -691,3 +688,43 @@
       ;;   ! in isolation, support/resistance should be used in a sideways market (not a trend)
       true (analysis-day-trading-strategy-bollinger-bands-squeeze partitioned-list)
       :always (consolidate-signals))))
+
+
+(comment
+
+  ;; (require '[automata.core :refer [automaton advance] :as au])
+  (require '[automata.refactor :refer [automata advance] :as a])
+
+  ;; :bollinger-band-squeeze
+  ;; :volume-spike
+  ;; :percent-b-abouve-80
+  ;; :percent-b-below-20
+  ;; :fibonacci
+  (def a (automata [:market-uptrend :bollinger-band-squeeze :percent-b-abouve-50 :fibonacci :volume-spike]))
+  (-> a
+      (advance :bollinger-band-squeeze)
+      (advance :percent-b-abouve-50)
+      (advance :fibonacci)
+      (advance :volume-spike))
+
+
+  (def b (automata [(a/or :bollinger-band-squeeze :volume-spike)
+                    (a/or :bollinger-band-squeeze :volume-spike)
+                    (a/or :percent-b-abouve-50 :percent-b-below-50) :fibonacci]))
+  (-> b
+      (advance :bollinger-band-squeeze)
+      (advance :volume-spike)
+      (advance :percent-b-abouve-50)
+      (advance :fibonacci))
+
+  (-> b
+      (advance :volume-spike)
+      (advance :bollinger-band-squeeze)
+      (advance :percent-b-below-50)
+      (advance :fibonacci))
+
+
+  (def c (automata [(a/+ :bollinger-band-squeeze)
+                    (a/+ :volume-spike)
+                    (a/+ :percent-b-abouve-50)]))
+  )
