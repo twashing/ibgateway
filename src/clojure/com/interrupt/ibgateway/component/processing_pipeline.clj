@@ -11,6 +11,7 @@
             [net.cgrand.xforms :as x]
             [cljs-uuid.core :as uuid]
             [com.rpl.specter :refer :all]
+            [clojure.math.combinatorics :as combo]
             [automata.refactor :refer [automata advance] :as a]
 
             [com.interrupt.ibgateway.component.ewrapper :as ew]
@@ -326,12 +327,58 @@
          true?))
 
   (matching-automata? partitioned-bollinger-band [a b])
-  (matching-automata? partitioned-bollinger-band [a c d])
-  )
+  (matching-automata? partitioned-bollinger-band [a c d]))
+
+
+(def strategy-bollinger-band-squeeze-automata-a
+  (automata [(a/+ :bollinger-band-squeeze)
+             (a/+ :volume-spike)
+             (a/+ :percent-b-abouve-50)]))
+
+(def strategy-bollinger-band-squeeze-automata-b
+  (automata [(a/+ :bollinger-band-squeeze)
+             (a/+ :percent-b-abouve-50)
+             (a/+ :volume-spike)]))
+
+(defn play-state-machine [state-machine transitions]
+  (reduce (fn [acc a]
+            (advance acc a))
+          state-machine
+          transitions))
+
+(defn partitioned-bollinger-band->matching-automata [partitioned-bollinger-band state-machines]
+
+  (let [signals-catesian-product (->> (select [ALL :signals] partitioned-bollinger-band)
+                                      (map (fn [a] (map :why a)))
+                                      (apply combo/cartesian-product))
+
+        signals->valid-state-machines (fn [signals state-machine]
+                                        (->> (map #(play-state-machine state-machine %) signals)
+                                             (remove #(:error %))
+                                             ((fn [results]
+                                                {:automata-match? (not-empty? results)
+                                                 :count (count results)}))))]
+
+    (map (partial signals->valid-state-machines signals-catesian-product) state-machines)))
+
+(defn matching-automata? [partitioned-bollinger-band automatas]
+
+  (->> (partitioned-bollinger-band->matching-automata partitioned-bollinger-band automatas)
+       (map :automata-match?)
+       (some #{true})
+       true?))
 
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [partitioned-bollinger-band]
-  (trace partitioned-bollinger-band)
-  partitioned-bollinger-band)
+
+  ;; (trace partitioned-bollinger-band)
+  (-> partitioned-bollinger-band
+      (matching-automata? [#_strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
+      ((fn [a]
+         (if a
+           (transform [LAST :signals]
+                      #(conj % {:signal :up :why :strategy-bollinger-bands-squeeze})
+                      partitioned-bollinger-band)
+           partitioned-bollinger-band)))))
 
 (defn pipeline-signals-bollinger-band [concurrency connector-ch signal-bollinger-band-ch]
 
