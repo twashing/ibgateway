@@ -212,6 +212,65 @@
     #_(when (>= cash-level minimum-cash-level)
       (market/buy-stock client order-id order-type account-name instrm qty price))))
 
+(comment
+
+    (def one {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                         {:signal :up, :why :percent-b-abouve-50}
+                         {:signal :either, :why :bollinger-band-squeeze})})
+
+    (def two {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                         {:signal :up, :why :percent-b-abouve-50})})
+
+    (def three {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                           {:signal :down, :why :percent-b-below-50}
+                           {:signal :either, :why :bollinger-band-squeeze})})
+
+
+    (->> (select [:signals ALL :why] one)
+         (into #{})
+         (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
+
+    (->> (select [:signals ALL :why] two)
+         (into #{})
+         (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
+
+    (->> (select [:signals ALL :why] three)
+         (into #{})
+         (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze})))
+
+(defn extract-signals-for-strategy-bollinger-bands-squeeze [client
+                                                            {signal-bollinger-band :signal-bollinger-band :as joined-tick}
+                                                            instrm account-name
+                                                            {account-updates-ch :account-updates
+                                                             position-updates-ch :position-updates
+                                                             order-updates-ch :order-updates
+                                                             valid-order-ids-ch :valid-order-ids
+                                                             order-filled-notifications-ch :order-filled-notifications}]
+
+  ;; strategy-bollinger-bands-squeeze-exists?
+  ;; more-than-one-signal?
+  ;;
+  ;; if percent-b-abouve-50? -> up
+  ;; if percent-b-below-50?
+  ;;   must have bollinger-band-squeeze -> up
+  ;;   otherwise -> down
+
+  (let [a (->> (select [:signals ALL :why] one)
+             (into #{})
+             (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
+
+        b (->> (select [:signals ALL :why] two)
+             (into #{})
+             (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
+
+        c (->> (select [:signals ALL :why] three)
+             (into #{})
+             (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))]
+
+    (info "[A C] / " (or a c))
+    (when (or a c)
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
+
 (defn extract-signals+decide-order [client joined-tick instrm account-name
                                     {account-updates-ch :account-updates
                                      position-updates-ch :position-updates
@@ -328,11 +387,11 @@
 
 
         ;; TODO design a better way to capture running standard-deviation
-        (reset! common/latest-standard-deviation
-                (-> joined-tick :bollinger-band :standard-deviation))
+        (reset! common/latest-standard-deviation (-> joined-tick :bollinger-band :standard-deviation))
 
         ;; TODO B) extract-signals-for-strategy-bollinger-bands-squeeze
-        ;; (extract-signals-for-strategy-bollinger-bands-squeeze)
+        (when (:signal-bollinger-band joined-tick)
+          (extract-signals-for-strategy-bollinger-bands-squeeze client joined-tick instrm account-name default-channels))
 
         ;; Start wiwth: com.interrupt.edgar.core.signal.lagging
         ;; that's where the partitioned bollinger band is still reified

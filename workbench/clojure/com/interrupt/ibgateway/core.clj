@@ -197,8 +197,8 @@
     ;; "live-recordings/2018-08-27-TSLA.edn"
     ;; "live-recordings/2018-12-24-AMZN.edn"
 
-    (def fname "live-recordings/2018-08-20-TSLA.edn")
-    ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-12-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
