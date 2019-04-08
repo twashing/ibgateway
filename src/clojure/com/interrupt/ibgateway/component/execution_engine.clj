@@ -267,7 +267,7 @@
              (into #{})
              (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))]
 
-    (info "[A C] / " (or a c))
+    (info "[A B C] / " [a b c])
     (when (or a c)
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
@@ -764,7 +764,7 @@
 (comment  ;; Scanner + Processing Pipeline + Execution Engine
 
 
-  ;; SCAN SET CHANGES
+  ;; A. SCAN SET CHANGES
   (do
     (require '[clojure.set :as s])
 
@@ -780,6 +780,7 @@
       (s/difference princ orig)))
 
 
+  ;; B.
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account)
 
@@ -787,6 +788,7 @@
                #'com.interrupt.ibgateway.component.account/account)
 
 
+  ;; B.1 scanner
   (do
 
     (def client (-> com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper :client))
@@ -802,7 +804,8 @@
   ;; (-> ewrapper/ewrapper :default-channels :order-filled-notifications channel-open?)
   ;; (-> ewrapper/ewrapper :default-channels :order-updates channel-open?)
 
-  ;; START
+
+  ;; B.2 START trading
   (do
     (def instrument "AMZN")
     (def instrument2 "TSLA")
@@ -827,18 +830,18 @@
     (setup-execution-engine @joined-channel-map execution-engine-output-ch ewrapper/ewrapper instrument account-name))
 
 
-  #_(let [{jch :joined-channel
-         ich :input-channel} @joined-channel-map]
-
-    (go-loop [r (<! jch)]
-      (when r
-        (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "joined-channel:" sr)
-          (recur (<! jch)))))
-
-    #_(go-loop [r (<! ich)]
-      (info "input-channel:" r)
-      (recur (<! ich))))
+  ;; (let [{jch :joined-channel
+  ;;        ich :input-channel} @joined-channel-map]
+  ;;
+  ;;   (go-loop [r (<! jch)]
+  ;;     (when r
+  ;;       (let [sr (update-in r [:sma-list] dissoc :population)]
+  ;;         (info "joined-channel:" sr)
+  ;;         (recur (<! jch)))))
+  ;;
+  ;;   #_(go-loop [r (<! ich)]
+  ;;     (info "input-channel:" r)
+  ;;     (recur (<! ich))))
 
   (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
 
@@ -865,4 +868,5 @@
     (teardown-execution-engine execution-engine-output-ch))
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.account/account))
+              #'com.interrupt.ibgateway.component.account/account)
+  )

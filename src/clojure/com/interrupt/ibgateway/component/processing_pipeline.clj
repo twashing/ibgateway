@@ -370,9 +370,9 @@
 
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [partitioned-bollinger-band]
 
-  ;; (trace partitioned-bollinger-band)
+  ;; (info partitioned-bollinger-band)
   (-> partitioned-bollinger-band
-      (matching-automata? [#_strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
+      (matching-automata? [strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
       ((fn [a]
          (if a
            (transform [LAST :signals]

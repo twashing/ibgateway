@@ -25,7 +25,7 @@
 
             [mount.core :refer [defstate] :as mount]
             [net.cgrand.xforms :as x])
-  (:import [com.ib.client EClient ExecutionFilter Order]))
+  (:import [com.ib.client Contract EClient ExecutionFilter Order]))
 
 
 (comment
@@ -617,6 +617,47 @@
                    [?e :switchboard/state ?s]
                    [?s :db/ident :stock-historical-state/off]]
                  (d/db conn))))
+
+
+(comment ;; Requesting Historical Data
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account/account)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.account/account)
+
+  (do
+    (def client (-> ew/ewrapper :ewrapper :client))
+    (def publisher (-> ew/ewrapper :ewrapper :publisher))
+
+    (def cal (java.util.Calendar/getInstance))
+    (.add cal java.util.Calendar/DATE -1)
+    ;; (.add cal Calendar/MONTH -6)
+
+    (def form (java.text.SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
+    (def formatted (.format form (.getTime cal))))
+
+  (let [contract (doto (Contract.)
+                   (.symbol "TSLA")
+                   (.secType "STK")
+                   (.currency "USD")
+                   (.exchange "SMART"))]
+
+    (.reqHistoricalData client 4002 contract formatted "1 D" "30 secs" "MIDPOINT" 1 1 nil))
+
+  ;; (.reqHistoricalData client 4001 (ContractSamples/EurGbpFx) formatted "2 W" "1 sec" "MIDPOINT" 1 1 nil)
+  ;; (.reqHistoricalData client 4002 (ContractSamples/USStockWithPrimaryExch) formatted "1 M" "1 day" "MIDPOINT" 1 1 nil)
+
+
+  (go-loop [c 0 r (<! publisher)]
+    (if-not r
+      r
+      (do
+        (info "count:" c "/ r:" r)
+        (recur (inc c) (<! publisher)))))
+
+  )
 
 
 (comment  ;; from com.interrupt.ibgateway.component.ewrapper-impl
