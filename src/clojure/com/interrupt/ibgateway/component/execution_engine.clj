@@ -1,6 +1,6 @@
 (ns com.interrupt.ibgateway.component.execution-engine
   (:require [clojure.core.async
-             :refer [chan >! >!! <! <!! close! go-loop
+             :refer [go chan >! >!! <! <!! close! go-loop
                      sliding-buffer thread] :as async]
             [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [debug info]]
@@ -20,6 +20,8 @@
             [com.interrupt.edgar.ib.market :as market])
   (:import [com.ib.client Order]))
 
+
+(def *latest-tick* (atom {}))
 
 (def minimum-cash-level (let [a (env :minimum-cash-level 1000)]
                           (if (number? a)
@@ -214,29 +216,29 @@
 
 (comment
 
-    (def one {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
-                         {:signal :up, :why :percent-b-abouve-50}
+  (def one {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                       {:signal :up, :why :percent-b-abouve-50}
+                       {:signal :either, :why :bollinger-band-squeeze})})
+
+  (def two {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                       {:signal :up, :why :percent-b-abouve-50})})
+
+  (def three {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                         {:signal :down, :why :percent-b-below-50}
                          {:signal :either, :why :bollinger-band-squeeze})})
 
-    (def two {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
-                         {:signal :up, :why :percent-b-abouve-50})})
 
-    (def three {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
-                           {:signal :down, :why :percent-b-below-50}
-                           {:signal :either, :why :bollinger-band-squeeze})})
+  (->> (select [:signals ALL :why] one)
+       (into #{})
+       (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
 
+  (->> (select [:signals ALL :why] two)
+       (into #{})
+       (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
 
-    (->> (select [:signals ALL :why] one)
-         (into #{})
-         (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
-
-    (->> (select [:signals ALL :why] two)
-         (into #{})
-         (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
-
-    (->> (select [:signals ALL :why] three)
-         (into #{})
-         (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze})))
+  (->> (select [:signals ALL :why] three)
+       (into #{})
+       (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze})))
 
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [client
                                                             {signal-bollinger-band :signal-bollinger-band :as joined-tick}
@@ -255,20 +257,20 @@
   ;;   must have bollinger-band-squeeze -> up
   ;;   otherwise -> down
 
-  (let [a (->> (select [:signals ALL :why] one)
+  (let [a (->> (select [:signals ALL :why] signal-bollinger-band)
              (into #{})
              (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
 
-        b (->> (select [:signals ALL :why] two)
+        b (->> (select [:signals ALL :why] signal-bollinger-band)
              (into #{})
              (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
 
-        c (->> (select [:signals ALL :why] three)
+        c (->> (select [:signals ALL :why] signal-bollinger-band)
              (into #{})
              (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))]
 
     (info "[A B C] / " [a b c])
-    (when (or a c)
+    (when (or a b c)
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
@@ -377,13 +379,18 @@
 
 (defn consume-joined-channel [joined-channel-tapped default-channels client instrm account-name]
 
-  (go-loop [c 0 joined-tick (<! joined-channel-tapped)]
+  (go-loop [c 0
+            {{last-trade-price :last-trade-price
+              last-trade-time :last-trade-time} :signal-bollinger-band
+             :as joined-tick} (<! joined-channel-tapped)]
     (if-not joined-tick
       joined-tick
       (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
 
+        (reset! *latest-tick* joined-tick)
+
         ;; (info "count: " c " / sr: " sr)
-        (info "1 - count: " c)
+        (info "count:" c " / last-trade-price:" last-trade-price)
 
 
         ;; TODO design a better way to capture running standard-deviation
@@ -392,6 +399,7 @@
         ;; TODO B) extract-signals-for-strategy-bollinger-bands-squeeze
         (when (:signal-bollinger-band joined-tick)
           (extract-signals-for-strategy-bollinger-bands-squeeze client joined-tick instrm account-name default-channels))
+
 
         ;; Start wiwth: com.interrupt.edgar.core.signal.lagging
         ;; that's where the partitioned bollinger band is still reified
@@ -830,20 +838,9 @@
     (setup-execution-engine @joined-channel-map execution-engine-output-ch ewrapper/ewrapper instrument account-name))
 
 
-  ;; (let [{jch :joined-channel
-  ;;        ich :input-channel} @joined-channel-map]
-  ;;
-  ;;   (go-loop [r (<! jch)]
-  ;;     (when r
-  ;;       (let [sr (update-in r [:sma-list] dissoc :population)]
-  ;;         (info "joined-channel:" sr)
-  ;;         (recur (<! jch)))))
-  ;;
-  ;;   #_(go-loop [r (<! ich)]
-  ;;     (info "input-channel:" r)
-  ;;     (recur (<! ich))))
+  ;; (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
+  (sw/start-stream+record-live-data ewrapper/ewrapper [{:index ticker-id :symbol instrument}])
 
-  (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
 
   (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
   (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
@@ -863,10 +860,17 @@
   (do
     (scanner/stop client)
 
-    (sw/stop-stream-live live-subscription)
+    (sw/stop-stream-live (first @sw/live-subscriptions))
     (pp/teardown-publisher-channel @joined-channel-map)
     (teardown-execution-engine execution-engine-output-ch))
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account)
-  )
+
+
+  ;; TEST
+  (let [{{account-updates-ch :account-updates
+          valid-order-id-ch :valid-order-ids} :default-channels
+         {client :client}                     :ewrapper} ewrapper/ewrapper]
+
+    (buy-stock client @*latest-tick* account-updates-ch valid-order-id-ch account-name instrument)))
