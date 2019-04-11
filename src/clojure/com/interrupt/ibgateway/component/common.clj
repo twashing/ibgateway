@@ -125,5 +125,5 @@
 
   (info "3 - process-order-filled-notifications LOOP / " (exists? val))
   ;; (sell-limit client stock order valid-order-id-ch)
-  ;; (sell-trailing client stock order valid-order-id-ch)
+  (sell-trailing client stock order valid-order-id-ch)
   )

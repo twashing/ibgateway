@@ -360,7 +360,7 @@
                  {right-price :last-trade-price right-sd :standard-deviation :as right}]]
 
               (let [price-diff (- right-price left-price)]
-                (if (> (java.lang.Math/abs price-diff) (* 0.75 left-sd))
+                (if (> (java.lang.Math/abs price-diff) (* 0.25 left-sd))
                   (assoc right :price-change price-diff)
                   right))))
 
@@ -474,9 +474,6 @@
         bollinger-with-peaks-troughs-fibonacci (bollinger-with-peaks-troughs-fibonacci_fn peaks-troughs fibonacci-at-peaks-and-troughs)
 
 
-        ;; F - Pivot points
-
-
         last-bollinger (last bollinger-band)]
 
     (cond-> last-bollinger
@@ -501,8 +498,13 @@
       (< percent-b 0.5) (update-in [:signals] conj {:signal :down
                                                     :why :percent-b-below-50})
 
-      (:fibonacci bollinger-with-peaks-troughs-fibonacci) (update-in [:signals] conj {:signal :fibonacci
-                                                                                      :fibonacci (:fibonacci bollinger-with-peaks-troughs-fibonacci)})
+      (:fibonacci bollinger-with-peaks-troughs-fibonacci) (update-in [:signals] conj
+                                                                     (-> (select-keys bollinger-with-peaks-troughs-fibonacci [:fibonacci :carry])
+                                                                         (assoc :signal :fibonacci))
+
+                                                                     #_{:signal :fibonacci
+                                                                        :fibonacci (:fibonacci bollinger-with-peaks-troughs-fibonacci)
+                                                                        :carry (:carry bollinger-with-peaks-troughs-fibonacci)})
 
       :always ((partial bind-result item)))))
 
@@ -726,5 +728,4 @@
 
   (def c (automata [(a/+ :bollinger-band-squeeze)
                     (a/+ :volume-spike)
-                    (a/+ :percent-b-abouve-50)]))
-  )
+                    (a/+ :percent-b-abouve-50)])))

@@ -368,8 +368,7 @@
                    valid-order-id
                    (contract/create symbol)
                    (doto (Order.)
-                     (.action
-                       action)
+                     (.action action)
                      (.orderType "TRAIL")
                      (.auxPrice auxPrice)
                      (.trailStopPrice trailStopPrice)
@@ -390,7 +389,7 @@
         (reset! *latest-tick* joined-tick)
 
         ;; (info "count: " c " / sr: " sr)
-        (info "count:" c " / last-trade-price:" last-trade-price)
+        (info "count:" c " / last-trade-price:" last-trade-price " / joined-tick /" sr)
 
 
         ;; TODO design a better way to capture running standard-deviation
@@ -847,8 +846,10 @@
   (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
 
-  (set-log-level :warn "com.interrupt.ibgateway.component.execution-engine")
+  (set-log-level :debug "com.interrupt.ibgateway.component.execution-engine")
   (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")
+  (set-log-level :warn "com.interrupt.ibgateway.component.execution-engine")
+
 
 
   (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))
