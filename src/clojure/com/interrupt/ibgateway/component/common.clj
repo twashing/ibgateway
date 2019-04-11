@@ -80,10 +80,11 @@
         auxPrice (->> @latest-standard-deviation
                       (clojure.pprint/cl-format nil "~,2f")
                       read-string
-                      (Double.)
-                      (* 10)
-                      (clojure.pprint/cl-format nil "~,2f")
-                      read-string)
+                      ;; (Double.)
+                      ;; (* 10)
+                      ;; (clojure.pprint/cl-format nil "~,2f")
+                      ;; read-string
+                      )
         trailStopPrice (- (:price order) auxPrice)]
 
     (info "3 - (balancing) sell-stock / sell-trailing / " [quantity valid-order-id auxPrice trailStopPrice])
@@ -127,3 +128,4 @@
   ;; (sell-limit client stock order valid-order-id-ch)
   (sell-trailing client stock order valid-order-id-ch)
   )
+

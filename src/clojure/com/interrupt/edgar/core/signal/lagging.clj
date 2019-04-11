@@ -447,9 +447,6 @@
       ;; trace
       ))
 
-(defn extract-signals-for-strategy-bollinger-bands-squeeze [bollinger-band-with-signals]
-  )
-
 (defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} partitioned-list]
 
   (let [;; A - Bollinger Band squeeze
@@ -500,11 +497,7 @@
 
       (:fibonacci bollinger-with-peaks-troughs-fibonacci) (update-in [:signals] conj
                                                                      (-> (select-keys bollinger-with-peaks-troughs-fibonacci [:fibonacci :carry])
-                                                                         (assoc :signal :fibonacci))
-
-                                                                     #_{:signal :fibonacci
-                                                                        :fibonacci (:fibonacci bollinger-with-peaks-troughs-fibonacci)
-                                                                        :carry (:carry bollinger-with-peaks-troughs-fibonacci)})
+                                                                         (assoc :signal :fibonacci)))
 
       :always ((partial bind-result item)))))
 
