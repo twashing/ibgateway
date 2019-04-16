@@ -271,6 +271,18 @@
 
     (info "[A B C] / " [a b c])
     (when (or a b c)
+
+      (let [latest-price (-> joined-tick :sma-list :last-trade-price)
+            latest-bid @common/latest-bid
+            price (if (< latest-price latest-bid)
+                    latest-price latest-bid)]
+
+        (common/process-order-filled-notifications client
+                                                   {:stock instrm
+                                                    :order {:quantity 1
+                                                            :price price}}
+                                                   valid-order-id-ch))
+
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name

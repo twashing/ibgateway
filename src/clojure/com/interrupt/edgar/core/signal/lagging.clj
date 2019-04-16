@@ -251,7 +251,10 @@
        (map #(mean (map :difference %)))))
 
 (defn last-4-differences-lowest?_fn [mean-rhs mean-lhs]
-  (< (/ mean-rhs mean-lhs) 0.3))
+  (< (/ mean-rhs mean-lhs) 0.45))
+
+;; (defn last-4-differences-lowest?_fn [mean-rhs mean-lhs]
+;;   (< (/ mean-rhs mean-lhs) 0.3))
 
 
 ;; B - Volume spike
