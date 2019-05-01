@@ -12,6 +12,9 @@
             [com.interrupt.ibgateway.component.common :refer [exists?]]))
 
 
+
+(def market-trend-by-ticks 5)
+
 (defn moving-averages
   "Takes baseline time series, along with 2 other moving averages.
 
@@ -473,6 +476,15 @@
         ;; Overlay fibanacci calculations over original list
         bollinger-with-peaks-troughs-fibonacci (bollinger-with-peaks-troughs-fibonacci_fn peaks-troughs fibonacci-at-peaks-and-troughs)
 
+        ;; down-market? (common/down-market? partitioned-list)
+        ;; up-market? (common/up-market? partitioned-list)
+        ;; up-market? (->> (map #(dissoc % :population) sma-list)
+        ;;                 (take-last market-trend-by-ticks)
+        ;;                 ;; trace
+        ;;                 (partition 2 1)
+        ;;                 (common/up-market? :last-trade-price-average)
+        ;;                 ;; trace
+        ;;                 )
 
         last-bollinger (last bollinger-band)]
 
@@ -502,6 +514,9 @@
                                                                      (-> (select-keys bollinger-with-peaks-troughs-fibonacci [:fibonacci :carry])
                                                                          (assoc :signal :fibonacci)))
 
+      ;; (not down-market?) (update-in [:signals] conj {:signal :up
+      ;;                                                :why :not-down-market})
+
       :always ((partial bind-result item)))))
 
 (defn bollinger-band
@@ -530,7 +545,6 @@
   ;; TODO Oversold - price (preferably a bid) lands below the lower band
 
   (let [;; Track widest & narrowest band over the last 'n' (3) ticks
-        market-trend-by-ticks 5
         sorted-bands (sort-bollinger-band bollinger-band)
         most-narrow (take 2 sorted-bands)
         most-wide (take-last 2 sorted-bands)
@@ -538,10 +552,19 @@
         partitioned-list (->> (partition 2 1 tick-list)
                               (take-last market-trend-by-ticks))
 
+        ;; partitioned-sma (->> (map #(dissoc % :population) sma-list)
+        ;;                      (partition 2 1)
+        ;;                      (take-last market-trend-by-ticks))
+
         any-market? true
-        up-market? (common/up-market? partitioned-list)
-        down-market? (common/down-market? partitioned-list)
-        sideways-market? (not (and up-market? down-market?))
+
+        ;; up-market? (common/up-market? partitioned-list)
+        ;; up-market? (common/up-market? :last-trade-price-average partitioned-sma)
+
+        ;; down-market? (common/down-market? partitioned-list)
+        ;; down-market? (common/down-market? :last-trade-price-average partitioned-sma)
+
+        ;; sideways-market? (not (and up-market? down-market?))
 
         latest-diff (- (-> bollinger-band last :upper-band)
                        (-> bollinger-band last :lower-band))

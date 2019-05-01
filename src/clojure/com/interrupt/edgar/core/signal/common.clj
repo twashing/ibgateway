@@ -38,19 +38,23 @@
 
 (defn up-market?
   "** This function assumes the latest tick is on the right"
-  [partitioned-list]
-  (every? (fn [inp]
-            (< (:last-trade-price (first inp))
-               (:last-trade-price (second inp))))
-          partitioned-list))
+
+  ([partitioned-list] (up-market? :last-trade-price partitioned-list))
+  ([k partitioned-list]
+   (every? (fn [inp]
+             (<= (k (first inp))
+                 (k (second inp))))
+           partitioned-list)))
 
 (defn down-market?
   "** This function assumes the latest tick is on the right"
-  [partitioned-list]
-  (every? (fn [inp]
-            (> (:last-trade-price (first inp))
-               (:last-trade-price (second inp))))
-          partitioned-list))
+
+  ([partitioned-list] (down-market? :last-trade-price partitioned-list))
+  ([k partitioned-list]
+   (every? (fn [inp]
+             (>= (k (first inp))
+                 (k (second inp))))
+           partitioned-list)))
 
 (defn divergence-up?
   "** This function assumes the latest tick is on the right"

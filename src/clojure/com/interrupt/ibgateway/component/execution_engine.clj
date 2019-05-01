@@ -169,23 +169,39 @@
 
 
 ;; TODO pick a better way to cap-order-quantity
-(defn cap-order-quantity [quantity]
-  1
-  #_(if (< quantity 500) quantity 500))
+(defn cap-order-quantity [quantity price]
+  ;; 1
+  (let [purchase-value-threshold 200000
+        max-quantity-fn #(if (> % 500) 500 %)
+        max-purchase-value #(if (> (* % price) purchase-value-threshold)
+                              (.longValue (/ purchase-value-threshold price))
+                              %)]
+
+    (-> (max-quantity-fn quantity)
+        trace
+        max-purchase-value
+        trace)
+    ))
+
+;; (cap-order-quantity 131 1938.17)
+;; (* 1938.14 103)
 
 (defn derive-order-quantity [cash-level price]
   (info "derive-order-quantity / " [cash-level price])
-  1
-  #_(-> (cond
+  ;; 1
+  (-> (cond
         (< cash-level 500) (* 0.5 cash-level)
         (<= cash-level 2000) 500
         (> cash-level 2000) (* 0.25 cash-level)
         (> cash-level 10000) (* 0.1 cash-level)
         (> cash-level 100000) (* 0.05 cash-level)
         :else (* 0.05 cash-level))
+      trace
       (/ price)
+      trace
       (.longValue)
-      cap-order-quantity))
+      (cap-order-quantity price)
+      trace))
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
@@ -258,32 +274,32 @@
   ;;   otherwise -> down
 
   (let [a (->> (select [:signals ALL :why] signal-bollinger-band)
-             (into #{})
-             (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
+               (into #{})
+               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
 
         b (->> (select [:signals ALL :why] signal-bollinger-band)
-             (into #{})
-             (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
+               (into #{})
+               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
 
         c (->> (select [:signals ALL :why] signal-bollinger-band)
-             (into #{})
-             (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))]
+               (into #{})
+               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))
+
+        ;; not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
+        ;;                       (into #{})
+        ;;                       (clojure.set/subset? #{:not-down-market}))
+        ]
+
+    ;; (info "[A B C UP-MARKET?] / " [a b c  not-down-market?])
+    ;; (when (or (and not-down-market? a)
+    ;;           (and not-down-market? b)
+    ;;           (and not-down-market? c))
+    ;;   (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
 
     (info "[A B C] / " [a b c])
     (when (or a b c)
-
-      (let [latest-price (-> joined-tick :sma-list :last-trade-price)
-            latest-bid @common/latest-bid
-            price (if (< latest-price latest-bid)
-                    latest-price latest-bid)]
-
-        (common/process-order-filled-notifications client
-                                                   {:stock instrm
-                                                    :order {:quantity 1
-                                                            :price price}}
-                                                   valid-order-id-ch))
-
-      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+    ))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
                                     {account-updates-ch :account-updates
@@ -855,13 +871,13 @@
 
   (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
   (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
+
   (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
 
   (set-log-level :debug "com.interrupt.ibgateway.component.execution-engine")
   (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")
   (set-log-level :warn "com.interrupt.ibgateway.component.execution-engine")
-
 
 
   (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))

@@ -58,7 +58,9 @@
                        (clojure.pprint/cl-format nil "~,2f")
                        read-string
                        (Double.)
-                       (* 2.5))
+                       (* 2.5)
+                       (clojure.pprint/cl-format nil "~,2f")
+                       read-string)
         limitPrice (+ (:price order) threshold)]
 
     (info "3 - (balancing) sell-stock / sell-limit / " [quantity valid-order-id limitPrice])
@@ -126,6 +128,7 @@
 
   (info "3 - process-order-filled-notifications LOOP / " (exists? val))
   ;; (sell-limit client stock order valid-order-id-ch)
-  (sell-trailing client stock order valid-order-id-ch)
+  ;; (sell-trailing client stock order valid-order-id-ch)
+  (sell-limit client stock order valid-order-id-ch)
   )
 
