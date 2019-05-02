@@ -222,8 +222,11 @@
         _ (info "3 - buy-stock / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
                 " / order-id / " order-id)]
 
-    (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
-    (market/buy-stock client order-id order-type account-name instrm qty price)
+    (if (>= qty 1)
+      (do
+        (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
+        (market/buy-stock client order-id order-type account-name instrm qty price))
+      (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty]))
 
     #_(info "3 - buy-stock / @minimum cash level / " (>= cash-level minimum-cash-level)
           " / [client " [order-id order-type account-name instrm qty price])
@@ -285,20 +288,21 @@
                (into #{})
                (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))
 
-        ;; not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
-        ;;                       (into #{})
-        ;;                       (clojure.set/subset? #{:not-down-market}))
+        not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
+                              (into #{})
+                              (clojure.set/subset? #{:not-down-market}))
         ]
 
-    ;; (info "[A B C UP-MARKET?] / " [a b c  not-down-market?])
-    ;; (when (or (and not-down-market? a)
-    ;;           (and not-down-market? b)
-    ;;           (and not-down-market? c))
-    ;;   (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+    (info "[A B C not-down-market?] / " [a b c  not-down-market?])
+    (when (or (and not-down-market? a)
+              (and not-down-market? b)
+              (and not-down-market? c))
 
-    (info "[A B C] / " [a b c])
-    (when (or a b c)
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+
+    ;; (info "[A B C] / " [a b c])
+    ;; (when (or a b c)
+    ;;   (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
     ))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name

@@ -1407,7 +1407,8 @@
                           (catch Exception e
                             (println (str "Exception processing: " topic " / " (.getMessage e)))
                             (fn [& etal] :noop)))]
-               (->> (dissoc v :topic)
+               (->> (dissoc v :topic :timestamp)
                     vals
+                    ;; trace
                     (apply f)))
              (recur))))))))

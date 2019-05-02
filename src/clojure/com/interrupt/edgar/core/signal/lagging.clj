@@ -453,7 +453,7 @@
       ;; trace
       ))
 
-(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} partitioned-list]
+(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} down-market? partitioned-list]
 
   (let [;; A - Bollinger Band squeeze
         [mean-lhs mean-rhs] (mean-lhs-mean-rhs_fn bollinger-band)
@@ -514,8 +514,8 @@
                                                                      (-> (select-keys bollinger-with-peaks-troughs-fibonacci [:fibonacci :carry])
                                                                          (assoc :signal :fibonacci)))
 
-      ;; (not down-market?) (update-in [:signals] conj {:signal :up
-      ;;                                                :why :not-down-market})
+      (not down-market?) (update-in [:signals] conj {:signal :up
+                                                     :why :not-down-market})
 
       :always ((partial bind-result item)))))
 
@@ -552,9 +552,9 @@
         partitioned-list (->> (partition 2 1 tick-list)
                               (take-last market-trend-by-ticks))
 
-        ;; partitioned-sma (->> (map #(dissoc % :population) sma-list)
-        ;;                      (partition 2 1)
-        ;;                      (take-last market-trend-by-ticks))
+        partitioned-sma (->> (map #(dissoc % :population) sma-list)
+                             (partition 2 1)
+                             (take-last market-trend-by-ticks))
 
         any-market? true
 
@@ -562,7 +562,7 @@
         ;; up-market? (common/up-market? :last-trade-price-average partitioned-sma)
 
         ;; down-market? (common/down-market? partitioned-list)
-        ;; down-market? (common/down-market? :last-trade-price-average partitioned-sma)
+        down-market? (common/down-market? :last-trade-price-average partitioned-sma)
 
         ;; sideways-market? (not (and up-market? down-market?))
 
@@ -707,7 +707,7 @@
       ;;   entry is when we take out the resistance
       ;;
       ;;   ! in isolation, support/resistance should be used in a sideways market (not a trend)
-      true (analysis-day-trading-strategy-bollinger-bands-squeeze partitioned-list)
+      true (analysis-day-trading-strategy-bollinger-bands-squeeze down-market? partitioned-list)
       :always (consolidate-signals))))
 
 
