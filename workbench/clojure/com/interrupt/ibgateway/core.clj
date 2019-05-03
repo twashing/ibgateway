@@ -25,7 +25,7 @@
 
             [mount.core :refer [defstate] :as mount]
             [net.cgrand.xforms :as x])
-  (:import [com.ib.client EClient ExecutionFilter Order]))
+  (:import [com.ib.client Contract EClient ExecutionFilter Order]))
 
 
 (comment
@@ -46,6 +46,8 @@
 
 
 (comment
+
+
 
   (do (def client (:client ew/ewrapper))
       (def account "DU16007")
@@ -187,15 +189,20 @@
 
   (do
     (def control-channel (chan))
-    (def instrument "TSLA")
-    (def concurrency 1)
+    ;; (def instrument "TSLA")
+    (def instrument "AMZN")
+    (def concurrency 4)
     (def ticker-id 0)
 
     ;; "live-recordings/2018-08-20-TSLA.edn"
     ;; "live-recordings/2018-08-27-TSLA.edn"
     ;; "live-recordings/2018-12-24-AMZN.edn"
 
-    (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
+    ;; (def fname "live-recordings/2018-12-24-AMZN.edn")
+    (def fname "live-recordings/2019-04-29-AMZN.edn")
+
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 100)))
     (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
@@ -204,7 +211,8 @@
   ;; 2. Point your browser to http://localhost:8080
 
 
-  ;; 3. Capture output channels and send to browser
+  ;; A
+  ;; A.3 Capture output channels and send to browser
   (let [{jch :joined-channel} joined-channel-map]
 
     (go-loop [c 0 r (<! jch)]
@@ -212,14 +220,31 @@
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
           (info "count:" c " / sr:" sr)
-          (send-message-to-all! sr)
+          ;; (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
 
-
-  ;; 4. Start streaming
+  ;; A.4 Start streaming
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
-                               fname)
+                               fname
+                               7)
+
+  ;; B
+  ;; B.3
+  (async/reduce
+    (fn [acc r]
+      (let [sr (update-in r [:sma-list] dissoc :population)]
+        (info "count:" acc " / sr:" sr)
+        (inc acc)))
+    0
+    (:joined-channel joined-channel-map))
+
+
+  ;; B.4 Start streaming
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
+                               control-channel
+                               fname
+                               nil)
 
 
   ;; STOP
@@ -594,6 +619,47 @@
                    [?e :switchboard/state ?s]
                    [?s :db/ident :stock-historical-state/off]]
                  (d/db conn))))
+
+
+(comment ;; Requesting Historical Data
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account/account)
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.account/account)
+
+  (do
+    (def client (-> ew/ewrapper :ewrapper :client))
+    (def publisher (-> ew/ewrapper :ewrapper :publisher))
+
+    (def cal (java.util.Calendar/getInstance))
+    (.add cal java.util.Calendar/DATE -1)
+    ;; (.add cal Calendar/MONTH -6)
+
+    (def form (java.text.SimpleDateFormat. "yyyyMMdd HH:mm:ss"))
+    (def formatted (.format form (.getTime cal))))
+
+  (let [contract (doto (Contract.)
+                   (.symbol "TSLA")
+                   (.secType "STK")
+                   (.currency "USD")
+                   (.exchange "SMART"))]
+
+    (.reqHistoricalData client 4002 contract formatted "1 D" "30 secs" "MIDPOINT" 1 1 nil))
+
+  ;; (.reqHistoricalData client 4001 (ContractSamples/EurGbpFx) formatted "2 W" "1 sec" "MIDPOINT" 1 1 nil)
+  ;; (.reqHistoricalData client 4002 (ContractSamples/USStockWithPrimaryExch) formatted "1 M" "1 day" "MIDPOINT" 1 1 nil)
+
+
+  (go-loop [c 0 r (<! publisher)]
+    (if-not r
+      r
+      (do
+        (info "count:" c "/ r:" r)
+        (recur (inc c) (<! publisher)))))
+
+  )
 
 
 (comment  ;; from com.interrupt.ibgateway.component.ewrapper-impl

@@ -1,11 +1,24 @@
 (ns com.interrupt.edgar.core.utils
   (:require [clojure.reflect :refer [reflect]]
             [clojure.string :refer [join]]
+            [clojure.core.match :refer [match]]
             [com.interrupt.edgar.core.analysis.lagging :as lag]
             [clojure.tools.logging.impl :as impl]
             [clojure.tools.logging :as log])
   (:import [ch.qos.logback.classic Level]))
 
+
+(def not-nil? (comp not nil?))
+(def not-empty? (comp not empty?))
+
+(defn opposite-sign [a b]
+  (if (or (nil? a) (nil? b))
+    false
+    (match [(pos? a) (pos? b)]
+           [true true] false
+           [true false] true
+           [false true] true
+           [false false] false)))
 
 (defn inspect [obj]
   (let [reflection (reflect obj)

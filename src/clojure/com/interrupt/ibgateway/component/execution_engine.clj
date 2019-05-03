@@ -1,6 +1,6 @@
 (ns com.interrupt.ibgateway.component.execution-engine
   (:require [clojure.core.async
-             :refer [chan >! >!! <! <!! close! go-loop
+             :refer [go chan >! >!! <! <!! close! go-loop
                      sliding-buffer thread] :as async]
             [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [debug info]]
@@ -20,6 +20,8 @@
             [com.interrupt.edgar.ib.market :as market])
   (:import [com.ib.client Order]))
 
+
+(def *latest-tick* (atom {}))
 
 (def minimum-cash-level (let [a (env :minimum-cash-level 1000)]
                           (if (number? a)
@@ -167,23 +169,39 @@
 
 
 ;; TODO pick a better way to cap-order-quantity
-(defn cap-order-quantity [quantity]
-  1
-  #_(if (< quantity 500) quantity 500))
+(defn cap-order-quantity [quantity price]
+  ;; 1
+  (let [purchase-value-threshold 200000
+        max-quantity-fn #(if (> % 500) 500 %)
+        max-purchase-value #(if (> (* % price) purchase-value-threshold)
+                              (.longValue (/ purchase-value-threshold price))
+                              %)]
+
+    (-> (max-quantity-fn quantity)
+        trace
+        max-purchase-value
+        trace)
+    ))
+
+;; (cap-order-quantity 131 1938.17)
+;; (* 1938.14 103)
 
 (defn derive-order-quantity [cash-level price]
   (info "derive-order-quantity / " [cash-level price])
-  1
-  #_(-> (cond
+  ;; 1
+  (-> (cond
         (< cash-level 500) (* 0.5 cash-level)
         (<= cash-level 2000) 500
         (> cash-level 2000) (* 0.25 cash-level)
         (> cash-level 10000) (* 0.1 cash-level)
         (> cash-level 100000) (* 0.05 cash-level)
         :else (* 0.05 cash-level))
+      trace
       (/ price)
+      trace
       (.longValue)
-      cap-order-quantity))
+      (cap-order-quantity price)
+      trace))
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
@@ -204,13 +222,88 @@
         _ (info "3 - buy-stock / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
                 " / order-id / " order-id)]
 
-    (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
-    (market/buy-stock client order-id order-type account-name instrm qty price)
+    (if (>= qty 1)
+      (do
+        (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
+        (market/buy-stock client order-id order-type account-name instrm qty price))
+      (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty]))
 
     #_(info "3 - buy-stock / @minimum cash level / " (>= cash-level minimum-cash-level)
           " / [client " [order-id order-type account-name instrm qty price])
     #_(when (>= cash-level minimum-cash-level)
       (market/buy-stock client order-id order-type account-name instrm qty price))))
+
+(comment
+
+  (def one {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                       {:signal :up, :why :percent-b-abouve-50}
+                       {:signal :either, :why :bollinger-band-squeeze})})
+
+  (def two {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                       {:signal :up, :why :percent-b-abouve-50})})
+
+  (def three {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
+                         {:signal :down, :why :percent-b-below-50}
+                         {:signal :either, :why :bollinger-band-squeeze})})
+
+
+  (->> (select [:signals ALL :why] one)
+       (into #{})
+       (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
+
+  (->> (select [:signals ALL :why] two)
+       (into #{})
+       (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
+
+  (->> (select [:signals ALL :why] three)
+       (into #{})
+       (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze})))
+
+(defn extract-signals-for-strategy-bollinger-bands-squeeze [client
+                                                            {signal-bollinger-band :signal-bollinger-band :as joined-tick}
+                                                            instrm account-name
+                                                            {account-updates-ch :account-updates
+                                                             position-updates-ch :position-updates
+                                                             order-updates-ch :order-updates
+                                                             valid-order-ids-ch :valid-order-ids
+                                                             order-filled-notifications-ch :order-filled-notifications}]
+
+  ;; strategy-bollinger-bands-squeeze-exists?
+  ;; more-than-one-signal?
+  ;;
+  ;; if percent-b-abouve-50? -> up
+  ;; if percent-b-below-50?
+  ;;   must have bollinger-band-squeeze -> up
+  ;;   otherwise -> down
+
+  (let [a (->> (select [:signals ALL :why] signal-bollinger-band)
+               (into #{})
+               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
+
+        b (->> (select [:signals ALL :why] signal-bollinger-band)
+               (into #{})
+               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
+
+        c (->> (select [:signals ALL :why] signal-bollinger-band)
+               (into #{})
+               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))
+
+        ;; not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
+        ;;                       (into #{})
+        ;;                       (clojure.set/subset? #{:not-down-market}))
+        ]
+
+    ;; (info "[A B C not-down-market?] / " [a b c  not-down-market?])
+    ;; (when (or (and not-down-market? a)
+    ;;           (and not-down-market? b)
+    ;;           (and not-down-market? c))
+    ;;
+    ;;   (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+
+    (info "[A B C] / " [a b c])
+    (when (or a b c)
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+    ))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
                                     {account-updates-ch :account-updates
@@ -307,8 +400,7 @@
                    valid-order-id
                    (contract/create symbol)
                    (doto (Order.)
-                     (.action
-                       action)
+                     (.action action)
                      (.orderType "TRAIL")
                      (.auxPrice auxPrice)
                      (.trailStopPrice trailStopPrice)
@@ -318,25 +410,38 @@
 
 (defn consume-joined-channel [joined-channel-tapped default-channels client instrm account-name]
 
-  (go-loop [c 0 joined-tick (<! joined-channel-tapped)]
+  (go-loop [c 0
+            {{last-trade-price :last-trade-price
+              last-trade-time :last-trade-time} :signal-bollinger-band
+             :as joined-tick} (<! joined-channel-tapped)]
     (if-not joined-tick
       joined-tick
       (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
 
+        (reset! *latest-tick* joined-tick)
+
         ;; (info "count: " c " / sr: " sr)
-        (info "1 - count: " c)
+        (info "count:" c " / last-trade-price:" last-trade-price " / joined-tick /" sr)
 
 
         ;; TODO design a better way to capture running standard-deviation
-        (reset! common/latest-standard-deviation
-                (-> joined-tick :bollinger-band :standard-deviation))
+        (reset! common/latest-standard-deviation (-> joined-tick :bollinger-band :standard-deviation))
 
-        (when (:sma-list joined-tick)
+        ;; TODO B) extract-signals-for-strategy-bollinger-bands-squeeze
+        (when (:signal-bollinger-band joined-tick)
+          (extract-signals-for-strategy-bollinger-bands-squeeze client joined-tick instrm account-name default-channels))
+
+
+        ;; Start wiwth: com.interrupt.edgar.core.signal.lagging
+        ;; that's where the partitioned bollinger band is still reified
+        ;;   use a reduce to pull through an automaton that we transition through
+
+        #_(when (:sma-list joined-tick)
           (extract-signals+decide-order client joined-tick instrm account-name default-channels))
 
         (recur (inc c) (<! joined-channel-tapped))))))
 
-(defn consume-processing-pipeline-input-channel [input-ch]
+(defn scan-for-latest-bid [input-ch]
   (go-loop [tick (<! input-ch)]
     (when (:last-bid-price tick)
       (reset! common/latest-bid (:last-bid-price tick)))
@@ -352,11 +457,8 @@
                               instrm account-name]
 
 
-  (bind-channels->mult joined-channel joined-channel-tapped)
-
-
-
-  (consume-processing-pipeline-input-channel processing-pipeline-input-channel)
+  ;; (bind-channels->mult joined-channel joined-channel-tapped)
+  (scan-for-latest-bid processing-pipeline-input-channel)
 
 
   ;; CONSUME ORDER UPDATES
@@ -377,7 +479,7 @@
 
 
   ;; CONSUME JOINED TICK STREAM
-  (consume-joined-channel joined-channel-tapped default-channels client instrm account-name)
+  (consume-joined-channel joined-channel default-channels client instrm account-name)
 
 
   joined-channel-tapped
@@ -416,15 +518,67 @@
   ;;   These are the only tickString types I see coming in
   ;;   48 45 33 32
 
+  ;; [x] go through onyx-platform/learn-onyx
+  ;;   [~] break stream into a sliding window of 20
+  ;;   [~] fan out & apply analytic
+  ;;   [~] join results based on :timestamp
+  ;;     :onyx.windowing.aggregation/collect-by-key (in Aggregation) OR
+  ;;     (Grouping)
+  ;; [x] build out onyx stream join for i) order updates, ii) order filled and iii) joined tick messages
+  ;;   join on timestamp
 
   ;; [ok] [buy] MACD Histogram crossover from + to -
   ;; [x] [sell] MACD Histogram crests in + territory
-
   ;; [buy] MACD Histogram
   ;;   i. has crossed from + to -
   ;;   ii. is negative
   ;;   iii. is in a trough
   ;; [buy] Exponential MA has crossed below Simple MA?
+
+
+
+
+  ;; REFACTOR
+  ;;   howto write generators
+  ;;   can we write generators that execute in a prescribed sequence (automaton)
+  ;;   later verify that messages were received in either
+  ;;     i) the right sequence and ii) within a time threshold (automaton)
+
+
+  ;; query buy / sell profit + loss (within next 5 - 10 ticks)
+  ;;   extract extract-signals+decide-order
+  ;;   automata: (RSI+ | MACD+ | BollingerBand+ | Supertrend+)
+
+  ;;   Exponential MA has crossed below / abouve Simple MA?
+  ;;   MACD troughs / crests - consider magnitude of MACD Histogram troughs + crests
+  ;;   combine with RSI
+  ;;   combine with Bollinger Band squeeze + price going outside top or bottom bands
+
+  ;; run historical
+  ;; clean up code base
+
+
+  ;; The Top 5 Technical Indicators for Profitable Trading
+  ;; https://www.youtube.com/watch?v=C-770uuFILM
+
+  ;;   Indicator 1: RSI
+  ;;   Indicator 2: MACD
+  ;;   Indicator 3: Bollinger band
+  ;;   Indicator 4: Supertrend indicator
+  ;;   Indicator 5: Indicator confluence
+
+  ;; MACD Indicator Secrets
+  ;; https://www.youtube.com/watch?v=eob4wv2v--k
+
+  ;; Trading strategy - Learn about the power of moving averages
+  ;; https://www.youtube.com/watch?v=vyUpJlzCdqc
+
+  ;; Bollinger Bands Squeeze
+  ;; https://www.youtube.com/watch?v=E2h-LLIC6yc
+
+  ;; Stochastic Technical Analysis
+  ;; https://www.youtube.com/watch?v=88n-a3rUmJQ
+
 
   ;; only purchase more if
   ;;   we're gaining (over last 3 ticks)
@@ -649,7 +803,7 @@
 (comment  ;; Scanner + Processing Pipeline + Execution Engine
 
 
-  ;; SCAN SET CHANGES
+  ;; A. SCAN SET CHANGES
   (do
     (require '[clojure.set :as s])
 
@@ -665,6 +819,7 @@
       (s/difference princ orig)))
 
 
+  ;; B.
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account)
 
@@ -672,6 +827,7 @@
                #'com.interrupt.ibgateway.component.account/account)
 
 
+  ;; B.1 scanner
   (do
 
     (def client (-> com.interrupt.ibgateway.component.ewrapper/ewrapper :ewrapper :client))
@@ -687,7 +843,8 @@
   ;; (-> ewrapper/ewrapper :default-channels :order-filled-notifications channel-open?)
   ;; (-> ewrapper/ewrapper :default-channels :order-updates channel-open?)
 
-  ;; START
+
+  ;; B.2 START trading
   (do
     (def instrument "AMZN")
     (def instrument2 "TSLA")
@@ -712,28 +869,19 @@
     (setup-execution-engine @joined-channel-map execution-engine-output-ch ewrapper/ewrapper instrument account-name))
 
 
-  #_(let [{jch :joined-channel
-         ich :input-channel} @joined-channel-map]
+  ;; (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
+  (sw/start-stream+record-live-data ewrapper/ewrapper [{:index ticker-id :symbol instrument}])
 
-    (go-loop [r (<! jch)]
-      (when r
-        (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "joined-channel:" sr)
-          (recur (<! jch)))))
-
-    #_(go-loop [r (<! ich)]
-      (info "input-channel:" r)
-      (recur (<! ich))))
-
-  (def live-subscription (sw/start-stream-live ewrapper/ewrapper instrument ticker-id))
 
   (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
   (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
+
   (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
 
-  (set-log-level :warn "com.interrupt.ibgateway.component.execution-engine")
+  (set-log-level :debug "com.interrupt.ibgateway.component.execution-engine")
   (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")
+  (set-log-level :warn "com.interrupt.ibgateway.component.execution-engine")
 
 
   (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))
@@ -745,9 +893,17 @@
   (do
     (scanner/stop client)
 
-    (sw/stop-stream-live live-subscription)
+    (sw/stop-stream-live (first @sw/live-subscriptions))
     (pp/teardown-publisher-channel @joined-channel-map)
     (teardown-execution-engine execution-engine-output-ch))
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.account/account))
+              #'com.interrupt.ibgateway.component.account/account)
+
+
+  ;; TEST
+  (let [{{account-updates-ch :account-updates
+          valid-order-id-ch :valid-order-ids} :default-channels
+         {client :client}                     :ewrapper} ewrapper/ewrapper]
+
+    (buy-stock client @*latest-tick* account-updates-ch valid-order-id-ch account-name instrument)))

@@ -39,7 +39,6 @@
                  contract generic-tick-list (boolean snapshot?) options))
   (unsubscribe [_] (.cancelMktData client (int ticker-id))))
 
-
 (defrecord HistoricalDataSubscription [client ch ticker-id
                                        ^Contract contract
                                        ^String end-datetime

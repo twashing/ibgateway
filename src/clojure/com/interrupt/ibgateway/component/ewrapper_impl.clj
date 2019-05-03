@@ -379,7 +379,8 @@
         (let [stock+order (account/process-commission-report val account/account)]
 
           ;; (info "commissionReport / stock+order / " stock+order)
-          (common/process-order-filled-notifications client* stock+order valid-order-ids))))
+          (common/process-order-filled-notifications client* stock+order valid-order-ids)
+          )))
 
     (execDetailsEnd [^Integer reqId]
       (info "execDetailsEnd / reqId / " reqId))))

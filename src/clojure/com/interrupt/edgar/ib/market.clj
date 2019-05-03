@@ -3,6 +3,8 @@
   (:require [clj-time.core :as cime]
             [clj-time.format :as format]
             [clj-time.local :as time]
+            [clojure.tools.trace :refer [trace]]
+            [clojure.tools.logging :refer [debug info]]
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [clojure.core.strint :refer :all]
             [com.interrupt.ibgateway.component.account.contract :as contract]
@@ -63,13 +65,14 @@
 
 (defmethod buy-stock "MKT" [client order-id order-type account-name instrm qty _price]
 
+  (info "buy-stock MKT CALLED /" [client order-id order-type account-name instrm qty _price])
   (let [contract (contract/create instrm)
         order (doto (Order.)
                 (.action "BUY")
                 (.orderType order-type)
                 (.totalQuantity qty)
                 (.account account-name))]
-    (.placeOrder client order-id contract order)))
+    (trace (.placeOrder client order-id contract order))))
 
 
 (defmulti sell-stock (fn [_ _ order-type _ _ _ _] order-type))

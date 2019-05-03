@@ -1291,26 +1291,52 @@
         (spit fname tr :append true)))
     (recur (<! publisher))))
 
-(defn record-live-data [{{client :client
-                          wrapper :wrapper :as ewrapper} :ewrapper}
-                        stock-scans publisher]
+(declare start-stream-live)
+(defn start-stream+record-live-data [{{publisher :publisher} :default-channels
+                                      {client :client
+                                       wrapper :wrapper
+                                       :as ewrapper}         :ewrapper}
+                                     stock-scans]
 
   (let [custom-formatter (f/formatter "yyyy-MM-dd")
         date-string (f/unparse custom-formatter (t/now))
-        generic-tick-list "233"
-        snapshot? false
-        options nil]
+        publisher-duplicate (chan (sliding-buffer 100))]
 
     (doseq [{ticker-id :index symbol :symbol} stock-scans
-            :let [contract (contract/create symbol)
-                  fname (str "live-recordings/" date-string "-" symbol ".edn")
-                  live-subscription (trace (sub/->LiveSubscription
-                                             client ticker-id contract
-                                             generic-tick-list snapshot? options))]]
+            :let [fname (str "live-recordings/" date-string "-" symbol ".edn")
+                  live-subscription (start-stream-live ewrapper symbol ticker-id)]]
 
-      (sub/subscribe live-subscription)
       (swap! live-subscriptions conj live-subscription)
-      (record-live-to-file ewrapper publisher ticker-id fname))))
+      (bind-channels->mult publisher publisher-duplicate)
+      (record-live-to-file ewrapper publisher-duplicate ticker-id fname))))
+
+
+
+;; (defn record-live-data [{{client :client
+;;                           wrapper :wrapper :as ewrapper} :ewrapper}
+;;                         stock-scans publisher]
+;;
+;;   (let [custom-formatter (f/formatter "yyyy-MM-dd")
+;;         date-string (f/unparse custom-formatter (t/now))
+;;         generic-tick-list "233"
+;;         snapshot? false
+;;         options nil]
+;;
+;;     (start-stream-live [com.interrupt.ibgateway.component.ewrapper/ewrapper instrm ticker-id])
+;;
+;;     (doseq [{ticker-id :index symbol :symbol} stock-scans
+;;             :let [contract (contract/create symbol)
+;;                   fname (str "live-recordings/" date-string "-" symbol ".edn")
+;;                   live-subscription (sub/->LiveSubscription
+;;                                       client ticker-id contract
+;;                                       generic-tick-list snapshot? options)]]
+;;
+;;
+;;       (sub/subscribe live-subscription)
+;;       (swap! live-subscriptions conj live-subscription)
+;;       (record-live-to-file ewrapper publisher ticker-id fname))))
+
+
 
 (defn record-live-data-stop [client live-subscriptions]
   (doseq [{ticker-id :ticker-id :as live-subscription} @live-subscriptions]
@@ -1325,12 +1351,9 @@
   (do
 
     (def client (:client ew/ewrapper))
-    (let [publisher (:publisher ew/default-chs-map)
-          publisher-dupl (chan (sliding-buffer 100))]
-
-      (bind-channels->mult publisher publisher-dupl)
-      (record-live-data ew/ewrapper stock-scans publisher-dupl))
-    #_(record-live-data-stop client live-subscriptions)))
+    (let [publisher (:publisher ew/default-chs-map)]
+      (start-stream+record-live-data ew/ewrapper stock-scans))
+    #_(start-stream+record-live-data-stop client live-subscriptions)))
 
 
 ;; ==========
@@ -1338,18 +1361,20 @@
 (defn stop-stream-live [live-subscription]
   (sub/unsubscribe live-subscription))
 
-(defn start-stream-live [{{client :client
-                           wrapper :wrapper} :ewrapper}
-                         instrm ticker-id]
+(defn ->live-subscripion [{client :client wrapper :wrapper}
+                          instrm ticker-id]
 
   (let [contract (contract/create instrm)
         generic-tick-list "233"
         snapshot? false
-        options nil
-        live-subscription (sub/->LiveSubscription
-                            client ticker-id contract
-                            generic-tick-list snapshot? options)]
+        options nil]
 
+    (sub/->LiveSubscription
+      client ticker-id contract
+      generic-tick-list snapshot? options)))
+
+(defn start-stream-live [ewrapper instrm ticker-id]
+  (let [live-subscription (->live-subscripion ewrapper instrm ticker-id)]
     (sub/subscribe live-subscription)
     live-subscription))
 
@@ -1359,22 +1384,31 @@
 (defn stop-stream-workbench [control-channel]
   (>!! control-channel :exit))
 
-(defn kickoff-stream-workbench [wrapper control-channel fname]
-  (let [sub (sub/->FileSubscription fname (chan 100))
-        ch (sub/subscribe sub)]
-    (go-loop []
-      (let [[v c] (alts! [ch control-channel])]
-        (if (= v :exit)
-          (sub/unsubscribe sub)
-          (let [{:keys [topic]} v]
+(defn kickoff-stream-workbench
+  ([wrapper control-channel fname]
+   (kickoff-stream-workbench wrapper control-channel fname 10))
+  ([wrapper control-channel fname consume-delay]
+   (let [sub (sub/->FileSubscription fname (chan 1000))
+         ch (sub/subscribe sub)]
+     (go-loop []
+       (let [[v c] (alts! [ch control-channel])]
+         (if (= v :exit)
+           (sub/unsubscribe sub)
+           (let [{:keys [topic]} v]
 
-            (Thread/sleep 10)
-            (let [f (case topic
-                      :tick-string #(.tickString wrapper %1 %2 %3)
-                      :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
-                      :tick-size #(.tickSize wrapper %1 %2 %3)
-                      :tick-generic #(.tickGeneric wrapper %1 %2 %3))]
-              (->> (dissoc v :topic)
-                   vals
-                   (apply f)))
-            (recur)))))))
+             (when (and consume-delay (> consume-delay 0))
+               (Thread/sleep consume-delay))
+
+             (let [f (try (case topic
+                            :tick-string #(.tickString wrapper %1 %2 %3)
+                            :tick-price #(.tickPrice wrapper %1 %2 %3 %4)
+                            :tick-size #(.tickSize wrapper %1 %2 %3)
+                            :tick-generic #(.tickGeneric wrapper %1 %2 %3))
+                          (catch Exception e
+                            (println (str "Exception processing: " topic " / " (.getMessage e)))
+                            (fn [& etal] :noop)))]
+               (->> (dissoc v :topic :timestamp)
+                    vals
+                    ;; trace
+                    (apply f)))
+             (recur))))))))
