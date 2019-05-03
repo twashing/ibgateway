@@ -231,12 +231,12 @@
                               (map #(merge ((first ks) %) ((second ks) %)))
                               (map strings->numbers)))))
 
-        remove-population-ch (chan (sliding-buffer 100) remove-population-xf)
-        partitioned-ch (chan (sliding-buffer 100) partition-xf)
-        partitioned-joined-ch (chan (sliding-buffer 100) join-xf)
+        remove-population-ch (chan (sliding-buffer 40) remove-population-xf)
+        partitioned-ch (chan (sliding-buffer 40) partition-xf)
+        partitioned-joined-ch (chan (sliding-buffer 40) join-xf)
 
         mult-moving-averages (mult partitioned-joined-ch)
-        tap->moving-averages (chan (sliding-buffer 100))]
+        tap->moving-averages (chan (sliding-buffer 40))]
 
     (tap m remove-population-ch)
     (tap mult-moving-averages tap->moving-averages)
@@ -398,13 +398,13 @@
                                      #(map (nth ks 2) %)))
                               (zipmap ks)))))
 
-        partitioned-ch (chan (sliding-buffer 100) partition-xf)
-        bollinger-band-exists-ch (chan (sliding-buffer 100) bollinger-band-exists-xf)
-        partitioned-joined-ch (chan (sliding-buffer 100) join-xf)
+        partitioned-ch (chan (sliding-buffer 40) partition-xf)
+        bollinger-band-exists-ch (chan (sliding-buffer 40) bollinger-band-exists-xf)
+        partitioned-joined-ch (chan (sliding-buffer 40) join-xf)
 
-        ach (chan (sliding-buffer 100) partition-xf)
-        bch (chan (sliding-buffer 100))
-        cch (chan (sliding-buffer 100))]
+        ach (chan (sliding-buffer 40) partition-xf)
+        bch (chan (sliding-buffer 40))
+        cch (chan (sliding-buffer 40))]
 
     (pipeline concurrency partitioned-ch (map identity) connector-ch)
     (pipeline concurrency bollinger-band-exists-ch (map identity) partitioned-ch)
@@ -439,75 +439,75 @@
 (def partition-xform (x/partition moving-average-window moving-average-increment (x/into [])))
 
 (defn channel-analytics []
-  {:source-list-ch (chan (sliding-buffer 100))
-   :parsed-list-ch (chan (sliding-buffer 100))
+  {:source-list-ch (chan (sliding-buffer 40))
+   :parsed-list-ch (chan (sliding-buffer 40))
 
-   :tick-list-ch (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
-   :sma-list-ch (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
+   :tick-list-ch (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
+   :sma-list-ch (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
 
-   :ema-list-ch (chan (sliding-buffer 100))
-   :bollinger-band-ch (chan (sliding-buffer 100))
-   :macd-ch (chan (sliding-buffer 100))
-   :stochastic-oscillator-ch (chan (sliding-buffer 100))
-   :on-balance-volume-ch (chan (sliding-buffer 100))
-   :relative-strength-ch (chan (sliding-buffer 100))})
+   :ema-list-ch (chan (sliding-buffer 40))
+   :bollinger-band-ch (chan (sliding-buffer 40))
+   :macd-ch (chan (sliding-buffer 40))
+   :stochastic-oscillator-ch (chan (sliding-buffer 40))
+   :on-balance-volume-ch (chan (sliding-buffer 40))
+   :relative-strength-ch (chan (sliding-buffer 40))})
 
 (defn channel-analytics-mults []
-  {:tick-list->sma-ch (chan (sliding-buffer 100))
-   :tick-list->macd-ch (chan (sliding-buffer 100))
+  {:tick-list->sma-ch (chan (sliding-buffer 40))
+   :tick-list->macd-ch (chan (sliding-buffer 40))
 
-   :sma-list->ema-ch (chan (sliding-buffer 100))
-   :sma-list->bollinger-band-ch (chan (sliding-buffer 100))
-   :sma-list->macd-ch (chan (sliding-buffer 100))
+   :sma-list->ema-ch (chan (sliding-buffer 40))
+   :sma-list->bollinger-band-ch (chan (sliding-buffer 40))
+   :sma-list->macd-ch (chan (sliding-buffer 40))
 
-   :tick-list->stochastic-osc-ch (chan (sliding-buffer 100))
-   :tick-list->obv-ch (chan (sliding-buffer 100))
-   :tick-list->relative-strength-ch (chan (sliding-buffer 100))})
+   :tick-list->stochastic-osc-ch (chan (sliding-buffer 40))
+   :tick-list->obv-ch (chan (sliding-buffer 40))
+   :tick-list->relative-strength-ch (chan (sliding-buffer 40))})
 
 (defn channel-join-mults []
-  {:tick-list->JOIN (chan (sliding-buffer 100) (map last))
-   :sma-list->JOIN (chan (sliding-buffer 100) (map last))
-   :ema-list->JOIN (chan (sliding-buffer 100) (map last))
-   :bollinger-band->JOIN (chan (sliding-buffer 100) (map last))
-   :sma-list->JOIN->bollinger (chan (sliding-buffer 100) (map last))
+  {:tick-list->JOIN (chan (sliding-buffer 40) (map last))
+   :sma-list->JOIN (chan (sliding-buffer 40) (map last))
+   :ema-list->JOIN (chan (sliding-buffer 40) (map last))
+   :bollinger-band->JOIN (chan (sliding-buffer 40) (map last))
+   :sma-list->JOIN->bollinger (chan (sliding-buffer 40) (map last))
 
-   :macd->JOIN (chan (sliding-buffer 100) (map last))
-   :stochastic-oscillator->JOIN (chan (sliding-buffer 100) (map last))
-   :on-balance-volume->JOIN (chan (sliding-buffer 100) (map last))
-   :relative-strength->JOIN (chan (sliding-buffer 100) (map last))})
+   :macd->JOIN (chan (sliding-buffer 40) (map last))
+   :stochastic-oscillator->JOIN (chan (sliding-buffer 40) (map last))
+   :on-balance-volume->JOIN (chan (sliding-buffer 40) (map last))
+   :relative-strength->JOIN (chan (sliding-buffer 40) (map last))})
 
 (defn channel-signal-moving-averages []
-  {:tick-list->moving-averages-signal (chan (sliding-buffer 100))
-   :sma-list->moving-averages-signal (chan (sliding-buffer 100))
-   :ema-list->moving-averages-signal (chan (sliding-buffer 100))
-   :merged-averages (chan (sliding-buffer 100) (x/partition moving-average-window moving-average-increment (x/into [])))
-   :signal-merged-averages (chan (sliding-buffer 100))
-   :signal-moving-averages-ch (chan (sliding-buffer 100))})
+  {:tick-list->moving-averages-signal (chan (sliding-buffer 40))
+   :sma-list->moving-averages-signal (chan (sliding-buffer 40))
+   :ema-list->moving-averages-signal (chan (sliding-buffer 40))
+   :merged-averages (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
+   :signal-merged-averages (chan (sliding-buffer 40))
+   :signal-moving-averages-ch (chan (sliding-buffer 40))})
 
 (defn channel-signal-bollinger-band []
 
-  (let [tick-list->bollinger-band-signal (chan (sliding-buffer 100))
-        sma-list->bollinger-band-signal (chan (sliding-buffer 100))]
+  (let [tick-list->bollinger-band-signal (chan (sliding-buffer 40))
+        sma-list->bollinger-band-signal (chan (sliding-buffer 40))]
     {:tick-list->bollinger-band-signal tick-list->bollinger-band-signal
      :sma-list->bollinger-band-signal sma-list->bollinger-band-signal
-     :signal-bollinger-band (chan (sliding-buffer 100) (filter :joined))
-     :signal-bollinger-band-ch (chan (sliding-buffer 100))}))
+     :signal-bollinger-band (chan (sliding-buffer 40) (filter :joined))
+     :signal-bollinger-band-ch (chan (sliding-buffer 40))}))
 
 (defn signal-join-mults []
-  {:tick-list->SIGNAL (chan (sliding-buffer 100) (map last))
-   :sma-list->SIGNAL (chan (sliding-buffer 100) (map last))
-   :ema-list->SIGNAL (chan (sliding-buffer 100) (map last))
-   :bollinger-band->SIGNAL (chan (sliding-buffer 100) (map last))
-   :macd->SIGNAL (chan (sliding-buffer 100) (map last))
-   :stochastic-oscillator->SIGNAL (chan (sliding-buffer 100) (map last))
-   :on-balance-volume->SIGNAL (chan (sliding-buffer 100) (map last))
-   :relative-strength->SIGNAL (chan (sliding-buffer 100) (map last))
+  {:tick-list->SIGNAL (chan (sliding-buffer 40) (map last))
+   :sma-list->SIGNAL (chan (sliding-buffer 40) (map last))
+   :ema-list->SIGNAL (chan (sliding-buffer 40) (map last))
+   :bollinger-band->SIGNAL (chan (sliding-buffer 40) (map last))
+   :macd->SIGNAL (chan (sliding-buffer 40) (map last))
+   :stochastic-oscillator->SIGNAL (chan (sliding-buffer 40) (map last))
+   :on-balance-volume->SIGNAL (chan (sliding-buffer 40) (map last))
+   :relative-strength->SIGNAL (chan (sliding-buffer 40) (map last))
 
-   :signal-moving-averages->SIGNAL (chan (sliding-buffer 100))
-   :signal-bollinger-band->SIGNAL (chan (sliding-buffer 100))
-   :signal-macd->SIGNAL (chan (sliding-buffer 100))
-   :signal-stochastic-oscillator->SIGNAL (chan (sliding-buffer 100))
-   :signal-on-balance-volume->SIGNAL (chan (sliding-buffer 100))})
+   :signal-moving-averages->SIGNAL (chan (sliding-buffer 40))
+   :signal-bollinger-band->SIGNAL (chan (sliding-buffer 40))
+   :signal-macd->SIGNAL (chan (sliding-buffer 40))
+   :signal-stochastic-oscillator->SIGNAL (chan (sliding-buffer 40))
+   :signal-on-balance-volume->SIGNAL (chan (sliding-buffer 40))})
 
 (defn channel->stream [& channels]
   (map #(->> %
@@ -518,7 +518,7 @@
 (defn join-analytics->moving-averages [sma-list->JOIN ema-list->JOIN]
 
   (let [[sma-list->CROSS ema-list->CROSS] (channel->stream sma-list->JOIN ema-list->JOIN)
-        moving-averages-connector-ch (chan (sliding-buffer 100))
+        moving-averages-connector-ch (chan (sliding-buffer 40))
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
                                                 :skey-streams {:sma-list sma-list->CROSS
                                                                :ema-list ema-list->CROSS}})]
@@ -531,7 +531,7 @@
   (let [[tick-list->CROSS bollinger-band->CROSS sma-list->CROSS]
         (channel->stream tick-list->JOIN bollinger-band->JOIN sma-list->JOIN->bollinger)
 
-        bollinger-band-connector-ch (chan (sliding-buffer 100))
+        bollinger-band-connector-ch (chan (sliding-buffer 40))
         result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
                                                 :skey-streams {:tick-list tick-list->CROSS
                                                                :sma-list sma-list->CROSS
@@ -641,12 +641,12 @@
         (channel-signal-bollinger-band)
 
 
-        macd->macd-signal (chan (sliding-buffer 100))
-        stochastic-oscillator->stochastic-oscillator-signal (chan (sliding-buffer 100))
-        on-balance-volume->on-balance-volume-ch (chan (sliding-buffer 100))
-        signal-macd-ch (chan (sliding-buffer 100))
-        signal-stochastic-oscillator-ch (chan (sliding-buffer 100))
-        signal-on-balance-volume-ch (chan (sliding-buffer 100))
+        macd->macd-signal (chan (sliding-buffer 40))
+        stochastic-oscillator->stochastic-oscillator-signal (chan (sliding-buffer 40))
+        on-balance-volume->on-balance-volume-ch (chan (sliding-buffer 40))
+        signal-macd-ch (chan (sliding-buffer 40))
+        signal-stochastic-oscillator-ch (chan (sliding-buffer 40))
+        signal-on-balance-volume-ch (chan (sliding-buffer 40))
 
         lagging-signals-moving-averages-ch (join-analytics->moving-averages sma-list->JOIN ema-list->JOIN)
         lagging-signals-bollinger-band-connector-ch (join-analytics->bollinger-band

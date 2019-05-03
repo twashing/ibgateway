@@ -4,7 +4,7 @@
 
 (def portfolio-info (atom nil))
 
-(def portfolio-updates-ch (async/chan (async/sliding-buffer 100)))
+(def portfolio-updates-ch (async/chan (async/sliding-buffer 40)))
 
 (defn print-portfolio
   ([]

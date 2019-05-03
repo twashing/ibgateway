@@ -1300,7 +1300,7 @@
 
   (let [custom-formatter (f/formatter "yyyy-MM-dd")
         date-string (f/unparse custom-formatter (t/now))
-        publisher-duplicate (chan (sliding-buffer 100))]
+        publisher-duplicate (chan (sliding-buffer 40))]
 
     (doseq [{ticker-id :index symbol :symbol} stock-scans
             :let [fname (str "live-recordings/" date-string "-" symbol ".edn")

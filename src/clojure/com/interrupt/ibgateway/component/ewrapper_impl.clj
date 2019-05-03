@@ -390,8 +390,8 @@
   (println "Exception:" (.getMessage e)))
 
 (defn default-chs-map []
-  {:publisher (-> 1000 async/sliding-buffer async/chan)
-   :account-updates (-> 1000 async/sliding-buffer async/chan)})
+  {:publisher (-> 100 async/sliding-buffer async/chan)
+   :account-updates (-> 100 async/sliding-buffer async/chan)})
 
 (defn ewrapper
   ([]

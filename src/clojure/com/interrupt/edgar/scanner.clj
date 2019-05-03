@@ -52,7 +52,7 @@
              [(scan-code->ch-kw code)
               (->> (remove #(= [::data-end] %))
                    (comp (partition-by #(= ::data-end %)))
-                   (async/chan (async/sliding-buffer 100)))])))
+                   (async/chan (async/sliding-buffer 40)))])))
 
 (def ch-kw->atom
   "Map of scan code channel kws to atoms."

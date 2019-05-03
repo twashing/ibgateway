@@ -757,8 +757,8 @@
 
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
-    (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
-    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+    (def processing-pipeline-output-ch (chan (sliding-buffer 40)))
+    (def execution-engine-output-ch (chan (sliding-buffer 40)))
     (def joined-channel-map (promise)))
 
   (thread
@@ -887,8 +887,8 @@
 
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
-    (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
-    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+    (def processing-pipeline-output-ch (chan (sliding-buffer 40)))
+    (def execution-engine-output-ch (chan (sliding-buffer 40)))
     (def joined-channel-map (promise)))
 
   (thread
