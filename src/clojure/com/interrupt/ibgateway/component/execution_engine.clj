@@ -1,7 +1,7 @@
 (ns com.interrupt.ibgateway.component.execution-engine
   (:require [clojure.core.async
              :refer [go chan >! >!! <! <!! close! go-loop
-                     sliding-buffer thread] :as async]
+                     sliding-buffer thread timeout] :as async]
             [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [debug info]]
             [clojure.tools.trace :refer [trace]]
@@ -21,7 +21,7 @@
   (:import [com.ib.client Order]))
 
 
-(def *latest-tick* (atom {}))
+(def ^:dynamic *latest-tick* (atom {}))
 
 (def minimum-cash-level (let [a (env :minimum-cash-level 1000)]
                           (if (number? a)
@@ -737,6 +737,56 @@
   (when-not (nil? ee)
     (close! ee)))
 
+(defn start []
+
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.account/account)
+
+  (<!! (timeout 100))
+
+  (do
+    (def instrument "AMZN")
+    (def instrument2 "TSLA")
+
+    (def concurrency 1)
+    (def ticker-id 1003)
+    (def ticker-id2 1004)
+
+    ;; Next valid Id
+    ;; (.reqIds client -1)
+
+    (def client (-> ewrapper/ewrapper :ewrapper :client))
+    (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
+    (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
+    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+    (def joined-channel-map (promise)))
+
+  (thread
+    (deliver joined-channel-map
+             (pp/setup-publisher-channel source-ch processing-pipeline-output-ch instrument concurrency ticker-id)))
+  (thread
+    (setup-execution-engine @joined-channel-map execution-engine-output-ch ewrapper/ewrapper instrument account-name))
+
+  (sw/start-stream+record-live-data ewrapper/ewrapper [{:index ticker-id :symbol instrument}]))
+
+(defn stop []
+
+  (sw/stop-stream-live (first @sw/live-subscriptions))
+  (pp/teardown-publisher-channel @joined-channel-map)
+  (teardown-execution-engine execution-engine-output-ch)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.account/account))
+
+(comment
+
+  (start)
+
+  (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
+  (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
+
+  (stop))
+
 (comment
 
   (->> five
@@ -778,27 +828,6 @@
 
   (->next-valid-order-id client valid-order-id-ch)
   (->account-cash-level client account-updates-ch))
-
-;; 0 : {:symbol OVOL, :sec-type STK}
-;; 1 : {:symbol RPUT, :sec-type STK}
-;; 2 : {:symbol BNED, :sec-type STK}
-;; 3 : {:symbol DHDG, :sec-type STK}
-;; 4 : {:symbol AMZN, :sec-type STK}
-;; 5 : {:symbol HTAB, :sec-type STK}
-;; 6 : {:symbol GOOGL, :sec-type STK}
-;; 7 : {:symbol SPY, :sec-type STK}
-;; 8 : {:symbol UBT, :sec-type STK}
-;; 9 : {:symbol FTV PRA, :sec-type STK}
-;; 10 : {:symbol VXZB, :sec-type STK}
-;; 11 : {:symbol PMO, :sec-type STK}
-;; 12 : {:symbol NVR, :sec-type STK}
-;; 13 : {:symbol IWM, :sec-type STK}
-;; 14 : {:symbol AZO, :sec-type STK}
-;; 15 : {:symbol BRK A, :sec-type STK}
-;; 16 : {:symbol AAPL, :sec-type STK}
-;; 17 : {:symbol DIAL, :sec-type STK}
-;; 18 : {:symbol EEM, :sec-type STK}
-;; 19 : {:symbol BABA, :sec-type STK}
 
 (comment  ;; Scanner + Processing Pipeline + Execution Engine
 
