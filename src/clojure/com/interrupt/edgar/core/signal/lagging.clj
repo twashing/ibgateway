@@ -453,6 +453,7 @@
       ;; trace
       ))
 
+;; (defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} down-market? partitioned-list]
 (defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} partitioned-list]
 
   (let [;; A - Bollinger Band squeeze
@@ -476,15 +477,6 @@
         ;; Overlay fibanacci calculations over original list
         bollinger-with-peaks-troughs-fibonacci (bollinger-with-peaks-troughs-fibonacci_fn peaks-troughs fibonacci-at-peaks-and-troughs)
 
-        ;; down-market? (common/down-market? partitioned-list)
-        ;; up-market? (common/up-market? partitioned-list)
-        ;; up-market? (->> (map #(dissoc % :population) sma-list)
-        ;;                 (take-last market-trend-by-ticks)
-        ;;                 ;; trace
-        ;;                 (partition 2 1)
-        ;;                 (common/up-market? :last-trade-price-average)
-        ;;                 ;; trace
-        ;;                 )
 
         last-bollinger (last bollinger-band)]
 
@@ -707,6 +699,8 @@
       ;;   entry is when we take out the resistance
       ;;
       ;;   ! in isolation, support/resistance should be used in a sideways market (not a trend)
+
+      ;; true (analysis-day-trading-strategy-bollinger-bands-squeeze down-market? partitioned-list)
       true (analysis-day-trading-strategy-bollinger-bands-squeeze partitioned-list)
       :always (consolidate-signals))))
 

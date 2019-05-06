@@ -178,9 +178,7 @@
                               %)]
 
     (-> (max-quantity-fn quantity)
-        trace
-        max-purchase-value
-        trace)
+        max-purchase-value)
     ))
 
 ;; (cap-order-quantity 131 1938.17)
@@ -196,12 +194,9 @@
         (> cash-level 10000) (* 0.1 cash-level)
         (> cash-level 100000) (* 0.05 cash-level)
         :else (* 0.05 cash-level))
-      trace
       (/ price)
-      trace
       (.longValue)
-      (cap-order-quantity price)
-      trace))
+      (cap-order-quantity price)))
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
@@ -742,7 +737,7 @@
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
                #'com.interrupt.ibgateway.component.account/account)
 
-  (<!! (timeout 100))
+  (<!! (timeout 500))
 
   (do
     (def instrument "AMZN")

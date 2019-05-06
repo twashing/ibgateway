@@ -7,7 +7,7 @@ services:
       - ZOOKEEPER_CLIENT_PORT=2181
     ports:
       - 2181:2181
-  
+
   kafka:
     image: confluentinc/cp-kafka:3.3.1
     ports:
@@ -53,6 +53,27 @@ services:
       - /Users/timothyw/Projects/edgarly/ibgateway:/usr/src/app
     entrypoint: lein trampoline run --record false
 
+
+  app-profiled:
+    image: edgarly/ibgateway-app:profiled
+    depends_on:
+      - tws
+    working_dir: /usr/src/app
+    shm_size: 1G
+    environment:
+      - DISPLAY=:0.0
+    ports:
+      - 5554:5554
+      - 8080:8080
+      - 3449:3449
+      - 10001:10001
+    volumes:
+      - /Users/timothyw/Projects/edgarly/ibgateway:/usr/src/app
+    environment:
+      - LEIN_JVM_OPTS=-agentpath:/usr/local/YourKit-JavaProfiler-2019.1/bin/linux-x86-64/libyjpagent.so=port=10001,listen=all
+    entrypoint: lein trampoline run --record false
+
+
   record-live-data:
     image: edgarly/ibgateway-app:latest
     depends_on:
@@ -73,7 +94,7 @@ services:
       - zookeeper
       - kafka
     environment:
-      HOSTNAME_COMMAND: "docker info | grep ^Name: | cut -d' ' -f 2"      
+      HOSTNAME_COMMAND: "docker info | grep ^Name: | cut -d' ' -f 2"
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
       KAFKA_ADVERTISED_PROTOCOL_NAME: OUTSIDE
@@ -81,7 +102,7 @@ services:
       KAFKA_PROTOCOL_NAME: INSIDE
       KAFKA_PORT: 9092
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-   
+
     tty: true
     working_dir: /usr/src/app
     entrypoint: /bin/bash
