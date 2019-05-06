@@ -77,7 +77,7 @@
                    :resource-paths ["dev-resources" "test/resources"]
 
                    :plugins [[refactor-nrepl "2.4.0"]
-                             [cider/cider-nrepl "0.18.0"]
+                             [cider/cider-nrepl "0.21.0"]
                              [lein-cljsbuild "1.1.7"]
                              [lein-environ "1.1.0"]
                              [lein-figwheel "0.5.16"]
