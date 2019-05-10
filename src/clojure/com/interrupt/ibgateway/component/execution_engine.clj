@@ -300,8 +300,7 @@
               (and not-down-market? b)
               (and not-down-market? c))
 
-      ;; (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
-      )
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
 
     ;; (info "[A B C] / " [a b c])
     ;; (when (or a b c)
@@ -417,7 +416,7 @@
             {{last-trade-price :last-trade-price
               last-trade-time :last-trade-time} :signal-bollinger-band :as joined-tick} (<! joined-channel)]
 
-    (info "BEFORE | count:" c " / last-trade-price:" last-trade-price " / joined-tick" (dissoc joined-tick :population))
+    ;; (info "BEFORE | count:" c " / last-trade-price:" last-trade-price " / joined-tick" (dissoc joined-tick :population))
     (if-not joined-tick
       joined-tick
       (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
@@ -425,7 +424,7 @@
         (reset! *latest-tick* joined-tick)
 
         ;; (info "count: " c " / sr: " sr)
-        (info "AFTER | count:" c " / last-trade-price:" last-trade-price " / joined-tick /" sr)
+        ;; (info "AFTER | count:" c " / last-trade-price:" last-trade-price " / joined-tick /" sr)
 
 
         ;; TODO design a better way to capture running standard-deviation

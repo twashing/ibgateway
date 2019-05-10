@@ -7,7 +7,8 @@
                  ["myMavenRepo.write" "https://mymavenrepo.com/repo/xc9d5m3WdTIFAqIiiYkn/"]
                  ["my.datomic.com" {:url "https://my.datomic.com/repo"
                                     :creds :gpg}]]
-  :dependencies [[org.clojure/clojure "1.9.0"]
+  :dependencies [[org.clojure/clojure "1.10.1-beta1"]
+                 ;; [org.clojure/clojure "1.9.0"]
                  [org.clojure/clojurescript "1.10.520"]
                  [org.apache.commons/commons-daemon "1.0.9"]
                  [mount "0.1.16"]

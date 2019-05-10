@@ -3,6 +3,7 @@
              :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
                      sliding-buffer thread mult tap pipeline] :as async]
             [clojure.tools.logging :refer [debug info warn error]]
+            [clojure.tools.trace :refer [trace]]
             [com.interrupt.edgar.core.utils :refer [set-log-level]]
             [com.interrupt.ibgateway.component.account :refer [account-name]]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
@@ -46,7 +47,6 @@
 
 
 (comment
-
 
 
   (do (def client (:client ew/ewrapper))
@@ -180,10 +180,12 @@
 
   ;; 1. START
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.vase/server)
+              ;; #'com.interrupt.ibgateway.component.vase/server
+              )
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.vase/server)
+               ;; #'com.interrupt.ibgateway.component.vase/server
+               )
 
   (send-message-to-all! "{:foo :bar}")
 
@@ -367,10 +369,11 @@
     (def output-ch (chan (sliding-buffer 100)))
     (def execution-engine-output-ch (chan (sliding-buffer 100)))
 
-    ;; (def joined-channel-map (promise))
+    (def joined-channel-map (promise))
     )
 
-  (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id))
+  ;; (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id))
+  ;; (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name)
 
   ;; ====>
   (let [{jch :joined-channel} joined-channel-map]
@@ -385,15 +388,11 @@
   ;; ====>
 
 
+  (thread
+    (deliver joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
-  ;; (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name)
-
-
-  ;; (thread
-  ;;   (deliver joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
-  ;;
-  ;; (thread
-  ;;   (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name))
+  (thread
+    (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name))
 
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 7))
 
