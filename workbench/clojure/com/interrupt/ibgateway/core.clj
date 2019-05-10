@@ -1,7 +1,7 @@
 (ns com.interrupt.ibgateway.core
   (:require [clojure.core.async
              :refer [chan >! >!! <! <!! alts! close! merge go go-loop pub sub unsub-all
-                     sliding-buffer mult tap pipeline] :as async]
+                     sliding-buffer thread mult tap pipeline] :as async]
             [clojure.tools.logging :refer [debug info warn error]]
             [com.interrupt.edgar.core.utils :refer [set-log-level]]
             [com.interrupt.ibgateway.component.account :refer [account-name]]
@@ -11,7 +11,7 @@
             [com.interrupt.ibgateway.cloud.storage]
             [com.interrupt.ibgateway.component.ewrapper :as ew]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ei]
-            [com.interrupt.ibgateway.component.figwheel.figwheel]
+            ;; [com.interrupt.ibgateway.component.figwheel.figwheel]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
             [com.interrupt.ibgateway.component.execution-engine :as ee]
             [com.interrupt.ibgateway.component.switchboard :as sw]
@@ -198,10 +198,10 @@
     ;; "live-recordings/2018-08-27-TSLA.edn"
     ;; "live-recordings/2018-12-24-AMZN.edn"
 
-    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-12-24-AMZN.edn")
-    (def fname "live-recordings/2019-04-29-AMZN.edn")
+    ;; (def fname "live-recordings/2019-04-29-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 100)))
@@ -335,6 +335,21 @@
 (comment ;; execution-engine workbench
 
 
+  (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
+  (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
+
+
+  ;; STOP
+  (do
+    (sw/stop-stream-workbench control-channel)
+    (pp/teardown-publisher-channel joined-channel-map)
+    (ee/teardown-execution-engine execution-engine-output-ch))
+
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+
+
   ;; START
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
@@ -349,21 +364,38 @@
     ;; "live-recordings/2018-08-27-TSLA.edn"
     (def fname "live-recordings/2018-08-20-TSLA.edn")
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def joined-channel-map (pp/setup-publisher-channel source-ch instrument concurrency ticker-id))
-    (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname))
+    (def output-ch (chan (sliding-buffer 100)))
+    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+
+    ;; (def joined-channel-map (promise))
+    )
+
+  (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id))
+
+  ;; ====>
+  (let [{jch :joined-channel} joined-channel-map]
+
+    (go-loop [c 0 r (<! jch)]
+      (if-not r
+        r
+        (let [sr (update-in r [:sma-list] dissoc :population)]
+          (info "count:" c " / sr:" sr)
+          ;; (send-message-to-all! sr)
+          (recur (inc c) (<! jch))))))
+  ;; ====>
 
 
-  (def joined-channel-tapped
-    (ee/setup-execution-engine joined-channel-map ew/ewrapper instrument account-name))
+
+  ;; (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name)
 
 
-  ;; STOP
-  (do
-    (sw/stop-stream-workbench control-channel)
-    (pp/teardown-publisher-channel joined-channel-map)
-    (ee/teardown-execution-engine joined-channel-tapped))
+  ;; (thread
+  ;;   (deliver joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
+  ;;
+  ;; (thread
+  ;;   (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name))
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper))
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 7))
 
 
 (comment  ;; A scanner workbench

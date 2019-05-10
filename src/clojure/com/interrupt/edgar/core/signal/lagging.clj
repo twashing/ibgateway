@@ -13,7 +13,7 @@
 
 
 
-(def market-trend-by-ticks 5)
+(def market-trend-by-ticks 4)
 
 (defn moving-averages
   "Takes baseline time series, along with 2 other moving averages.
@@ -453,7 +453,7 @@
       ;; trace
       ))
 
-(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} partitioned-list]
+(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} down-market? partitioned-list]
 
   (let [;; A - Bollinger Band squeeze
         [mean-lhs mean-rhs] (mean-lhs-mean-rhs_fn bollinger-band)
@@ -469,12 +469,12 @@
 
 
         ;; D - Peaks / troughs
-        peaks-troughs (peaks-troughs_fn bollinger-band)
-        fibonacci-at-peaks-and-troughs (overlay-fibonacci-at-peaks-and-troughs peaks-troughs)
+        ;; peaks-troughs (peaks-troughs_fn bollinger-band)
+        ;; fibonacci-at-peaks-and-troughs (overlay-fibonacci-at-peaks-and-troughs peaks-troughs)
 
 
         ;; Overlay fibanacci calculations over original list
-        bollinger-with-peaks-troughs-fibonacci (bollinger-with-peaks-troughs-fibonacci_fn peaks-troughs fibonacci-at-peaks-and-troughs)
+        ;; bollinger-with-peaks-troughs-fibonacci (bollinger-with-peaks-troughs-fibonacci_fn peaks-troughs fibonacci-at-peaks-and-troughs)
 
         ;; down-market? (common/down-market? partitioned-list)
         ;; up-market? (common/up-market? partitioned-list)
@@ -510,12 +510,12 @@
       (< percent-b 0.5) (update-in [:signals] conj {:signal :down
                                                     :why :percent-b-below-50})
 
-      (:fibonacci bollinger-with-peaks-troughs-fibonacci) (update-in [:signals] conj
-                                                                     (-> (select-keys bollinger-with-peaks-troughs-fibonacci [:fibonacci :carry])
-                                                                         (assoc :signal :fibonacci)))
+      ;; (:fibonacci bollinger-with-peaks-troughs-fibonacci) (update-in [:signals] conj
+      ;;                                                                (-> (select-keys bollinger-with-peaks-troughs-fibonacci [:fibonacci :carry])
+      ;;                                                                    (assoc :signal :fibonacci)))
 
-      ;; (not down-market?) (update-in [:signals] conj {:signal :up
-      ;;                                                :why :not-down-market})
+      (not down-market?) (update-in [:signals] conj {:signal :up
+                                                     :why :not-down-market})
 
       :always ((partial bind-result item)))))
 
@@ -545,9 +545,9 @@
   ;; TODO Oversold - price (preferably a bid) lands below the lower band
 
   (let [;; Track widest & narrowest band over the last 'n' (3) ticks
-        sorted-bands (sort-bollinger-band bollinger-band)
-        most-narrow (take 2 sorted-bands)
-        most-wide (take-last 2 sorted-bands)
+        ;; sorted-bands (sort-bollinger-band bollinger-band)
+        ;; most-narrow (take 2 sorted-bands)
+        ;; most-wide (take-last 2 sorted-bands)
 
         partitioned-list (->> (partition 2 1 tick-list)
                               (take-last market-trend-by-ticks))
@@ -561,21 +561,23 @@
         ;; up-market? (common/up-market? partitioned-list)
         ;; up-market? (common/up-market? :last-trade-price-average partitioned-sma)
 
+        down-market? false
         ;; down-market? (common/down-market? partitioned-list)
         ;; down-market? (common/down-market? :last-trade-price-average partitioned-sma)
+        _ (info "CALCULATING down-market?" down-market?)
 
         ;; sideways-market? (not (and up-market? down-market?))
 
-        latest-diff (- (-> bollinger-band last :upper-band)
-                       (-> bollinger-band last :lower-band))
+        ;; latest-diff (- (-> bollinger-band last :upper-band)
+        ;;                (-> bollinger-band last :lower-band))
 
 
-        bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
+        ;; bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
 
         ;; Find last 3 peaks and valleys
-        peaks-valleys (common/find-peaks-valleys nil tick-list)
-        peaks (:peak (group-by :signal peaks-valleys))
-        valleys (:valley (group-by :signal peaks-valleys))
+        ;; peaks-valleys (common/find-peaks-valleys nil tick-list)
+        ;; peaks (:peak (group-by :signal peaks-valleys))
+        ;; valleys (:valley (group-by :signal peaks-valleys))
         payload (assoc item :result [])
 
         consolidate-signals (fn [bitem]
@@ -707,7 +709,7 @@
       ;;   entry is when we take out the resistance
       ;;
       ;;   ! in isolation, support/resistance should be used in a sideways market (not a trend)
-      true (analysis-day-trading-strategy-bollinger-bands-squeeze partitioned-list)
+      true (analysis-day-trading-strategy-bollinger-bands-squeeze down-market? partitioned-list)
       :always (consolidate-signals))))
 
 

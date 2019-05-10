@@ -10,7 +10,7 @@
 
 
 
-(def tws-host (env :tws-host "tws"))
+(def tws-host (env :tws-host "tws-paper"))
 (def tws-port (env :tws-port 4002))
 (def client-id (atom nil))
 
