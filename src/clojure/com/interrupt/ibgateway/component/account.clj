@@ -45,7 +45,7 @@
                       :state {:states ({:matcher :pre-submitted} {:matcher :submitted} {:matcher :filled})
                               :run ({:matcher :pre-submitted} {:matcher :submitted} {:matcher :filled})
                               :state nil
-                              :history [nil]}}]}
+                              :history g[nil]}}]}
 
            {:symbol "TSLA"
             :amount 10
@@ -61,7 +61,8 @@
                               :history [nil]}}]}]
    :cash 1000000})
 
-(def account-name "DU542121")
+;; (def account-name "DU542121")
+(def account-name "U1932856")
 
 (defstate account
   :start (atom {:stock [] :cash 0.0})

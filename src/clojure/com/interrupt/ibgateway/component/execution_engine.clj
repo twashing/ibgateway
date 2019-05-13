@@ -191,15 +191,20 @@
 (defn derive-order-quantity [cash-level price]
   (info "derive-order-quantity / " [cash-level price])
   ;; 1
-  (-> (cond
-        (< cash-level 500) (* 0.5 cash-level)
-        (<= cash-level 2000) 500
-        (> cash-level 2000) (* 0.25 cash-level)
-        (> cash-level 10000) (* 0.1 cash-level)
-        (> cash-level 100000) (* 0.05 cash-level)
-        :else (* 0.05 cash-level))
-      trace
-      (/ price)
+  #_(-> (cond
+          (< cash-level 500) (* 0.5 cash-level)
+          (<= cash-level 2000) 500
+          (> cash-level 2000) (* 0.25 cash-level)
+          (> cash-level 10000) (* 0.1 cash-level)
+          (> cash-level 100000) (* 0.05 cash-level)
+          :else (* 0.05 cash-level))
+        trace
+        (/ price)
+        trace
+        (.longValue)
+        (cap-order-quantity price)
+        trace)
+  (-> (/ cash-level price)
       trace
       (.longValue)
       (cap-order-quantity price)

@@ -44,7 +44,9 @@ services:
       VNC_PASSWORD: some_pass123
     image: edgarly/ibgateway-tws-live:latest
     ports:
-      - 4002:4002  # API
+      - 4001:4001  # API
+      - 4002:4002
+      - 7496:7496
       - 7497:7497
       - 5900:5900  # VNC
     tty: true
