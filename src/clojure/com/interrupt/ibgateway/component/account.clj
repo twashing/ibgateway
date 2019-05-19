@@ -45,7 +45,7 @@
                       :state {:states ({:matcher :pre-submitted} {:matcher :submitted} {:matcher :filled})
                               :run ({:matcher :pre-submitted} {:matcher :submitted} {:matcher :filled})
                               :state nil
-                              :history g[nil]}}]}
+                              :history [nil]}}]}
 
            {:symbol "TSLA"
             :amount 10

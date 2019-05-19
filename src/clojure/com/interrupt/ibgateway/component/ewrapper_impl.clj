@@ -405,22 +405,12 @@
   ([host port client-id chs-map]
    (ewrapper host port client-id chs-map default-exception-handler))
   ([host port client-id chs-map ex-handler]
-
-   (println "WTF /" [host port client-id chs-map ex-handler])
-   (println)
    (let [wrapper (ewrapper-impl chs-map)
          client (.getClient wrapper)
          signal (.getSignal wrapper)]
 
      (def client* client)
-
-     (try (.eConnect client host port client-id)
-          (catch Exception e
-            (println e)
-            ;; (println (.getString e))
-            ;; (println (.getMessage e))
-            ;; (ex-handler e)
-            ))
+     (.eConnect client host port client-id)
      (let [ereader (EReader. client signal)]
        (.start ereader)
        (future

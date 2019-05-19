@@ -11,7 +11,7 @@
 
 
 (def tws-host (env :tws-host "tws-live"))
-(def tws-port (env :tws-port 7496))
+(def tws-port (Integer/parseInt (env :tws-port 7496)))
 (def client-id (atom nil))
 
 (defn setup-default-channels []

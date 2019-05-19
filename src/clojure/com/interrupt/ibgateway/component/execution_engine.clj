@@ -305,7 +305,8 @@
               (and not-down-market? b)
               (and not-down-market? c))
 
-      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
+      )
 
     ;; (info "[A B C] / " [a b c])
     ;; (when (or a b c)
@@ -912,3 +913,4 @@
          {client :client}                     :ewrapper} ewrapper/ewrapper]
 
     (buy-stock client @*latest-tick* account-updates-ch valid-order-id-ch account-name instrument)))
+

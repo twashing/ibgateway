@@ -61,6 +61,8 @@ services:
     shm_size: 1G
     environment:
       - DISPLAY=:0.0
+      - TWS_HOST=tws-paper
+      - TWS_PORT=4002
       # - JVM_OPTS=-server -Xms8G -Xmx8 -XX:PermSize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70
     ports:
       - 5554:5554
@@ -78,6 +80,8 @@ services:
     shm_size: 1G
     environment:
       - DISPLAY=:0.0
+      - TWS_HOST=tws-live
+      - TWS_PORT=7496
       # - JVM_OPTS=-server -Xms8G -Xmx8 -XX:PermSize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70
     ports:
       - 5554:5554
