@@ -22,12 +22,12 @@ services:
     depends_on:
       - zookeeper
 
-  tws:
+  tws-paper:
     environment:
       TWSUSERID: fdemo
       TWSPASSWORD: demouser
       VNC_PASSWORD: some_pass123
-    image: edgarly/ibgateway-tws:latest
+    image: edgarly/ibgateway-tws-paper:latest
     ports:
       - 4002:4002  # API
       - 7497:7497
@@ -37,14 +37,52 @@ services:
     entrypoint: /usr/local/bin/install-base.sh
     # entrypoint: /bin/bash
 
-  app:
+  tws-live:
+    environment:
+      TWSUSERID: fdemo
+      TWSPASSWORD: demouser
+      VNC_PASSWORD: some_pass123
+    image: edgarly/ibgateway-tws-live:latest
+    ports:
+      - 4001:4001  # API
+      - 4002:4002
+      - 7496:7496
+      - 7497:7497
+      - 5900:5900  # VNC
+    tty: true
+    restart: always
+    entrypoint: /usr/local/bin/install-base.sh
+
+  app-paper:
     image: edgarly/ibgateway-app:latest
     depends_on:
-      - tws
+      - tws-paper
     working_dir: /usr/src/app
     shm_size: 1G
     environment:
       - DISPLAY=:0.0
+      - TWS_HOST=tws-paper
+      - TWS_PORT=4002
+      # - JVM_OPTS=-server -Xms8G -Xmx8 -XX:PermSize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70
+    ports:
+      - 5554:5554
+      - 8080:8080
+      - 3449:3449
+    volumes:
+      - /Users/timothyw/Projects/edgarly/ibgateway:/usr/src/app
+    entrypoint: lein trampoline run --record false
+
+  app-live:
+    image: edgarly/ibgateway-app:latest
+    depends_on:
+      - tws-live
+    working_dir: /usr/src/app
+    shm_size: 1G
+    environment:
+      - DISPLAY=:0.0
+      - TWS_HOST=tws-live
+      - TWS_PORT=7496
+      # - JVM_OPTS=-server -Xms8G -Xmx8 -XX:PermSize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70
     ports:
       - 5554:5554
       - 8080:8080
@@ -54,9 +92,9 @@ services:
     entrypoint: lein trampoline run --record false
 
   record-live-data:
-    image: edgarly/ibgateway-app:latest
+    image: edgarly/ibgateway-app-paper:latest
     depends_on:
-      - tws
+      - tws-paper
     working_dir: /usr/app
     shm_size: 1G
     ports:

@@ -61,7 +61,8 @@
                               :history [nil]}}]}]
    :cash 1000000})
 
-(def account-name "DU542121")
+;; (def account-name "DU542121")
+(def account-name "U1932856")
 
 (defstate account
   :start (atom {:stock [] :cash 0.0})

@@ -60,6 +60,8 @@
   (let [f (set->has-signal-fn lagging-signals)]
     (filter f a)))
 
+
+
 (defn has-leading-signal? [a]
   (let [f (set->has-signal-fn leading-signals)]
     (filter f a)))
@@ -189,15 +191,20 @@
 (defn derive-order-quantity [cash-level price]
   (info "derive-order-quantity / " [cash-level price])
   ;; 1
-  (-> (cond
-        (< cash-level 500) (* 0.5 cash-level)
-        (<= cash-level 2000) 500
-        (> cash-level 2000) (* 0.25 cash-level)
-        (> cash-level 10000) (* 0.1 cash-level)
-        (> cash-level 100000) (* 0.05 cash-level)
-        :else (* 0.05 cash-level))
-      trace
-      (/ price)
+  #_(-> (cond
+          (< cash-level 500) (* 0.5 cash-level)
+          (<= cash-level 2000) 500
+          (> cash-level 2000) (* 0.25 cash-level)
+          (> cash-level 10000) (* 0.1 cash-level)
+          (> cash-level 100000) (* 0.05 cash-level)
+          :else (* 0.05 cash-level))
+        trace
+        (/ price)
+        trace
+        (.longValue)
+        (cap-order-quantity price)
+        trace)
+  (-> (/ cash-level price)
       trace
       (.longValue)
       (cap-order-quantity price)
@@ -288,21 +295,22 @@
                (into #{})
                (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))
 
-        ;; not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
-        ;;                       (into #{})
-        ;;                       (clojure.set/subset? #{:not-down-market}))
+        not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
+                              (into #{})
+                              (clojure.set/subset? #{:not-down-market}))
         ]
 
-    ;; (info "[A B C not-down-market?] / " [a b c  not-down-market?])
-    ;; (when (or (and not-down-market? a)
-    ;;           (and not-down-market? b)
-    ;;           (and not-down-market? c))
-    ;;
-    ;;   (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+    (info "[A B C not-down-market?] / " [a b c not-down-market?])
+    (when (or (and not-down-market? a)
+              (and not-down-market? b)
+              (and not-down-market? c))
 
-    (info "[A B C] / " [a b c])
-    (when (or a b c)
-      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
+      )
+
+    ;; (info "[A B C] / " [a b c])
+    ;; (when (or a b c)
+    ;;   (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
     ))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
@@ -408,12 +416,13 @@
 
     (recur (<! order-filled-notification-ch))))
 
-(defn consume-joined-channel [joined-channel-tapped default-channels client instrm account-name]
+(defn consume-joined-channel [joined-channel default-channels client instrm account-name]
 
   (go-loop [c 0
             {{last-trade-price :last-trade-price
-              last-trade-time :last-trade-time} :signal-bollinger-band
-             :as joined-tick} (<! joined-channel-tapped)]
+              last-trade-time :last-trade-time} :signal-bollinger-band :as joined-tick} (<! joined-channel)]
+
+    ;; (info "BEFORE | count:" c " / last-trade-price:" last-trade-price " / joined-tick" (dissoc joined-tick :population))
     (if-not joined-tick
       joined-tick
       (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
@@ -421,7 +430,7 @@
         (reset! *latest-tick* joined-tick)
 
         ;; (info "count: " c " / sr: " sr)
-        (info "count:" c " / last-trade-price:" last-trade-price " / joined-tick /" sr)
+        ;; (info "AFTER | count:" c " / last-trade-price:" last-trade-price " / joined-tick /" sr)
 
 
         ;; TODO design a better way to capture running standard-deviation
@@ -439,7 +448,7 @@
         #_(when (:sma-list joined-tick)
           (extract-signals+decide-order client joined-tick instrm account-name default-channels))
 
-        (recur (inc c) (<! joined-channel-tapped))))))
+        (recur (inc c) (<! joined-channel))))))
 
 (defn scan-for-latest-bid [input-ch]
   (go-loop [tick (<! input-ch)]
@@ -448,14 +457,12 @@
     (recur (<! input-ch))))
 
 (defn setup-execution-engine [{joined-channel :joined-channel
-                               processing-pipeline-input-channel :input-channel}
-                              joined-channel-tapped
+                               processing-pipeline-input-channel :input-channel} joined-channel-tapped
                               {{valid-order-id-ch :valid-order-ids
                                 order-filled-notification-ch :order-filled-notifications
                                 :as default-channels} :default-channels
-                               {client :client} :ewrapper}
-                              instrm account-name]
-
+                               {client :client} :ewrapper} instrm
+                              account-name]
 
   ;; (bind-channels->mult joined-channel joined-channel-tapped)
   (scan-for-latest-bid processing-pipeline-input-channel)
@@ -847,7 +854,7 @@
   ;; B.2 START trading
   (do
     (def instrument "AMZN")
-    (def instrument2 "TSLA")
+    ;; (def instrument "TSLA")
 
     (def concurrency 1)
     (def ticker-id 1003)
@@ -875,7 +882,6 @@
 
   (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
   (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
-
   (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
 
@@ -907,3 +913,4 @@
          {client :client}                     :ewrapper} ewrapper/ewrapper]
 
     (buy-stock client @*latest-tick* account-updates-ch valid-order-id-ch account-name instrument)))
+

@@ -51,9 +51,8 @@
 
   ([partitioned-list] (down-market? :last-trade-price partitioned-list))
   ([k partitioned-list]
-   (every? (fn [inp]
-             (>= (k (first inp))
-                 (k (second inp))))
+   (every? (fn [[fst snd]]
+             (>= (k fst) (k snd)))
            partitioned-list)))
 
 (defn divergence-up?

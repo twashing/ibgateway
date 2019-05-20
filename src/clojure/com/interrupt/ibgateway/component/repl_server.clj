@@ -1,9 +1,9 @@
 (ns com.interrupt.ibgateway.component.repl-server
   (:require [environ.core :refer [env]]
             [mount.core :refer [defstate] :as mount]
-            [clojure.tools.nrepl.server :refer [start-server stop-server] :as nrepl]
-            [cider.nrepl :refer [cider-middleware]]
-            [refactor-nrepl.middleware :refer [wrap-refactor]]))
+            ;; [clojure.tools.nrepl.server :refer [start-server stop-server] :as nrepl]
+            [nrepl.server :refer [start-server stop-server] :as nrepl]
+            [cider.nrepl :refer [cider-middleware]]))
 
 
 (def host "0.0.0.0")
@@ -14,6 +14,5 @@
                        :bind host
                        :handler (apply
                                  nrepl/default-handler
-                                 (conj (map resolve cider-middleware)
-                                       wrap-refactor)))
+                                 (map resolve cider-middleware)))
   :stop (stop-server server))

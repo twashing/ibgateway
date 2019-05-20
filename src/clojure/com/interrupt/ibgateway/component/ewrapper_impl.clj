@@ -410,7 +410,6 @@
          signal (.getSignal wrapper)]
 
      (def client* client)
-
      (.eConnect client host port client-id)
      (let [ereader (EReader. client signal)]
        (.start ereader)
