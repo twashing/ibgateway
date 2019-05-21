@@ -180,9 +180,7 @@
                               %)]
 
     (-> (max-quantity-fn quantity)
-        trace
-        max-purchase-value
-        trace)
+        max-purchase-value)
     ))
 
 ;; (cap-order-quantity 131 1938.17)
@@ -192,8 +190,8 @@
   ([cash-level]
    (conditionally-apply-margin cash-level (env :buy-on-margin)))
   ([cash-level maintenance-margin]
-   (if-let [buy-on-margin maintenance-margin]
-     (->> buy-on-margin
+   (if maintenance-margin
+     (->> maintenance-margin
           Float/parseFloat
           (/ cash-level))
      cash-level)))
@@ -221,10 +219,8 @@
 
   ;; C
   (-> (/ cash-level price)
-      trace
       (.longValue)
-      (cap-order-quantity price)
-      trace))
+      (cap-order-quantity price)))
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
