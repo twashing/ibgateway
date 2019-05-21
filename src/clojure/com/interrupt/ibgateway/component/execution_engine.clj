@@ -21,7 +21,7 @@
   (:import [com.ib.client Order]))
 
 
-(def *latest-tick* (atom {}))
+(def ^:dynamic *latest-tick* (atom {}))
 
 (def minimum-cash-level (let [a (env :minimum-cash-level 1000)]
                           (if (number? a)
@@ -188,9 +188,23 @@
 ;; (cap-order-quantity 131 1938.17)
 ;; (* 1938.14 103)
 
+(defn conditionally-apply-margin
+  ([cash-level]
+   (conditionally-apply-margin cash-level (env :buy-on-margin)))
+  ([cash-level maintenance-margin]
+   (if-let [buy-on-margin maintenance-margin]
+     (->> buy-on-margin
+          Float/parseFloat
+          (/ cash-level))
+     cash-level)))
+
 (defn derive-order-quantity [cash-level price]
   (info "derive-order-quantity / " [cash-level price])
+
+  ;; A
   ;; 1
+
+  ;; B
   #_(-> (cond
           (< cash-level 500) (* 0.5 cash-level)
           (<= cash-level 2000) 500
@@ -204,6 +218,8 @@
         (.longValue)
         (cap-order-quantity price)
         trace)
+
+  ;; C
   (-> (/ cash-level price)
       trace
       (.longValue)
@@ -218,16 +234,20 @@
         price (if (< latest-price latest-bid)
                 latest-price latest-bid)
 
-        cash-level (-> client (->account-cash-level account-updates-ch) :value)
-        _ (info "3 - buy-stock / account-updates-ch channel-open? / " (channel-open? account-updates-ch)
-                " / cash-level / " cash-level)
+        cash-level (-> client
+                       (->account-cash-level account-updates-ch)
+                       :value
+                       conditionally-apply-margin)
+
+        _ (info "3 - buy-stock / account-updates-ch open? /" (channel-open? account-updates-ch)
+                " / cash-level /" cash-level
+                " / margin? /" (env :buy-on-margin))
 
         qty (derive-order-quantity cash-level price)
 
         ;; TODO make a mock version of this
         order-id (->next-valid-order-id client valid-order-id-ch)
-        _ (info "3 - buy-stock / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
-                " / order-id / " order-id)]
+        _ (info "3 - buy-stock / valid-order-id-ch open? /" (channel-open? valid-order-id-ch) " / order-id /" order-id)]
 
     (if (>= qty 1)
       (do
@@ -913,4 +933,3 @@
          {client :client}                     :ewrapper} ewrapper/ewrapper]
 
     (buy-stock client @*latest-tick* account-updates-ch valid-order-id-ch account-name instrument)))
-

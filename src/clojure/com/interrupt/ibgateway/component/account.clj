@@ -3,6 +3,7 @@
   (:require [mount.core :refer [defstate] :as mount]
             [com.rpl.specter :as s]
             [clojure.tools.logging :refer [info] :as log]
+            [environ.core :refer [env]]
             [clojure.core.match :refer [match]]
             [clojure.core.async :as async :refer [go-loop <! >!!]]
             [automata.core :as au]
@@ -61,8 +62,9 @@
                               :history [nil]}}]}]
    :cash 1000000})
 
-;; (def account-name "DU542121")
-(def account-name "U1932856")
+;; (def account-name "DU542121"
+;; (def account-name "U1932856"))
+(def account-name (env :account-name "DU542121"))
 
 (defstate account
   :start (atom {:stock [] :cash 0.0})
