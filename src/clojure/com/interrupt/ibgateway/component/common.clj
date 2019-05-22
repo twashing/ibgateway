@@ -2,8 +2,12 @@
   (:require [clojure.core.async :refer [<!! mult tap] :as async]
             [clojure.tools.logging :refer [info]]
             [clojure.core.async.impl.protocols :refer [closed?]]
+            [environ.core :refer [env]]
             [com.interrupt.ibgateway.component.account.contract :as contract])
   (:import [com.ib.client Order]))
+
+
+(def balancing-sell-standard-deviation-multiple (Float/parseFloat (env :balancing-sell-standard-deviation-multiple "2")))
 
 (defn bind-channels->mult [source-list-ch & channels]
   (let [source-list->sink-mult (mult source-list-ch)]
@@ -58,7 +62,7 @@
                        (clojure.pprint/cl-format nil "~,2f")
                        read-string
                        (Double.)
-                       (* 2.5)
+                       (* balancing-sell-standard-deviation-multiple)
                        (clojure.pprint/cl-format nil "~,2f")
                        read-string)
         limitPrice (+ (:price order) threshold)]

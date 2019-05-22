@@ -64,7 +64,9 @@ services:
       - TWS_HOST=tws-paper
       - TWS_PORT=4002
       - ACCOUNT_NAME=DU542121
+      - MARKET_TREND_BY_TICKS=3
       - BUY_ON_MARGIN=0.28  # 0.25 (4x more buying power than the net liquidation value)
+      - BALANCING_SELL_STANDARD_DEVIATION_MULTIPLE=2
       # - JVM_OPTS=-server -Xms8G -Xmx8 -XX:PermSize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70
     ports:
       - 5554:5554
@@ -85,7 +87,9 @@ services:
       - TWS_HOST=tws-live
       - TWS_PORT=7496
       - ACCOUNT_NAME=U1932856
+      - MARKET_TREND_BY_TICKS=3
       - BUY_ON_MARGIN=0.28  # 0.25 (4x more buying power than the net liquidation value)
+      - BALANCING_SELL_STANDARD_DEVIATION_MULTIPLE=2
       # - JVM_OPTS=-server -Xms8G -Xmx8 -XX:PermSize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70
     ports:
       - 5554:5554

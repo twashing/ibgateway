@@ -2,8 +2,8 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [info] :as log]
             [clojure.tools.trace :refer [trace]]
+            [environ.core :refer [env]]
             [com.rpl.specter :refer :all]
-
             [com.interrupt.edgar.core.analysis.lagging :as analysis]
             [com.interrupt.edgar.core.analysis.confirming :as confirming]
             [com.interrupt.edgar.core.signal.common :as common]
@@ -12,8 +12,7 @@
             [com.interrupt.ibgateway.component.common :refer [exists?]]))
 
 
-
-(def market-trend-by-ticks 4)
+(def market-trend-by-ticks (Integer/parseInt (env :market-trend-by-ticks "3")))
 
 (defn moving-averages
   "Takes baseline time series, along with 2 other moving averages.
