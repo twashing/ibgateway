@@ -67,6 +67,7 @@ services:
       - MARKET_TREND_BY_TICKS=3
       - BUY_ON_MARGIN=0.28  # 0.25 (4x more buying power than the net liquidation value)
       - BALANCING_SELL_STANDARD_DEVIATION_MULTIPLE=2
+      - JVM_OPTS=-server -Xms4G -Xmx6G
       # - JVM_OPTS=-server -Xms8G -Xmx8 -XX:PermSize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70
     ports:
       - 5554:5554
@@ -90,6 +91,7 @@ services:
       - MARKET_TREND_BY_TICKS=3
       - BUY_ON_MARGIN=0.28  # 0.25 (4x more buying power than the net liquidation value)
       - BALANCING_SELL_STANDARD_DEVIATION_MULTIPLE=2
+      - JVM_OPTS=-server -Xms4G -Xmx6G
       # - JVM_OPTS=-server -Xms8G -Xmx8 -XX:PermSize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=20 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70
     ports:
       - 5554:5554
