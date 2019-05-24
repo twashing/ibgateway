@@ -8,6 +8,8 @@
 
 
 (def balancing-sell-standard-deviation-multiple (Float/parseFloat (env :balancing-sell-standard-deviation-multiple "2")))
+(def balancing-sell-type (env :balancing-sell-type "LIMIT"))
+
 
 (defn bind-channels->mult [source-list-ch & channels]
   (let [source-list->sink-mult (mult source-list-ch)]
@@ -86,11 +88,10 @@
         auxPrice (->> @latest-standard-deviation
                       (clojure.pprint/cl-format nil "~,2f")
                       read-string
-                      ;; (Double.)
-                      ;; (* 10)
-                      ;; (clojure.pprint/cl-format nil "~,2f")
-                      ;; read-string
-                      )
+                      (Double.)
+                      (* balancing-sell-standard-deviation-multiple)
+                      (clojure.pprint/cl-format nil "~,2f")
+                      read-string)
         trailStopPrice (- (:price order) auxPrice)]
 
     (info "3 - (balancing) sell-stock / sell-trailing / " [quantity valid-order-id auxPrice trailStopPrice])
@@ -113,7 +114,12 @@
         lmtPriceOffset 0.05
         trailingAmount (->> @latest-standard-deviation
                             (clojure.pprint/cl-format nil "~,2f")
+                            read-string
+                            (Double.)
+                            (* balancing-sell-standard-deviation-multiple)
+                            (clojure.pprint/cl-format nil "~,2f")
                             read-string)
+
         trailStopPrice (- (:price order) trailingAmount)]
 
     (info "3 - (balancing) sell-stock / sell-trailing-limit / " [quantity valid-order-id trailingAmount trailStopPrice])
@@ -131,8 +137,9 @@
 (defn process-order-filled-notifications [client {:keys [stock order] :as val} valid-order-id-ch]
 
   (info "3 - process-order-filled-notifications LOOP / " (exists? val))
-  ;; (sell-limit client stock order valid-order-id-ch)
-  ;; (sell-trailing client stock order valid-order-id-ch)
-  (sell-limit client stock order valid-order-id-ch)
-  )
+
+  (case balancing-sell-type
+    "TRAIL" (sell-trailing client stock order valid-order-id-ch)
+    "LIMIT" (sell-limit client stock order valid-order-id-ch)
+    (sell-limit client stock order valid-order-id-ch)))
 

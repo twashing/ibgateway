@@ -876,16 +876,12 @@
     ;; (def instrument "TSLA")
 
 
-
     ;; AMZN - Amazon.com Inc (NASDAQ:AMZN) [~]
     ;; AAPL - Apple Inc (NASDAQ:AAPL) [no news]
 
     ;; TSLA - Tesla Inc (NASDAQ:TSLA) [bad news]
     ;; AZO - AutoZone Inc (NYSE:AZO) [good news]
     ;; UVV - Universal Corp (NYSE:UVV) [good news]
-
-    ;; Bad overall market news; Dow, S&P, Nasdaq
-    ;; Trade war
 
     (def concurrency 1)
     (def ticker-id 1003)
