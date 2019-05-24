@@ -404,7 +404,7 @@
 
   (do
 
-    (def client (:client ew/ewrapper))
+    (def client (-> ew/ewrapper :ewrapper :client))
 
     ;; Subscribe
     (scanner/start client)
