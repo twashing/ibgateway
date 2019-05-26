@@ -21,7 +21,7 @@
   (:import [com.ib.client Order]))
 
 
-(def *latest-tick* (atom {}))
+(def ^:dynamic *latest-tick* (atom {}))
 
 (def minimum-cash-level (let [a (env :minimum-cash-level 1000)]
                           (if (number? a)
@@ -180,17 +180,29 @@
                               %)]
 
     (-> (max-quantity-fn quantity)
-        trace
-        max-purchase-value
-        trace)
+        max-purchase-value)
     ))
 
 ;; (cap-order-quantity 131 1938.17)
 ;; (* 1938.14 103)
 
+(defn conditionally-apply-margin
+  ([cash-level]
+   (conditionally-apply-margin cash-level (env :buy-on-margin)))
+  ([cash-level maintenance-margin]
+   (if maintenance-margin
+     (->> maintenance-margin
+          Float/parseFloat
+          (/ cash-level))
+     cash-level)))
+
 (defn derive-order-quantity [cash-level price]
   (info "derive-order-quantity / " [cash-level price])
+
+  ;; A
   ;; 1
+
+  ;; B
   #_(-> (cond
           (< cash-level 500) (* 0.5 cash-level)
           (<= cash-level 2000) 500
@@ -204,41 +216,42 @@
         (.longValue)
         (cap-order-quantity price)
         trace)
+
+  ;; C
   (-> (/ cash-level price)
-      trace
       (.longValue)
-      (cap-order-quantity price)
-      trace))
+      (cap-order-quantity price)))
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
 
         latest-price (-> joined-tick :sma-list :last-trade-price)
         latest-bid @common/latest-bid
+
         price (if (< latest-price latest-bid)
                 latest-price latest-bid)
 
-        cash-level (-> client (->account-cash-level account-updates-ch) :value)
-        _ (info "3 - buy-stock / account-updates-ch channel-open? / " (channel-open? account-updates-ch)
-                " / cash-level / " cash-level)
+        cash-level (-> client
+                       (->account-cash-level account-updates-ch)
+                       :value
+                       conditionally-apply-margin)
 
         qty (derive-order-quantity cash-level price)
 
+        live-run? (Boolean/parseBoolean (env :live-run "true"))
+        sufficient-quantity? (>= qty 1)
+
         ;; TODO make a mock version of this
-        order-id (->next-valid-order-id client valid-order-id-ch)
-        _ (info "3 - buy-stock / valid-order-id-ch channel-open? / " (channel-open? valid-order-id-ch)
-                " / order-id / " order-id)]
+        order-id (->next-valid-order-id client valid-order-id-ch)]
 
-    (if (>= qty 1)
-      (do
-        (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
-        (market/buy-stock client order-id order-type account-name instrm qty price))
-      (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty]))
+    (info "PRE / buy-stock / account-updates-ch open? /" (channel-open? account-updates-ch) " / margin? /" (env :buy-on-margin))
+    (match [live-run? sufficient-quantity?]
 
-    #_(info "3 - buy-stock / @minimum cash level / " (>= cash-level minimum-cash-level)
-          " / [client " [order-id order-type account-name instrm qty price])
-    #_(when (>= cash-level minimum-cash-level)
-      (market/buy-stock client order-id order-type account-name instrm qty price))))
+           [false _] (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
+           [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
+           [true true] (do
+                         (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
+                         (market/buy-stock client order-id order-type account-name instrm qty price)))))
 
 (comment
 
@@ -305,8 +318,7 @@
               (and not-down-market? b)
               (and not-down-market? c))
 
-      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
-      )
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
 
     ;; (info "[A B C] / " [a b c])
     ;; (when (or a b c)
@@ -853,8 +865,18 @@
 
   ;; B.2 START trading
   (do
+
     (def instrument "AMZN")
+    ;; (def instrument "AAPL")
     ;; (def instrument "TSLA")
+
+
+    ;; AMZN - Amazon.com Inc (NASDAQ:AMZN) [~]
+    ;; AAPL - Apple Inc (NASDAQ:AAPL) [no news]
+
+    ;; TSLA - Tesla Inc (NASDAQ:TSLA) [bad news]
+    ;; AZO - AutoZone Inc (NYSE:AZO) [good news]
+    ;; UVV - Universal Corp (NYSE:UVV) [good news]
 
     (def concurrency 1)
     (def ticker-id 1003)
@@ -913,4 +935,3 @@
          {client :client}                     :ewrapper} ewrapper/ewrapper]
 
     (buy-stock client @*latest-tick* account-updates-ch valid-order-id-ch account-name instrument)))
-

@@ -2,8 +2,8 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [info] :as log]
             [clojure.tools.trace :refer [trace]]
+            [environ.core :refer [env]]
             [com.rpl.specter :refer :all]
-
             [com.interrupt.edgar.core.analysis.lagging :as analysis]
             [com.interrupt.edgar.core.analysis.confirming :as confirming]
             [com.interrupt.edgar.core.signal.common :as common]
@@ -12,8 +12,7 @@
             [com.interrupt.ibgateway.component.common :refer [exists?]]))
 
 
-
-(def market-trend-by-ticks 4)
+(def market-trend-by-ticks (Integer/parseInt (env :market-trend-by-ticks "3")))
 
 (defn moving-averages
   "Takes baseline time series, along with 2 other moving averages.
@@ -552,9 +551,9 @@
         partitioned-list (->> (partition 2 1 tick-list)
                               (take-last market-trend-by-ticks))
 
-        partitioned-sma (->> (map #(dissoc % :population) sma-list)
-                             (partition 2 1)
-                             (take-last market-trend-by-ticks))
+        ;; partitioned-sma (->> (map #(dissoc % :population) sma-list)
+        ;;                      (partition 2 1)
+        ;;                      (take-last market-trend-by-ticks))
 
         any-market? true
 
@@ -562,8 +561,8 @@
         ;; up-market? (common/up-market? :last-trade-price-average partitioned-sma)
 
         ;; down-market? false
-        ;; down-market? (common/down-market? partitioned-list)
-        down-market? (common/down-market? :last-trade-price-average partitioned-sma)
+        down-market? (common/down-market? partitioned-list)
+        ;; down-market? (common/down-market? :last-trade-price-average partitioned-sma)
         ;; _ (info "CALCULATING down-market?" down-market?)
 
         ;; sideways-market? (not (and up-market? down-market?))
