@@ -180,11 +180,11 @@
 
   ;; 1. START
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              ;; #'com.interrupt.ibgateway.component.vase/server
+              #'com.interrupt.ibgateway.component.vase/server
               )
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               ;; #'com.interrupt.ibgateway.component.vase/server
+               #'com.interrupt.ibgateway.component.vase/server
                )
 
   (send-message-to-all! "{:foo :bar}")
