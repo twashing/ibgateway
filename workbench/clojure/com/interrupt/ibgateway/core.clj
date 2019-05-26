@@ -180,12 +180,10 @@
 
   ;; 1. START
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.vase/server
-              )
+              #'com.interrupt.ibgateway.component.vase/server)
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.vase/server
-               )
+               #'com.interrupt.ibgateway.component.vase/server)
 
   (send-message-to-all! "{:foo :bar}")
 
@@ -200,10 +198,12 @@
     ;; "live-recordings/2018-08-27-TSLA.edn"
     ;; "live-recordings/2018-12-24-AMZN.edn"
 
-    (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-12-24-AMZN.edn")
     ;; (def fname "live-recordings/2019-04-29-AMZN.edn")
+    ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
+    (def fname "live-recordings/2019-05-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 100)))
@@ -222,7 +222,7 @@
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
           (info "count:" c " / sr:" sr)
-          ;; (send-message-to-all! sr)
+          (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
 
   ;; A.4 Start streaming
