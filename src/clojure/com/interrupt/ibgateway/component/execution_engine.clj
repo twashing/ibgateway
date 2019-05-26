@@ -236,26 +236,22 @@
                        :value
                        conditionally-apply-margin)
 
-        _ (info "3 - buy-stock / account-updates-ch open? /" (channel-open? account-updates-ch)
-                " / cash-level /" cash-level
-                " / margin? /" (env :buy-on-margin))
-
         qty (derive-order-quantity cash-level price)
 
+        live-run? (Boolean/parseBoolean (env :live-run "true"))
+        sufficient-quantity? (>= qty 1)
+
         ;; TODO make a mock version of this
-        order-id (->next-valid-order-id client valid-order-id-ch)
-        _ (info "3 - buy-stock / valid-order-id-ch open? /" (channel-open? valid-order-id-ch) " / order-id /" order-id)]
+        order-id (->next-valid-order-id client valid-order-id-ch)]
 
-    (if (>= qty 1)
-      (do
-        (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
-        (market/buy-stock client order-id order-type account-name instrm qty price))
-      (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty]))
+    (info "PRE / buy-stock / account-updates-ch open? /" (channel-open? account-updates-ch) " / margin? /" (env :buy-on-margin))
+    (match [live-run? sufficient-quantity?]
 
-    #_(info "3 - buy-stock / @minimum cash level / " (>= cash-level minimum-cash-level)
-          " / [client " [order-id order-type account-name instrm qty price])
-    #_(when (>= cash-level minimum-cash-level)
-      (market/buy-stock client order-id order-type account-name instrm qty price))))
+           [false _] (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
+           [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
+           [true true] (do
+                         (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
+                         (market/buy-stock client order-id order-type account-name instrm qty price)))))
 
 (comment
 
@@ -322,8 +318,7 @@
               (and not-down-market? b)
               (and not-down-market? c))
 
-      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm)
-      )
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
 
     ;; (info "[A B C] / " [a b c])
     ;; (when (or a b c)

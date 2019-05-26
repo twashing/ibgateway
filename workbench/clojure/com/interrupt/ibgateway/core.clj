@@ -349,31 +349,42 @@
     (pp/teardown-publisher-channel joined-channel-map)
     (ee/teardown-execution-engine execution-engine-output-ch))
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+              #'com.interrupt.ibgateway.component.vase/server
+              )
 
 
   ;; START
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
+               #'com.interrupt.ibgateway.component.vase/server
+               )
 
 
   (do
     (def control-channel (chan))
-    (def instrument "TSLA")
+    ;; (def instrument "TSLA")
+    (def instrument "AMZN")
     (def concurrency 1)
     (def ticker-id 0)
 
-    ;; "live-recordings/2018-08-20-TSLA.edn"
-    ;; "live-recordings/2018-08-27-TSLA.edn"
-    (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
+    (def fname "live-recordings/2019-05-24-AMZN.edn")
+
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 100)))
     (def execution-engine-output-ch (chan (sliding-buffer 100)))
 
-    (def joined-channel-map (promise))
-    )
+    (def joined-channel-map (promise)))
 
   ;; (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id))
   ;; (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name)
+
+
+  ;; 2. Point your browser to http://localhost:8080
+
 
   ;; ====>
   (let [{jch :joined-channel} joined-channel-map]
@@ -383,7 +394,7 @@
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
           (info "count:" c " / sr:" sr)
-          ;; (send-message-to-all! sr)
+          (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
   ;; ====>
 

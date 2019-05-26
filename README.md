@@ -45,6 +45,14 @@ Troubleshoot with
 docker run -it --entrypoint /bin/bash edgarly/ibgateway-app:latest
 ```
 
+Find listening ports
+```
+# Linux
+netstat -ltnp
+
+# OSX
+sudo lsof -PiTCP -sTCP:LISTEN
+```
 
 ## Installing TWS API locally
 
