@@ -239,6 +239,7 @@
         qty (derive-order-quantity cash-level price)
 
         live-run? (Boolean/parseBoolean (env :live-run "true"))
+        
         sufficient-quantity? (>= qty 1)
 
         ;; TODO make a mock version of this
@@ -927,6 +928,7 @@
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account)
+
 
 
   ;; TEST
