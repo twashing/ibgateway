@@ -86,7 +86,7 @@
       (-> parsed-options :options :record)
       (let [client (-> ew/ewrapper :ewrapper :client)
             publisher (-> ew/ewrapper :default-channels :publisher)
-            publisher-dupl (chan (sliding-buffer 100))]
+            publisher-dupl (chan (sliding-buffer 40))]
 
         (bind-channels->mult publisher publisher-dupl)
         (switchboard/record-live-data ew/ewrapper switchboard/stock-scans publisher-dupl))
@@ -112,7 +112,7 @@
 
   ;; START
   (let [publisher (-> ew/ewrapper :default-channels :publisher)
-        publisher-dupl (chan (sliding-buffer 100))]
+        publisher-dupl (chan (sliding-buffer 40))]
 
     (bind-channels->mult publisher publisher-dupl)
     (switchboard/record-live-data ew/ewrapper switchboard/stock-scans publisher-dupl))

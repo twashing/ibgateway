@@ -282,7 +282,8 @@
 
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [client
                                                             {signal-bollinger-band :signal-bollinger-band
-                                                             {last-trade-price-average :last-trade-price-average
+                                                             {last-trade-price :last-trade-price
+                                                              last-trade-price-average :last-trade-price-average
                                                               last-trade-price-exponential :last-trade-price-exponential} :signal-moving-averages
                                                              :as joined-tick}
                                                             instrm account-name
@@ -318,7 +319,7 @@
                               (into #{})
                               (clojure.set/subset? #{:not-down-market}))]
 
-    (info "[A B exponential-abouve-average? not-down-market?] / " [a b exponential-abouve-average? not-down-market?])
+    (info "[A B exponential-abouve-average? not-down-market? last-trade-price] / " [a b exponential-abouve-average? not-down-market? last-trade-price])
     (when (or (and exponential-abouve-average? not-down-market? a)
               (and exponential-abouve-average? not-down-market? b))
 
@@ -891,8 +892,8 @@
 
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
-    (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
-    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+    (def processing-pipeline-output-ch (chan (sliding-buffer 40)))
+    (def execution-engine-output-ch (chan (sliding-buffer 40)))
     (def joined-channel-map (promise)))
 
   (thread
@@ -910,6 +911,7 @@
   (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
+
 
   (set-log-level :debug "com.interrupt.ibgateway.component.execution-engine")
   (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")

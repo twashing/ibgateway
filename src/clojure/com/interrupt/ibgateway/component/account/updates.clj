@@ -24,7 +24,7 @@
                     (remove #(= [::download-end] %))
                     (map remove-not-ready)))
 
-(def account-updates-ch (async/chan (async/sliding-buffer 1000) ch-xform))
+(def account-updates-ch (async/chan (async/sliding-buffer 400) ch-xform))
 
 (defrecord AccountUpdatesSubscription [client ch ^String acct-code]
   sub/Subscription
