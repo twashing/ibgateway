@@ -23,27 +23,29 @@
    ** This function assumes the latest tick is on the right"
   [joined-list]
 
-  (let [lst (last joined-list)
-        snd (-> joined-list butlast last)
-
-        ;; in the first element, has the ema crossed abouve the sma from the second element
-        signal-up (and (< (:last-trade-price-exponential snd) (:last-trade-price-average snd))
-                       (> (:last-trade-price-exponential lst) (:last-trade-price-average lst)))
-
-        ;; in the first element, has the ema crossed below the sma from the second element
-        signal-down (and (> (:last-trade-price-exponential snd) (:last-trade-price-average snd))
-                         (< (:last-trade-price-exponential lst) (:last-trade-price-average lst)))]
+  (let [[{ltpExpS :last-trade-price-exponential ltpAvgS :last-trade-price-average :as snd}
+         {ltpExpL :last-trade-price-exponential ltpAvgL :last-trade-price-average :as lst}] (take-last 2 joined-list)]
 
     ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
-    (if signal-up
-      (-> lst
-          (assoc :signals [{:signal :up
-                            :why :moving-average-crossover}]))
-      (if signal-down
-        (-> lst
-            (assoc :signals [{:signal :down
-                              :why :moving-average-crossover}]))
-        lst))))
+    (if (every? not-nil? [ltpExpS ltpAvgS ltpExpL ltpAvgL])
+      (match [;; in the first element, has the ema crossed abouve the sma from the second element
+              (and (< ltpExpS ltpAvgS)
+                   (> ltpExpL ltpAvgL))
+
+              ;; in the first element, has the ema crossed below the sma from the second element
+              (and (> ltpExpS ltpAvgS)
+                   (< ltpExpL ltpAvgL))]
+
+             [true false] (-> lst
+                              (assoc :signals [{:signal :up
+                                                :why :moving-average-crossover}]))
+
+             [false true] (-> lst
+                              (assoc :signals [{:signal :down
+                                                :why :moving-average-crossover}]))
+
+             [false false] lst)
+      lst)))
 
 (defn sort-bollinger-band [bband]
   (->> bband

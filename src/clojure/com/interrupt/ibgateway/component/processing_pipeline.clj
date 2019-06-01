@@ -188,12 +188,11 @@
 
 (defn pipeline-analysis-lagging [concurrency options
                                  sma-list-ch tick-list->sma-ch
-                                 ema-list-ch sma-list->ema-ch
-                                 bollinger-band-ch sma-list->bollinger-band-ch]
+                                 ema-list-ch bollinger-band-ch]
 
   (pipeline concurrency sma-list-ch (map (partial alag/simple-moving-average options)) tick-list->sma-ch)
-  (pipeline concurrency ema-list-ch (map (partial alag/exponential-moving-average options moving-average-window)) sma-list->ema-ch)
-  (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band moving-average-window)) sma-list->bollinger-band-ch))
+  (pipeline concurrency ema-list-ch (map (partial alag/exponential-moving-average options moving-average-window)) sma-list-ch)
+  (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band moving-average-window)) ema-list-ch))
 
 (defn pipeline-analysis-leading [concurrency options moving-average-window
                                  macd-ch sma-list->macd-ch
@@ -211,8 +210,6 @@
 (defn pipeline-signals-moving-average [concurrency connector-ch signal-moving-averages-ch]
 
   (let [moving-average-signal-window 2
-        m (mult connector-ch)
-
         string-check (fn [k i]
                        (if (string? (k i))
                          (assoc i k (read-string (k i)))
@@ -223,27 +220,24 @@
                                 (string-check :last-trade-price-exponential)
                                 (string-check :last-trade-price-average)))
 
-        remove-population-xf (map #(update-in % [:sma-list] dissoc :population))
+        remove-population-xf (map #(dissoc % :population))
         partition-xf (x/partition moving-average-signal-window moving-average-increment (x/into []))
-        join-xf (map (fn [e]
-                       (let [ks [:sma-list :ema-list]]
-                         (->> e
-                              (map #(merge ((first ks) %) ((second ks) %)))
-                              (map strings->numbers)))))
+        join-xf (map #(map strings->numbers %))
 
-        remove-population-ch (chan (sliding-buffer 40) remove-population-xf)
+        ;; remove-population-ch (chan (sliding-buffer 40) remove-population-xf)
         partitioned-ch (chan (sliding-buffer 40) partition-xf)
         partitioned-joined-ch (chan (sliding-buffer 40) join-xf)
 
-        mult-moving-averages (mult partitioned-joined-ch)
-        tap->moving-averages (chan (sliding-buffer 40))]
+        ;; mult-moving-averages (mult partitioned-joined-ch)
+        ;; tap->moving-averages (chan (sliding-buffer 40))
+        ]
 
-    (tap m remove-population-ch)
-    (tap mult-moving-averages tap->moving-averages)
+    ;; (tap mult-moving-averages tap->moving-averages)
 
-    (pipeline concurrency partitioned-ch (map identity) remove-population-ch)
+    (pipeline concurrency partitioned-ch (map identity) connector-ch)
     (pipeline concurrency partitioned-joined-ch (map identity) partitioned-ch)
-    (pipeline concurrency signal-moving-averages-ch (map slag/moving-averages) tap->moving-averages)))
+    (pipeline concurrency signal-moving-averages-ch (map slag/moving-averages) partitioned-joined-ch)))
+
 
 ;; #_(def partitioned-bollinger-band
 ;;   [{:last-trade-price 311.23 :last-trade-time 1534858597321 :uuid "c754a059-e9f2-4103-b06d-55d5c9be18fd" :variance 0.0903759999999971 :standard-deviation 0.30062601351180024 :upper-band 312.12325202702357 :lower-band 310.9207479729764 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :bollinger-band-squeeze})} {:last-trade-price 311.18 :last-trade-time 1534858598827 :uuid "ba5679c3-8460-48ff-8609-3b557b930270" :variance 0.09007899999999755 :standard-deviation 0.30013163778581814 :upper-band 312.0892632755716 :lower-band 310.8887367244283 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :bollinger-band-squeeze})} {:last-trade-price 311.22 :last-trade-time 1534858601302 :uuid "17eed297-e349-47a3-a908-2e3bbcb67e02" :variance 0.07911999999999683 :standard-deviation 0.281282775867981 :upper-band 312.012565551736 :lower-band 310.887434448264 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :bollinger-band-squeeze})} {:last-trade-price 311.21 :last-trade-time 1534858601805 :uuid "6df9a7ae-867d-4cc4-b7d1-ab263681e115" :variance 0.06471999999999778 :standard-deviation 0.2544012578585212 :upper-band 311.91880251571706 :lower-band 310.901197484283 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :bollinger-band-squeeze})} {:last-trade-price 311.09 :last-trade-time 1534858604733 :uuid "e1d6998f-0ceb-4667-8cfe-99b27ac44b9b" :variance 0.05282274999999962 :standard-deviation 0.22983200386369088 :upper-band 311.82616400772736 :lower-band 310.9068359922726 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :bollinger-band-squeeze})} {:last-trade-price 310.82 :last-trade-time 1534858612303 :uuid "00c18820-10ea-443f-8ced-c01fe71bbda9" :variance 0.05287474999999915 :standard-deviation 0.22994510214396643 :upper-band 311.77439020428795 :lower-band 310.85460979571207 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :bollinger-band-squeeze})} {:last-trade-price 309.45 :last-trade-time 1534858624980 :uuid "74d56511-e8a8-40bf-ba2a-fc01ac0d78a5" :variance 0.20896475000000173 :standard-deviation 0.45712662359569667 :upper-band 312.11875324719136 :lower-band 310.2902467528086 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :volume-spike} {:signal :either :why :bollinger-band-squeeze})} {:last-trade-price 309.42 :last-trade-time 1534858625984 :uuid "d06f4dda-b09c-4a72-8501-be9e18ac753b" :variance 0.3458310000000001 :standard-deviation 0.5880739749385278 :upper-band 312.2691479498771 :lower-band 309.91685205012294 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.43 :last-trade-time 1534858630267 :uuid "fa58f52b-ef50-4dce-ac0f-000c9d3e6ae0" :variance 0.46353600000000067 :standard-deviation 0.6808347817202061 :upper-band 312.3496695634404 :lower-band 309.6263304365596 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.69 :last-trade-time 1534858634784 :uuid "281fe40f-68da-4e9f-9f76-c47ec03ec60e" :variance 0.5147190000000001 :standard-deviation 0.7174391960298797 :upper-band 312.3238783920598 :lower-band 309.45412160794024 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.76 :last-trade-time 1534858635286 :uuid "a651c6cc-a42d-437e-90b3-a4cbbd200d8e" :variance 0.5580727499999998 :standard-deviation 0.7470426694640674 :upper-band 312.30058533892816 :lower-band 309.3124146610719 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.91 :last-trade-time 1534858636541 :uuid "fc29778c-9675-487a-87a8-e83ec45fc220" :variance 0.5737389999999966 :standard-deviation 0.7574556092603688 :upper-band 312.24591121852075 :lower-band 309.21608878147924 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 310.05 :last-trade-time 1534858641692 :uuid "7c2b1022-364a-484c-8482-32080b2156f1" :variance 0.5612559999999968 :standard-deviation 0.7491702076297461 :upper-band 312.15634041525954 :lower-band 309.1596595847405 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 310.02 :last-trade-time 1534858642947 :uuid "f76665d3-2ffd-4340-b9d9-816a7774a30b" :variance 0.545132749999999 :standard-deviation 0.7383310571823448 :upper-band 312.0631621143647 :lower-band 309.10983788563533 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.22 :last-trade-time 1534858659581 :uuid "9822515a-0732-4b76-84d2-3361c77b294a" :variance 0.5916627499999942 :standard-deviation 0.7691961713373217 :upper-band 312.0148923426746 :lower-band 308.93810765732536 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :volume-spike})} {:last-trade-price 309.48 :last-trade-time 1534858662090 :uuid "9858dda1-d994-440a-ad0e-807da1badf9b" :variance 0.5831487499999951 :standard-deviation 0.763641768108578 :upper-band 311.90478353621717 :lower-band 308.85021646378283 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.38 :last-trade-time 1534858663852 :uuid "8d4b38b2-c911-4303-9d47-64b6fdc145f8" :variance 0.5985889999999948 :standard-deviation 0.7736853365548522 :upper-band 311.8383706731097 :lower-band 308.7436293268903 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.16 :last-trade-time 1534858668113 :uuid "014ba3ff-1a6d-4d3d-bab4-7458bb900955" :variance 0.6281427499999935 :standard-deviation 0.7925545722535411 :upper-band 311.7836091445071 :lower-band 308.6133908554929 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.33 :last-trade-time 1534858685212 :uuid "2d9f6f58-c0c8-4c8f-b1c8-4cb52c47e9c0" :variance 0.619348999999997 :standard-deviation 0.7869872934171155 :upper-band 311.68497458683424 :lower-band 308.53702541316574 :signals '({:signal :down :why :percent-b-below-50} {:signal :either :why :volume-spike})} {:last-trade-price 309.57 :last-trade-time 1534858690698 :uuid "eac2a6e5-abf5-4914-aacf-d17488283f7d" :variance 0.5715089999999963 :standard-deviation 0.7559821426462375 :upper-band 311.5429642852925 :lower-band 308.5190357147075 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.75 :last-trade-time 1534858692957 :uuid "f6d907a2-67f1-4e14-b3d4-20c4e9cc933d" :variance 0.49810099999999446 :standard-deviation 0.7057627079975213 :upper-band 311.368525415995 :lower-band 308.545474584005 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.83 :last-trade-time 1534858693207 :uuid "9c5e62b0-8e70-4c53-9e07-160f8f5e123f" :variance 0.41956474999999405 :standard-deviation 0.6477381801314432 :upper-band 311.1849763602629 :lower-band 308.5940236397371 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.8 :last-trade-time 1534858693464 :uuid "765fca35-bbb2-432b-b336-896214cf5aa5" :variance 0.32641274999999015 :standard-deviation 0.5713254326563716 :upper-band 310.96115086531273 :lower-band 308.6758491346872 :signals '({:signal :down :why :percent-b-below-50})} {:last-trade-price 309.76 :last-trade-time 1534858693960 :uuid "3a7e3535-f0f9-4193-b420-f855d13906a2" :variance 0.22451399999999327 :standard-deviation 0.47382908310908195 :upper-band 310.69365816621814 :lower-band 308.7983418337818 :signals '({:signal :up :why :percent-b-abouve-50})}])
@@ -471,27 +465,14 @@
 
    :tick-list-ch (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
    :sma-list-ch (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
-
    :ema-list-ch (chan (sliding-buffer 40))
    :bollinger-band-ch (chan (sliding-buffer 40))
-   ;; :macd-ch (chan (sliding-buffer 40))
-   ;; :stochastic-oscillator-ch (chan (sliding-buffer 40))
-   ;; :on-balance-volume-ch (chan (sliding-buffer 40))
-   ;; :relative-strength-ch (chan (sliding-buffer 40))
-   })
 
-(defn channel-analytics-mults []
-  {:tick-list->sma-ch (chan (sliding-buffer 40))
-   :tick-list->macd-ch (chan (sliding-buffer 40))
-
-   :sma-list->ema-ch (chan (sliding-buffer 40))
-   :sma-list->bollinger-band-ch (chan (sliding-buffer 40))
-   ;; :sma-list->macd-ch (chan (sliding-buffer 40))
-
-   ;; :tick-list->stochastic-osc-ch (chan (sliding-buffer 40))
-   ;; :tick-list->obv-ch (chan (sliding-buffer 40))
-   ;; :tick-list->relative-strength-ch (chan (sliding-buffer 40))
-   })
+   :tick-list->sma-ch (chan (sliding-buffer 40))
+   ;; :sma-list->ema-ch (chan (sliding-buffer 40))
+   ;; :sma-list->bollinger-band-ch (chan (sliding-buffer 40))
+   :lagging-signals-moving-averages-ch (chan (sliding-buffer 40))
+   :join-analytics->bollinger-band (chan (sliding-buffer 40))})
 
 (defn channel-join-mults []
   {:tick-list->JOIN (chan (sliding-buffer 40) (map last))
@@ -515,121 +496,16 @@
    :signal-moving-averages-ch (chan (sliding-buffer 40))})
 
 (defn channel-signal-bollinger-band []
-
-  (let [tick-list->bollinger-band-signal (chan (sliding-buffer 40))
-        sma-list->bollinger-band-signal (chan (sliding-buffer 40))]
-    {:tick-list->bollinger-band-signal tick-list->bollinger-band-signal
-     :sma-list->bollinger-band-signal sma-list->bollinger-band-signal
-     :signal-bollinger-band (chan (sliding-buffer 40) (filter :joined))
-     :signal-bollinger-band-ch (chan (sliding-buffer 40))}))
-
-(defn signal-join-mults []
-  {:tick-list->SIGNAL (chan (sliding-buffer 40) (map last))
-   :sma-list->SIGNAL (chan (sliding-buffer 40) (map last))
-   :ema-list->SIGNAL (chan (sliding-buffer 40) (map last))
-   :bollinger-band->SIGNAL (chan (sliding-buffer 40) (map last))
-   ;; :macd->SIGNAL (chan (sliding-buffer 40) (map last))
-   ;; :stochastic-oscillator->SIGNAL (chan (sliding-buffer 40) (map last))
-   ;; :on-balance-volume->SIGNAL (chan (sliding-buffer 40) (map last))
-   ;; :relative-strength->SIGNAL (chan (sliding-buffer 40) (map last))
-
-   :signal-moving-averages->SIGNAL (chan (sliding-buffer 40))
-   :signal-bollinger-band->SIGNAL (chan (sliding-buffer 40))
-   ;; :signal-macd->SIGNAL (chan (sliding-buffer 40))
-   ;; :signal-stochastic-oscillator->SIGNAL (chan (sliding-buffer 40))
-   ;; :signal-on-balance-volume->SIGNAL (chan (sliding-buffer 40))
-   })
+  {:tick-list->bollinger-band-signal (chan (sliding-buffer 40))
+   :sma-list->bollinger-band-signal (chan (sliding-buffer 40))
+   :signal-bollinger-band (chan (sliding-buffer 40) (filter :joined))
+   :signal-bollinger-band-ch (chan (sliding-buffer 40))})
 
 (defn channel->stream [& channels]
   (map #(->> %
              stream/->source
              (stream.cross/event-source->sorted-stream :last-trade-time))
        channels))
-
-(defn join-analytics->moving-averages [sma-list->JOIN ema-list->JOIN]
-
-  (let [[sma-list->CROSS ema-list->CROSS] (channel->stream sma-list->JOIN ema-list->JOIN)
-        moving-averages-connector-ch (chan (sliding-buffer 40))
-        result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
-                                                :skey-streams {:sma-list sma-list->CROSS
-                                                               :ema-list ema-list->CROSS}})]
-
-    (stream/connect @result moving-averages-connector-ch)
-    moving-averages-connector-ch))
-
-(defn join-analytics->bollinger-band [tick-list->JOIN bollinger-band->JOIN sma-list->JOIN->bollinger]
-
-  (let [[tick-list->CROSS bollinger-band->CROSS sma-list->CROSS]
-        (channel->stream tick-list->JOIN bollinger-band->JOIN sma-list->JOIN->bollinger)
-
-        bollinger-band-connector-ch (chan (sliding-buffer 40))
-        result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
-                                                :skey-streams {:tick-list tick-list->CROSS
-                                                               :sma-list sma-list->CROSS
-                                                               :bollinger-band bollinger-band->CROSS}})]
-
-    (stream/connect @result bollinger-band-connector-ch)
-    bollinger-band-connector-ch))
-
-(defn join-analytics [output-ch tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
-                      ;; macd->SIGNAL stochastic-oscillator->SIGNAL
-                      ;; on-balance-volume->SIGNAL relative-strength->SIGNAL
-
-                      signal-moving-averages->SIGNAL
-                      signal-bollinger-band->SIGNAL
-                      ;; signal-macd->SIGNAL
-                      ;; signal-stochastic-oscillator->SIGNAL
-                      ;; signal-on-balance-volume->SIGNAL
-                      ]
-
-  (let [[tick-list->CROSS sma-list->CROSS ema-list->CROSS bollinger-band->CROSS
-         ;; macd->CROSS stochastic-oscillator->CROSS
-         ;; on-balance-volume->CROSS relative-strength->CROSS
-
-         signal-moving-averages->CROSS
-         signal-bollinger-band->CROSS
-         ;; signal-macd->CROSS
-         ;; signal-stochastic-oscillator->CROSS
-         ;; signal-on-balance-volume->CROSS
-         ]
-
-        (channel->stream tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
-                         ;; macd->SIGNAL stochastic-oscillator->SIGNAL
-                         ;; on-balance-volume->SIGNAL relative-strength->SIGNAL
-
-                         signal-moving-averages->SIGNAL
-                         signal-bollinger-band->SIGNAL
-                         ;; signal-macd->SIGNAL
-                         ;; signal-stochastic-oscillator->SIGNAL
-                         ;; signal-on-balance-volume->SIGNAL
-                         )
-
-        result (stream.cross/set-streams-union {:default-key-fn :last-trade-time
-                                                :skey-streams {:tick-list tick-list->CROSS
-
-                                                               ;; lagging
-                                                               :sma-list sma-list->CROSS
-                                                               :ema-list ema-list->CROSS
-                                                               :bollinger-band bollinger-band->CROSS
-
-                                                               ;; leading
-                                                               ;; :macd macd->CROSS
-                                                               ;; :stochastic-oscillator stochastic-oscillator->CROSS
-
-                                                               ;; confirming
-                                                               ;; :on-balance-volume on-balance-volume->CROSS
-                                                               ;; :relative-strength relative-strength->CROSS
-
-                                                               ;; signals
-                                                               :signal-moving-averages signal-moving-averages->CROSS
-                                                               :signal-bollinger-band signal-bollinger-band->CROSS
-                                                               ;; :signal-macd signal-macd->CROSS
-                                                               ;; :signal-stochastic-oscillator signal-stochastic-oscillator->CROSS
-                                                               ;; :signal-on-balance-volume signal-on-balance-volume->CROSS
-                                                               }})]
-
-    (stream/connect @result output-ch)
-    output-ch))
 
 (def parse-xform (comp (map #(assoc % :timestamp (-> (t/now) c/to-long)))
                     (map parse-tick)))
@@ -642,21 +518,15 @@
 
 
         ;; Channels Analytics
-        {:keys [source-list-ch parsed-list-ch tick-list-ch sma-list-ch ema-list-ch
-                bollinger-band-ch
-                ;; macd-ch stochastic-oscillator-ch
-                ;; on-balance-volume-ch relative-strength-ch
-                ]}
+        {:keys [source-list-ch parsed-list-ch
+                tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch
+                tick-list->sma-ch
+
+                ;; sma-list->ema-ch
+                ;; sma-list->bollinger-band-ch
+                ;; lagging-signals-moving-averages-ch
+                lagging-signals-bollinger-band-connector-ch]}
         (channel-analytics)
-
-
-        ;; Channels Analytics Mults
-        {:keys [tick-list->sma-ch tick-list->macd-ch
-                sma-list->ema-ch sma-list->bollinger-band-ch
-                ;; sma-list->macd-ch
-                ;; tick-list->stochastic-osc-ch tick-list->obv-ch tick-list->relative-strength-ch
-                ]}
-        (channel-analytics-mults)
 
 
         ;; Channels Signal: Moving Averages
@@ -665,87 +535,15 @@
         (channel-signal-moving-averages)
 
 
-        ;; Channel JOIN Mults
-        {:keys [sma-list->JOIN ema-list->JOIN
-                tick-list->JOIN bollinger-band->JOIN sma-list->JOIN->bollinger
-                ;; macd->JOIN stochastic-oscillator->JOIN
-                ;; on-balance-volume->JOIN relative-strength->JOIN
-                ]}
-        (channel-join-mults)
-
-
         ;; Signal Bollinger Band
         {:keys [tick-list->bollinger-band-signal sma-list->bollinger-band-signal
                 signal-bollinger-band signal-bollinger-band-ch]}
-        (channel-signal-bollinger-band)
+        (channel-signal-bollinger-band)]
 
-
-        ;; macd->macd-signal (chan (sliding-buffer 40))
-        ;; stochastic-oscillator->stochastic-oscillator-signal (chan (sliding-buffer 40))
-        ;; on-balance-volume->on-balance-volume-ch (chan (sliding-buffer 40))
-        ;; signal-macd-ch (chan (sliding-buffer 40))
-        ;; signal-stochastic-oscillator-ch (chan (sliding-buffer 40))
-        ;; signal-on-balance-volume-ch (chan (sliding-buffer 40))
-
-        lagging-signals-moving-averages-ch (join-analytics->moving-averages sma-list->JOIN ema-list->JOIN)
-        lagging-signals-bollinger-band-connector-ch (join-analytics->bollinger-band
-                                                      tick-list->JOIN
-                                                      bollinger-band->JOIN
-                                                      sma-list->JOIN->bollinger)
-
-
-        ;; Signal JOIN Mults
-        {:keys [sma-list->SIGNAL ema-list->SIGNAL
-                tick-list->SIGNAL bollinger-band->SIGNAL
-                ;; macd->SIGNAL stochastic-oscillator->SIGNAL
-                ;; on-balance-volume->SIGNAL relative-strength->SIGNAL
-
-                signal-moving-averages->SIGNAL
-                signal-bollinger-band->SIGNAL
-                ;; signal-macd->SIGNAL
-                ;; signal-stochastic-oscillator->SIGNAL
-                ;; signal-on-balance-volume->SIGNAL
-                ]}
-        (signal-join-mults)]
 
     (doseq [source+mults [[source-list-ch parsed-list-ch]
-                          [tick-list-ch tick-list->sma-ch
-                           ;; tick-list->macd-ch
-                           ;; tick-list->stochastic-osc-ch tick-list->obv-ch
-                           ;; tick-list->relative-strength-ch
-                           tick-list->JOIN tick-list->SIGNAL]
-                          [sma-list-ch sma-list->ema-ch sma-list->bollinger-band-ch
-                           ;; sma-list->macd-ch
-                           sma-list->JOIN sma-list->SIGNAL sma-list->JOIN->bollinger]
-                          [ema-list-ch ema-list->moving-averages-signal
-                           ema-list->JOIN ema-list->SIGNAL]
-                          [bollinger-band-ch bollinger-band->JOIN bollinger-band->SIGNAL]
-                          ;; [macd-ch macd->macd-signal macd->SIGNAL]
-                          ;; [stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal
-                          ;;  stochastic-oscillator->SIGNAL]
-                          ;; [on-balance-volume-ch on-balance-volume->on-balance-volume-ch
-                          ;;  on-balance-volume->SIGNAL]
-                          ;; [relative-strength-ch relative-strength->SIGNAL]
-
-                          [signal-moving-averages-ch signal-moving-averages->SIGNAL]
-                          [signal-bollinger-band-ch signal-bollinger-band->SIGNAL]
-                          ;; [signal-macd-ch signal-macd->SIGNAL]
-                          ;; [signal-stochastic-oscillator-ch signal-stochastic-oscillator->SIGNAL]
-                          ;; [signal-on-balance-volume-ch signal-on-balance-volume->SIGNAL]
-                          ]]
-
+                          [tick-list-ch tick-list->sma-ch]]]
       (apply bind-channels->mult source+mults))
-
-    (join-analytics output-ch tick-list->SIGNAL sma-list->SIGNAL ema-list->SIGNAL bollinger-band->SIGNAL
-                    ;; macd->SIGNAL stochastic-oscillator->SIGNAL
-                    ;; on-balance-volume->SIGNAL relative-strength->SIGNAL
-
-                    signal-moving-averages->SIGNAL
-                    signal-bollinger-band->SIGNAL
-                    ;; signal-macd->SIGNAL
-                    ;; signal-stochastic-oscillator->SIGNAL
-                    ;; signal-on-balance-volume->SIGNAL
-                    )
 
 
     ;; TICK LIST
@@ -756,43 +554,15 @@
     ;; ANALYSIS
     (pipeline-analysis-lagging concurrency options
                                sma-list-ch tick-list->sma-ch
-                               ema-list-ch sma-list->ema-ch
-                               bollinger-band-ch sma-list->bollinger-band-ch)
-
-    ;; (pipeline-analysis-leading concurrency options moving-average-window macd-ch sma-list->macd-ch
-    ;;                            stochastic-oscillator-ch tick-list->stochastic-osc-ch)
-
-    ;; (pipeline-analysis-confirming concurrency on-balance-volume-ch tick-list->obv-ch
-    ;;                               relative-strength-ch tick-list->relative-strength-ch)
+                               ema-list-ch bollinger-band-ch)
 
 
     ;; SIGNALS
-    (pipeline-signals-moving-average concurrency lagging-signals-moving-averages-ch
-                                     signal-moving-averages-ch)
+    (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
 
     ;; TODO implement Trendlines (a Simple Moving Average?)
-
-    (pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
-                                     signal-bollinger-band-ch)
-
-    ;; (pipeline-signals-leading concurrency moving-average-window
-    ;;                           signal-macd-ch macd->macd-signal
-    ;;                           signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal)
-
-    ;; TODO on balance volume signals are all down (not up)
-    ;; (pipeline concurrency signal-on-balance-volume-ch (map sconf/on-balance-volume)
-    ;;           on-balance-volume->on-balance-volume-ch)
-
-    ;; pipeline-signals-bollinger-band
-
-    ;; TODO put aggregate signals here
-    '[:exponential-ma-has-crossed-below
-      :macd-troughs
-      (or :rsi :bollinger-band-squeeze)]
-
-    '[:exponential-ma-has-crossed-abouve
-      :macd-peaks
-      (or :rsi :bollinger-band-squeeze)]
+    #_(pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
+                                       signal-bollinger-band-ch)
 
 
     #_(go-loop [c 0 r (<! tick-list-ch)]
@@ -800,43 +570,21 @@
         (when r
           (recur (inc c) (<! tick-list-ch))))
 
-
-    #_(go-loop [c 0 r (<! lagging-signals-moving-averages-ch)]
-        (info "count: " c " / lagging-signals-moving-averages INPUT " r)
+    #_(go-loop [c 0 r (<! bollinger-band-ch)]
+        (info "count: " c " / bollinger-band-ch INPUT " r)
         (when r
-          (recur (inc c) (<! lagging-signals-moving-averages-ch))))
+          (recur (inc c) (<! bollinger-band-ch))))
 
-    #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
-        (info "count: " c " / MA signals: " r)
-        (when r
-          (recur (inc c) (<! signal-moving-averages-ch))))
-
-
+    (go-loop [c 0 r (<! signal-moving-averages-ch)]
+      (info "count: " c " / MA signals: " r)
+      (when r
+        (recur (inc c) (<! signal-moving-averages-ch))))
 
     #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
         (info "count: " c " / BB signals: " r)
         (when r
           (recur (inc c) (<! signal-bollinger-band-ch))))
 
-    #_(go-loop [c 0 r (<! signal-macd-ch)]
-        (info "count: " c " / MACD signals: " r)
-        (when r
-          (recur (inc c) (<! signal-macd-ch))))
-
-    #_(go-loop [c 0 r (<! signal-stochastic-oscillator-ch)]
-        (info "count: " c " / SO signals: " r)
-        (when r
-          (recur (inc c) (<! signal-stochastic-oscillator-ch))))
-
-    #_(go-loop [c 0 r (<! signal-on-balance-volume-ch)]
-        (info "count: " c " / OBV signal: " r)
-        (when r
-          (recur (inc c) (<! signal-on-balance-volume-ch))))
-
-    #_(go-loop [c 0 r (<! output-ch)]
-        (info "count: " c " / r: " r)
-        (when r
-          (recur (inc c) (<! output-ch))))
 
     {:joined-channel output-ch
      :input-channel parsed-list-ch}))

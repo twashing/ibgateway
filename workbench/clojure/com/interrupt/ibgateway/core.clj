@@ -220,8 +220,7 @@
 
   ;; A
   ;; A.3 Capture output channels and send to browser
-  (let [{jch :joined-channel} joined-channel-map]
-
+  #_(let [{jch :joined-channel} joined-channel-map]
     (go-loop [c 0 r (<! jch)]
       (if-not r
         r
@@ -234,7 +233,7 @@
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
                                fname
-                               10)
+                               25)
 
   ;; B
   ;; B.3
