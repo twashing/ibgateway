@@ -170,7 +170,7 @@
 
    ;; Either :jetty, :immutant or :tomcat (see comments in project.clj)
    ::http/type :jetty
-   ;;::http/host "localhost"
+   ::http/host "0.0.0.0"
    ::http/port 8080
 
    ::http/secure-headers {:content-security-policy-settings {:object-src "'none'"}}

@@ -24,7 +24,7 @@
   [joined-list]
 
   (let [lst (last joined-list)
-        snd (-> joined-list butlast first)
+        snd (-> joined-list butlast last)
 
         ;; in the first element, has the ema crossed abouve the sma from the second element
         signal-up (and (< (:last-trade-price-exponential snd) (:last-trade-price-average snd))
@@ -555,12 +555,9 @@
         ;;                      (partition 2 1)
         ;;                      (take-last market-trend-by-ticks))
 
-        any-market? true
-
         ;; up-market? (common/up-market? partitioned-list)
         ;; up-market? (common/up-market? :last-trade-price-average partitioned-sma)
 
-        ;; down-market? false
         down-market? (common/down-market? partitioned-list)
         ;; down-market? (common/down-market? :last-trade-price-average partitioned-sma)
         ;; _ (info "CALCULATING down-market?" down-market?)

@@ -32,7 +32,7 @@ docker-compose up --force-recreate --build
 
 D) Connecting to a container
 ```
-$ docker exec -it ibgateway_tws_1 /bin/bashs
+docker exec -it ibgateway_app-paper_1 /bin/bash
 ```
 
 Running the app solo

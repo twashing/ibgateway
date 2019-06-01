@@ -60,8 +60,6 @@
   (let [f (set->has-signal-fn lagging-signals)]
     (filter f a)))
 
-
-
 (defn has-leading-signal? [a]
   (let [f (set->has-signal-fn leading-signals)]
     (filter f a)))
@@ -239,6 +237,7 @@
         qty (derive-order-quantity cash-level price)
 
         live-run? (Boolean/parseBoolean (env :live-run "true"))
+
         sufficient-quantity? (>= qty 1)
 
         ;; TODO make a mock version of this
@@ -247,7 +246,9 @@
     (info "PRE / buy-stock / account-updates-ch open? /" (channel-open? account-updates-ch) " / margin? /" (env :buy-on-margin))
     (match [live-run? sufficient-quantity?]
 
-           [false _] (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
+           [false _] (do
+                       (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
+                       (market/buy-stock client order-id order-type account-name instrm qty price))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
                          (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
@@ -280,7 +281,11 @@
        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze})))
 
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [client
-                                                            {signal-bollinger-band :signal-bollinger-band :as joined-tick}
+                                                            {signal-bollinger-band :signal-bollinger-band
+                                                             {last-trade-price :last-trade-price
+                                                              last-trade-price-average :last-trade-price-average
+                                                              last-trade-price-exponential :last-trade-price-exponential} :signal-moving-averages
+                                                             :as joined-tick}
                                                             instrm account-name
                                                             {account-updates-ch :account-updates
                                                              position-updates-ch :position-updates
@@ -304,19 +309,19 @@
                (into #{})
                (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
 
-        c (->> (select [:signals ALL :why] signal-bollinger-band)
-               (into #{})
-               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))
+        ;; c (->> (select [:signals ALL :why] signal-bollinger-band)
+        ;;        (into #{})
+        ;;        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))
+
+        exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
 
         not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
                               (into #{})
-                              (clojure.set/subset? #{:not-down-market}))
-        ]
+                              (clojure.set/subset? #{:not-down-market}))]
 
-    (info "[A B C not-down-market?] / " [a b c not-down-market?])
-    (when (or (and not-down-market? a)
-              (and not-down-market? b)
-              (and not-down-market? c))
+    (info "[A B exponential-abouve-average? not-down-market? last-trade-price] / " [a b exponential-abouve-average? not-down-market? last-trade-price])
+    (when (or (and exponential-abouve-average? not-down-market? a)
+              (and exponential-abouve-average? not-down-market? b))
 
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
 
@@ -887,8 +892,8 @@
 
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
-    (def processing-pipeline-output-ch (chan (sliding-buffer 100)))
-    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+    (def processing-pipeline-output-ch (chan (sliding-buffer 40)))
+    (def execution-engine-output-ch (chan (sliding-buffer 40)))
     (def joined-channel-map (promise)))
 
   (thread
@@ -906,6 +911,7 @@
   (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
   (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
+
 
   (set-log-level :debug "com.interrupt.ibgateway.component.execution-engine")
   (set-log-level :info "com.interrupt.ibgateway.component.execution-engine")
@@ -927,6 +933,7 @@
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account)
+
 
 
   ;; TEST

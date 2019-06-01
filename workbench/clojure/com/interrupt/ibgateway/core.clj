@@ -177,15 +177,18 @@
 
 (comment ;; processing-pipeline workbench
 
+  (require '[com.interrupt.edgar.core.utils :refer [set-log-level]])
+  (set-log-level :debug "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :info "com.interrupt.ibgateway.component.ewrapper-impl")
+  (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
+
 
   ;; 1. START
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              ;; #'com.interrupt.ibgateway.component.vase/server
-              )
+              #'com.interrupt.ibgateway.component.vase/server)
 
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               ;; #'com.interrupt.ibgateway.component.vase/server
-               )
+               #'com.interrupt.ibgateway.component.vase/server)
 
   (send-message-to-all! "{:foo :bar}")
 
@@ -200,13 +203,15 @@
     ;; "live-recordings/2018-08-27-TSLA.edn"
     ;; "live-recordings/2018-12-24-AMZN.edn"
 
-    (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-12-24-AMZN.edn")
     ;; (def fname "live-recordings/2019-04-29-AMZN.edn")
+    ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
+    (def fname "live-recordings/2019-05-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def output-ch (chan (sliding-buffer 100)))
+    (def output-ch (chan (sliding-buffer 40)))
     (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
 
@@ -222,14 +227,14 @@
         r
         (let [sr (update-in r [:sma-list] dissoc :population)]
           (info "count:" c " / sr:" sr)
-          ;; (send-message-to-all! sr)
+          (send-message-to-all! sr)
           (recur (inc c) (<! jch))))))
 
   ;; A.4 Start streaming
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
                                fname
-                               7)
+                               10)
 
   ;; B
   ;; B.3
@@ -311,7 +316,7 @@
     (def ticker-id 0)
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
 
-    (def output-ch (chan (sliding-buffer 100)))
+    (def output-ch (chan (sliding-buffer 40)))
     (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
 
@@ -374,8 +379,8 @@
     (def fname "live-recordings/2019-05-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def output-ch (chan (sliding-buffer 100)))
-    (def execution-engine-output-ch (chan (sliding-buffer 100)))
+    (def output-ch (chan (sliding-buffer 40)))
+    (def execution-engine-output-ch (chan (sliding-buffer 40)))
 
     (def joined-channel-map (promise)))
 
@@ -449,7 +454,7 @@
                                                 :skey-streams {:tick-list tick-list->MACD
                                                                :sma-list sma-list->MACD}})
 
-        connector-ch (chan (sliding-buffer 100))]
+        connector-ch (chan (sliding-buffer 40))]
 
     ;; OK
     #_(go-loop [r (<! tick-list->macd-ch)]
@@ -1241,21 +1246,21 @@
                      {:uuid "2" :last-trade-price 11.2}
                      {:uuid "3" :last-trade-price 11.3}]
 
-          ec (chan (sliding-buffer 100))
-          sc (chan (sliding-buffer 100))
-          tc (chan (sliding-buffer 100))
+          ec (chan (sliding-buffer 40))
+          sc (chan (sliding-buffer 40))
+          tc (chan (sliding-buffer 40))
 
           _ (onto-chan ec ema-list)
           _ (onto-chan sc sma-list)
           _ (onto-chan tc tick-list)
 
           merged-ch (async/merge [tc sc ec])
-          #_output-ch #_(chan (sliding-buffer 100) (join-averages (fn [ac e]
+          #_output-ch #_(chan (sliding-buffer 40) (join-averages (fn [ac e]
                                                                     (log/info "ac" ac)
                                                                     (log/info "e" e)
                                                                     (concat ac (list e)))))
 
-          output-ch (chan (sliding-buffer 100) (filter :joined))]
+          output-ch (chan (sliding-buffer 40) (filter :joined))]
 
       #_(async/pipe merged-ch output-ch)
       #_(go-loop [r (<! output-ch)]

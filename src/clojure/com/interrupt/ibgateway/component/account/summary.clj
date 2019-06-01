@@ -10,7 +10,7 @@
 
 
 (def account-summary (atom nil))
-(def account-summary-ch (async/chan (async/sliding-buffer 100)))
+(def account-summary-ch (async/chan (async/sliding-buffer 40)))
 
 (defrecord AccountSummarySubscription [client req-id ch
                                        ^String group
