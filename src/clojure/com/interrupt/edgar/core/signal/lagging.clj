@@ -454,7 +454,7 @@
       ;; trace
       ))
 
-(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} down-market? partitioned-list]
+(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{bollinger-band :bollinger-band :as item} down-market? partitioned-list]
 
   (let [;; A - Bollinger Band squeeze
         [mean-lhs mean-rhs] (mean-lhs-mean-rhs_fn bollinger-band)
@@ -520,9 +520,22 @@
 
       :always ((partial bind-result item)))))
 
+(defn consolidate-signals [bitem]
+
+  (let [result-list (:result bitem)
+        latest-bband (-> bitem :bollinger-band last)
+        conditionally-bind-signals #(if (not-empty %)
+                                      (assoc latest-bband :signals %)
+                                      latest-bband)]
+
+    (->> (map :signals result-list)
+         (apply concat)
+         conditionally-bind-signals)))
+
 (defn bollinger-band
   "** This function assumes the latest tick is on the right"
-  [tick-window {:keys [tick-list sma-list bollinger-band] :as item}]
+  [tick-window bollinger-band]
+
 
   ;; TODO up-market definition includes an MA that is abouve the tick line
   ;; TODO - determine how far back to look (defaults to 5 ticks) to decide on an UP or DOWN market
@@ -550,10 +563,10 @@
         ;; most-narrow (take 2 sorted-bands)
         ;; most-wide (take-last 2 sorted-bands)
 
-        partitioned-list (->> (partition 2 1 tick-list)
+        partitioned-list (->> (partition 2 1 bollinger-band)
                               (take-last market-trend-by-ticks))
 
-        ;; partitioned-sma (->> (map #(dissoc % :population) sma-list)
+        ;; partitioned-sma (->> (map #(dissoc % :population) bollinger-band)
         ;;                      (partition 2 1)
         ;;                      (take-last market-trend-by-ticks))
 
@@ -573,20 +586,12 @@
         ;; bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
 
         ;; Find last 3 peaks and valleys
-        ;; peaks-valleys (common/find-peaks-valleys nil tick-list)
+        ;; peaks-valleys (common/find-peaks-valleys nil bollinger-band)
         ;; peaks (:peak (group-by :signal peaks-valleys))
         ;; valleys (:valley (group-by :signal peaks-valleys))
-        payload (assoc item :result [])
 
-        consolidate-signals (fn [bitem]
-                              (let [result-list (:result bitem)
-                                    latest-bband (-> bitem :bollinger-band last)
-                                    conditionally-bind-signals #(if (not-empty %)
-                                                                  (assoc latest-bband :signals %)
-                                                                  latest-bband)]
-                                (->> (map :signals result-list)
-                                     (apply concat)
-                                     conditionally-bind-signals)))]
+
+        payload {:bollinger-band bollinger-band :result []}]
 
     (cond-> payload
 

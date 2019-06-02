@@ -233,7 +233,7 @@
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
                                fname
-                               25)
+                               12)
 
   ;; B
   ;; B.3

@@ -312,10 +312,6 @@
                (into #{})
                (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
 
-        ;; c (->> (select [:signals ALL :why] signal-bollinger-band)
-        ;;        (into #{})
-        ;;        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze}))
-
         exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
 
         not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
@@ -326,12 +322,7 @@
     (when (or (and exponential-abouve-average? not-down-market? a)
               (and exponential-abouve-average? not-down-market? b))
 
-      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
-
-    ;; (info "[A B C] / " [a b c])
-    ;; (when (or a b c)
-    ;;   (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
-    ))
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
                                     {account-updates-ch :account-updates

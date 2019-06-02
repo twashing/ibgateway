@@ -220,22 +220,15 @@
                                 (string-check :last-trade-price-exponential)
                                 (string-check :last-trade-price-average)))
 
-        remove-population-xf (map #(dissoc % :population))
         partition-xf (x/partition moving-average-signal-window moving-average-increment (x/into []))
         join-xf (map #(map strings->numbers %))
 
         ;; remove-population-ch (chan (sliding-buffer 40) remove-population-xf)
-        partitioned-ch (chan (sliding-buffer 40) partition-xf)
-        partitioned-joined-ch (chan (sliding-buffer 40) join-xf)
+        ;; partitioned-ch (chan (sliding-buffer 40) partition-xf)
+        partitioned-joined-ch (chan (sliding-buffer 40) join-xf)]
 
-        ;; mult-moving-averages (mult partitioned-joined-ch)
-        ;; tap->moving-averages (chan (sliding-buffer 40))
-        ]
-
-    ;; (tap mult-moving-averages tap->moving-averages)
-
-    (pipeline concurrency partitioned-ch (map identity) connector-ch)
-    (pipeline concurrency partitioned-joined-ch (map identity) partitioned-ch)
+    ;; (pipeline concurrency partitioned-ch (map identity) connector-ch)
+    (pipeline concurrency partitioned-joined-ch (map identity) connector-ch)
     (pipeline concurrency signal-moving-averages-ch (map slag/moving-averages) partitioned-joined-ch)))
 
 
@@ -394,7 +387,7 @@
                       partitioned-bollinger-band)
            partitioned-bollinger-band)))))
 
-(defn pipeline-signals-bollinger-band [concurrency connector-ch signal-bollinger-band-ch]
+(defn pipeline-signals-bollinger-band [concurrency input-ch signal-bollinger-band-ch]
 
   (let [bollinger-band-signal-window 24
         bollinger-band-increment 1
@@ -402,51 +395,34 @@
         partition-xf (x/partition bollinger-band-signal-window bollinger-band-increment (x/into []))
         matches-window-size? #(= bollinger-band-signal-window
                                  (count %))
-        bollinger-band-exists-xf (filter #(->> (filter :bollinger-band %)
+
+        bollinger-band-exists-xf (filter #(->> (filter :upper-band %)
                                                matches-window-size?))
-        join-xf (map (fn [e]
-                       (let [ks [:tick-list :sma-list :bollinger-band]]
-                         (->> e
-                              ((juxt #(map (first ks) %)
-                                     #(map (second ks) %)
-                                     #(map (nth ks 2) %)))
-                              (zipmap ks)))))
 
         partitioned-ch (chan (sliding-buffer 40) partition-xf)
         bollinger-band-exists-ch (chan (sliding-buffer 40) bollinger-band-exists-xf)
-        partitioned-joined-ch (chan (sliding-buffer 40) join-xf)
 
         ach (chan (sliding-buffer 40) partition-xf)
         bch (chan (sliding-buffer 40) (map extract-signals-for-strategy-bollinger-bands-squeeze))
         cch (chan (sliding-buffer 40))]
 
-    (pipeline concurrency partitioned-ch (map identity) connector-ch)
+    (pipeline concurrency partitioned-ch (map identity) input-ch)
     (pipeline concurrency bollinger-band-exists-ch (map identity) partitioned-ch)
-    (pipeline concurrency partitioned-joined-ch (map identity) bollinger-band-exists-ch)
-    (pipeline concurrency ach (map (partial slag/bollinger-band moving-average-window)) partitioned-joined-ch)
+    (pipeline concurrency ach (map (partial slag/bollinger-band moving-average-window)) bollinger-band-exists-ch)
 
 
     ;; TODO partition
     ;; (pipeline concurrency bch (x/partition bollinger-band-signal-window bollinger-band-increment (x/into [])) ach)
     (pipeline concurrency bch (map identity) ach)
-    ;; (pipeline concurrency bch (map identity) ach)
 
     ;; TODO A) extract-signals-for-strategy-bollinger-bands-squeeze
     ;; this is where the partitioned bollinger band is still reified
     ;; true (extract-signals-for-strategy-bollinger-bands-squeeze)
     ;; output is: signal-bollinger-band-ch -> put a partition on a binding channel
     (pipeline concurrency cch (map identity) bch)
-    ;; (pipeline concurrency cch (map identity) bch)
-
-    ;; (go-loop [c 0 r (<! cch)]
-    ;;   (info "count: " c " / ach " r)
-    ;;   (when r
-    ;;     (recur (inc c) (<! cch))))
 
     ;; TODO unpartition (take last item of each partitioned list)
-    (pipeline concurrency signal-bollinger-band-ch (map last) cch)
-    ;; (pipeline concurrency signal-bollinger-band-ch (map identity) cch)
-    ))
+    (pipeline concurrency signal-bollinger-band-ch (map last) cch)))
 
 (defn pipeline-signals-leading [concurrency moving-average-window
                                 signal-macd-ch macd->macd-signal
@@ -537,7 +513,8 @@
 
         ;; Signal Bollinger Band
         {:keys [tick-list->bollinger-band-signal sma-list->bollinger-band-signal
-                signal-bollinger-band signal-bollinger-band-ch]}
+                ;; signal-bollinger-band
+                signal-bollinger-band-ch]}
         (channel-signal-bollinger-band)]
 
 
@@ -560,9 +537,9 @@
     ;; SIGNALS
     (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
 
+
     ;; TODO implement Trendlines (a Simple Moving Average?)
-    #_(pipeline-signals-bollinger-band concurrency lagging-signals-bollinger-band-connector-ch
-                                       signal-bollinger-band-ch)
+    (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
 
 
     #_(go-loop [c 0 r (<! tick-list-ch)]
@@ -575,12 +552,12 @@
         (when r
           (recur (inc c) (<! bollinger-band-ch))))
 
-    (go-loop [c 0 r (<! signal-moving-averages-ch)]
+    #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
       (info "count: " c " / MA signals: " r)
       (when r
         (recur (inc c) (<! signal-moving-averages-ch))))
 
-    #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
+    (go-loop [c 0 r (<! signal-bollinger-band-ch)]
         (info "count: " c " / BB signals: " r)
         (when r
           (recur (inc c) (<! signal-bollinger-band-ch))))

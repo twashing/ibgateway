@@ -19,10 +19,11 @@
   [options ticks]
   {:pre [(not-empty ticks)
          (time-increases-left-to-right? ticks)]}
+
   (let [{:keys [input output etal]
          :or {input :last-trade-price
               output :last-trade-price-average
-              etal [:last-trade-price :last-trade-time :uuid]}} options
+              etal [:last-trade-price :last-trade-time :total-volume :uuid]}} options
         xs (map input ticks)]
     (-> (last ticks)
         (select-keys etal)
@@ -81,7 +82,7 @@
          :or {input-key :last-trade-price
               output-key :last-trade-price-exponential
               etal-keys [:last-trade-price :last-trade-time :last-trade-price-average
-                         :population :uuid]}} options]
+                         :total-volume :population :uuid]}} options]
 
     ;; 2. get the simple-moving-average for a given tick - 1
     (reduce (fn [rslt ech]
@@ -176,7 +177,8 @@
 
                   variance (/ (reduce + sq-diff-list) (count (:population ech)))
                   standard-deviation (. Math sqrt variance)
-                  etal-keys [:last-trade-price :last-trade-time :last-trade-price-average :uuid]]
+                  etal-keys [:uuid :last-trade-time :last-trade-price :total-volume
+                             :last-trade-price-average :last-trade-price-exponential]]
 
               (as-> etal-keys v
                 (zipmap v (map #(% ech) etal-keys))
