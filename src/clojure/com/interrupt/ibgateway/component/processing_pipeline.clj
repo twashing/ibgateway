@@ -358,6 +358,7 @@
          (some #{true})
          true?)
 
+  ;; (info "SANITY /" (partitioned-bollinger-band->matching-automata (take 15 partitioned-bollinger-band) automatas))
   (->> (partitioned-bollinger-band->matching-automata (take 15 partitioned-bollinger-band) automatas)
        (map :automata-match?)
        (some #{true})
@@ -372,9 +373,7 @@
 
   (->> (partitioned-bollinger-band->matching-automata one [strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
        (map :automata-match?)
-       (filter true?))
-
-  )
+       (filter true?)))
 
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [partitioned-bollinger-band]
 
@@ -392,18 +391,18 @@
   (let [bollinger-band-signal-window 24
         bollinger-band-increment 1
 
+        ;; Transducers
         partition-xf (x/partition bollinger-band-signal-window bollinger-band-increment (x/into []))
         matches-window-size? #(= bollinger-band-signal-window
                                  (count %))
-
         bollinger-band-exists-xf (filter #(->> (filter :upper-band %)
                                                matches-window-size?))
 
+        ;; Channels
         partitioned-ch (chan (sliding-buffer 40) partition-xf)
         bollinger-band-exists-ch (chan (sliding-buffer 40) bollinger-band-exists-xf)
-
         ach (chan (sliding-buffer 40) partition-xf)
-        bch (chan (sliding-buffer 40))
+        bch (chan (sliding-buffer 40) (map extract-signals-for-strategy-bollinger-bands-squeeze))
         cch (chan (sliding-buffer 40))]
 
     (pipeline concurrency partitioned-ch (map identity) input-ch)
@@ -415,6 +414,8 @@
     ;; (pipeline concurrency bch (x/partition bollinger-band-signal-window bollinger-band-increment (x/into [])) ach)
     (pipeline concurrency bch (map identity) ach)
 
+
+    ;; #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}
 
     ;; TODO A) extract-signals-for-strategy-bollinger-bands-squeeze
     ;; this is where the partitioned bollinger band is still reified
@@ -562,7 +563,6 @@
         (info "count: " c " / BB signals: " r)
         (when r
           (recur (inc c) (<! signal-bollinger-band-ch))))
-
 
     {:joined-channel signal-bollinger-band-ch
      :input-channel parsed-list-ch}))

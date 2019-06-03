@@ -226,7 +226,7 @@
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [order-type "MKT"
 
-        latest-price (-> joined-tick :sma-list :last-trade-price)
+        latest-price (-> joined-tick :last-trade-price)
         latest-bid @common/latest-bid
 
         price (if (< latest-price latest-bid)
@@ -251,7 +251,7 @@
 
            [false _] (do
                        (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
-                       #_(market/buy-stock client order-id order-type account-name instrm qty price))
+                       (market/buy-stock client order-id order-type account-name instrm qty price))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
                          (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
@@ -301,7 +301,7 @@
   ;; if percent-b-below-50?
   ;;   must have bollinger-band-squeeze -> up
   ;;   otherwise -> down
-
+  ;; (info "JOINED TICK /" joined-tick)
   (let [a (->> (select [:signals ALL :why] joined-tick)
                (into #{})
                (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))

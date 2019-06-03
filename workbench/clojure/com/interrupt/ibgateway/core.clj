@@ -203,12 +203,12 @@
     ;; "live-recordings/2018-08-27-TSLA.edn"
     ;; "live-recordings/2018-12-24-AMZN.edn"
 
-    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-12-24-AMZN.edn")
     ;; (def fname "live-recordings/2019-04-29-AMZN.edn")
     ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
-    (def fname "live-recordings/2019-05-24-AMZN.edn")
+    ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 40)))
@@ -233,7 +233,7 @@
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
                                fname
-                               100)
+                               50)
 
   ;; B
   ;; B.3
@@ -371,11 +371,11 @@
     (def concurrency 1)
     (def ticker-id 0)
 
-    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
-    (def fname "live-recordings/2019-05-24-AMZN.edn")
+    ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 40)))
@@ -409,7 +409,7 @@
   (thread
     (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name))
 
-  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 50))
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 7))
 
 
 (comment  ;; A scanner workbench
