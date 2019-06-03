@@ -403,7 +403,7 @@
         bollinger-band-exists-ch (chan (sliding-buffer 40) bollinger-band-exists-xf)
 
         ach (chan (sliding-buffer 40) partition-xf)
-        bch (chan (sliding-buffer 40) (map extract-signals-for-strategy-bollinger-bands-squeeze))
+        bch (chan (sliding-buffer 40))
         cch (chan (sliding-buffer 40))]
 
     (pipeline concurrency partitioned-ch (map identity) input-ch)
@@ -415,14 +415,15 @@
     ;; (pipeline concurrency bch (x/partition bollinger-band-signal-window bollinger-band-increment (x/into [])) ach)
     (pipeline concurrency bch (map identity) ach)
 
+
     ;; TODO A) extract-signals-for-strategy-bollinger-bands-squeeze
     ;; this is where the partitioned bollinger band is still reified
     ;; true (extract-signals-for-strategy-bollinger-bands-squeeze)
     ;; output is: signal-bollinger-band-ch -> put a partition on a binding channel
-    (pipeline concurrency cch (map identity) bch)
+    ;; (pipeline concurrency cch (map identity) bch)
 
     ;; TODO unpartition (take last item of each partitioned list)
-    (pipeline concurrency signal-bollinger-band-ch (map last) cch)))
+    (pipeline concurrency signal-bollinger-band-ch (map last) bch)))
 
 (defn pipeline-signals-leading [concurrency moving-average-window
                                 signal-macd-ch macd->macd-signal
@@ -557,13 +558,13 @@
       (when r
         (recur (inc c) (<! signal-moving-averages-ch))))
 
-    (go-loop [c 0 r (<! signal-bollinger-band-ch)]
+    #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
         (info "count: " c " / BB signals: " r)
         (when r
           (recur (inc c) (<! signal-bollinger-band-ch))))
 
 
-    {:joined-channel output-ch
+    {:joined-channel signal-bollinger-band-ch
      :input-channel parsed-list-ch}))
 
 (defn teardown-publisher-channel [joined-channel-map]

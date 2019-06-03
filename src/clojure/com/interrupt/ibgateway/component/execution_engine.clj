@@ -251,7 +251,7 @@
 
            [false _] (do
                        (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
-                       (market/buy-stock client order-id order-type account-name instrm qty price))
+                       #_(market/buy-stock client order-id order-type account-name instrm qty price))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
                          (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
@@ -284,11 +284,9 @@
        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze})))
 
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [client
-                                                            {signal-bollinger-band :signal-bollinger-band
-                                                             {last-trade-price :last-trade-price
-                                                              last-trade-price-average :last-trade-price-average
-                                                              last-trade-price-exponential :last-trade-price-exponential} :signal-moving-averages
-                                                             :as joined-tick}
+                                                            {last-trade-price :last-trade-price
+                                                             last-trade-price-average :last-trade-price-average
+                                                             last-trade-price-exponential :last-trade-price-exponential :as joined-tick}
                                                             instrm account-name
                                                             {account-updates-ch :account-updates
                                                              position-updates-ch :position-updates
@@ -304,17 +302,17 @@
   ;;   must have bollinger-band-squeeze -> up
   ;;   otherwise -> down
 
-  (let [a (->> (select [:signals ALL :why] signal-bollinger-band)
+  (let [a (->> (select [:signals ALL :why] joined-tick)
                (into #{})
                (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
 
-        b (->> (select [:signals ALL :why] signal-bollinger-band)
+        b (->> (select [:signals ALL :why] joined-tick)
                (into #{})
                (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
 
         exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
 
-        not-down-market? (->> (select [:signals ALL :why] signal-bollinger-band)
+        not-down-market? (->> (select [:signals ALL :why] joined-tick)
                               (into #{})
                               (clojure.set/subset? #{:not-down-market}))]
 
@@ -430,25 +428,24 @@
 (defn consume-joined-channel [joined-channel default-channels client instrm account-name]
 
   (go-loop [c 0
-            {{last-trade-price :last-trade-price
-              last-trade-time :last-trade-time} :signal-bollinger-band :as joined-tick} (<! joined-channel)]
+            {last-trade-price :last-trade-price
+             last-trade-time :last-trade-time :as joined-tick} (<! joined-channel)]
 
     ;; (info "BEFORE | count:" c " / last-trade-price:" last-trade-price " / joined-tick" (dissoc joined-tick :population))
     (if-not joined-tick
       joined-tick
-      (let [sr (update-in joined-tick [:sma-list] dissoc :population)]
+      (do
 
         (reset! *latest-tick* joined-tick)
 
-        ;; (info "count: " c " / sr: " sr)
-        ;; (info "AFTER | count:" c " / last-trade-price:" last-trade-price " / joined-tick /" sr)
-
+        ;; (info "count: " c " / joined-tick: " joined-tick)
+        ;; (info "AFTER | count:" c " / last-trade-price:" last-trade-price " / joined-tick /" joined-tick)
 
         ;; TODO design a better way to capture running standard-deviation
-        (reset! common/latest-standard-deviation (-> joined-tick :bollinger-band :standard-deviation))
+        (reset! common/latest-standard-deviation (:standard-deviation joined-tick))
 
         ;; TODO B) extract-signals-for-strategy-bollinger-bands-squeeze
-        (when (:signal-bollinger-band joined-tick)
+        (when (:upper-band joined-tick)
           (extract-signals-for-strategy-bollinger-bands-squeeze client joined-tick instrm account-name default-channels))
 
 
@@ -468,7 +465,8 @@
     (recur (<! input-ch))))
 
 (defn setup-execution-engine [{joined-channel :joined-channel
-                               processing-pipeline-input-channel :input-channel} joined-channel-tapped
+                               processing-pipeline-input-channel :input-channel}
+                              joined-channel-tapped
                               {{valid-order-id-ch :valid-order-ids
                                 order-filled-notification-ch :order-filled-notifications
                                 :as default-channels} :default-channels
