@@ -318,13 +318,11 @@
 
 
 (def strategy-bollinger-band-squeeze-automata-a
-  (automata [(a/+ :bollinger-band-squeeze)
-             (a/+ :volume-spike)
-             (a/+ :percent-b-abouve-50)]))
+  (automata [(a/+ :moving-average-crossover)]))
 
 (def strategy-bollinger-band-squeeze-automata-b
   (automata [(a/+ :bollinger-band-squeeze)
-             (a/+ :percent-b-abouve-50)
+             (a/+ :moving-average-crossover)
              (a/+ :volume-spike)]))
 
 (defn play-state-machine [state-machine transitions]
@@ -333,10 +331,39 @@
           state-machine
           transitions))
 
+;; (->> (select [ALL :signals] (take 15 one))
+;;      (map #(map :why %))
+;;      (apply concat))
+;;
+;;
+;; (->> (select [ALL :signals] (take 15 one))
+;;      (map #(map :why))
+;;      (apply concat)
+;;      (play-state-machine (automata [(a/+ :bollinger-band-squeeze)
+;;                                     (a/+ :moving-average-crossover)
+;;                                     (a/+ :volume-spike)])))
+
+;; (play-state-machine (automata [(a/+ :bollinger-band-squeeze)
+;;                                (a/+ :moving-average-crossover)
+;;                                (a/+ :volume-spike)])
+;;                     '(:not-down-market :bollinger-band-squeeze :moving-average-crossover :not-down-market :moving-average-crossover :not-down-market :moving-average-crossover :not-down-market :moving-average-crossover :not-down-market :moving-average-crossover :not-down-market :moving-average-crossover :not-down-market :moving-average-crossover :not-down-market :moving-average-crossover :not-down-market :moving-average-crossover :not-down-market :percent-b-below-50 :not-down-market :percent-b-below-50 :not-down-market :percent-b-below-50 :volume-spike))
+;;
+;; (play-state-machine (automata [(a/+ :bollinger-band-squeeze)
+;;                                (a/+ :moving-average-crossover)
+;;                                (a/+ :volume-spike)])
+;;                     '(:not-down-market :bollinger-band-squeeze :moving-average-crossover :volume-spike))
+
+
+;; (->> (select [ALL :signals] (take 15 one))
+;;      (map #(map :why %))
+;;      (apply combo/cartesian-product))
+
+
+
 (defn partitioned-bollinger-band->matching-automata [partitioned-bollinger-band state-machines]
 
   (let [signals-catesian-product (->> (select [ALL :signals] partitioned-bollinger-band)
-                                      (map (fn [a] (map :why a)))
+                                      (map #(map :why %))
                                       (apply combo/cartesian-product))
 
         signals->valid-state-machines (fn [signals state-machine]
@@ -349,7 +376,30 @@
     (map (partial signals->valid-state-machines signals-catesian-product) state-machines)))
 
 (def one
-   [{:last-trade-price 300.75, :last-trade-time 1534782908898, :uuid "6a2f6d32-c3d5-4243-a19e-a9ad0966e2a2", :variance 0.09823400000000224, :standard-deviation 0.3134230368048945, :upper-band 300.7628460736098, :lower-band 299.50915392639024, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.69, :last-trade-time 1534782914666, :uuid "993a170a-88b5-4b24-a0db-815c21ddd11e", :variance 0.10976475000000244, :standard-deviation 0.33130763649515, :upper-band 300.83711527299033, :lower-band 299.5118847270097, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.54, :last-trade-time 1534782917391, :uuid "f4c9b1da-fa28-45b9-9cb0-31bfc1d8e07e", :variance 0.11134100000000262, :standard-deviation 0.3336779884859093, :upper-band 300.8743559769718, :lower-band 299.5396440230282, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.5, :last-trade-time 1534782941488, :uuid "43019160-c6d3-41c9-80cd-b1a44e77e607", :variance 0.11002100000000177, :standard-deviation 0.33169413621588456, :upper-band 300.90038827243177, :lower-band 299.5736117275683, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.44, :last-trade-time 1534782946463, :uuid "122f80ac-26e5-45ca-b8ff-ce4912d77362", :variance 0.07782100000000117, :standard-deviation 0.27896415540352343, :upper-band 300.844928310807, :lower-band 299.72907168919295, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.87, :last-trade-time 1534782956654, :uuid "97f4abb5-5c3e-49ef-983f-db9995dcf834", :variance 0.07726100000000104, :standard-deviation 0.27795863001533344, :upper-band 300.89891726003066, :lower-band 299.7870827399694, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.94, :last-trade-time 1534782957157, :uuid "0b15268c-e862-41ba-9f73-4d60b5b1ad4c", :variance 0.08534599999999969, :standard-deviation 0.29214037721615904, :upper-band 300.9762807544323, :lower-band 299.8077192455677, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 301.0, :last-trade-time 1534782959164, :uuid "c3e9480a-f71f-47b3-b44e-681cea2e4f04", :variance 0.08977400000000005, :standard-deviation 0.2996230965730113, :upper-band 301.04524619314606, :lower-band 299.846753806854, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.97, :last-trade-time 1534782959917, :uuid "3e93bb50-17b9-4fd4-9909-f73e4270d7f2", :variance 0.07850500000000235, :standard-deviation 0.2801874372629907, :upper-band 301.06537487452596, :lower-band 299.94462512547403, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.74, :last-trade-time 1534782968197, :uuid "a482d4ce-9010-4fa2-aa9b-98500f2c0bf9", :variance 0.07683475000000288, :standard-deviation 0.27719081875127627, :upper-band 301.0848816375026, :lower-band 299.97611836249746, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.48, :last-trade-time 1534782981562, :uuid "fed34401-0c17-48ff-8121-2d3bc0928adf", :variance 0.06945100000000173, :standard-deviation 0.2635355763459684, :upper-band 301.07407115269194, :lower-band 300.0199288473081, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.22, :last-trade-time 1534782991195, :uuid "566bb32b-e8dc-45f8-b646-1c63e713f079", :variance 0.06911875000000015, :standard-deviation 0.26290445032368726, :upper-band 301.07330890064736, :lower-band 300.02169109935267, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.48, :last-trade-time 1534782998385, :uuid "79531fdb-0211-47d4-a969-aae88647536c", :variance 0.053782749999999616, :standard-deviation 0.2319110820982896, :upper-band 301.0353221641966, :lower-band 300.10767783580343, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.45, :last-trade-time 1534783004390, :uuid "fd1e7a4c-29cd-4097-9dfc-055fc5085927", :variance 0.047463999999999104, :standard-deviation 0.21786234185833747, :upper-band 301.0197246837167, :lower-band 300.14827531628333, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.29, :last-trade-time 1534783007174, :uuid "d43c3989-d6cc-4f4c-8132-09186eb37e48", :variance 0.04987899999999833, :standard-deviation 0.22333606963497482, :upper-band 301.02567213926994, :lower-band 300.1323278607301, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.26, :last-trade-time 1534783020227, :uuid "9622156e-a195-4659-acc2-4bdbe8f64b50", :variance 0.05391999999999878, :standard-deviation 0.23220680437919725, :upper-band 301.03441360875837, :lower-band 300.1055863912416, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.26, :last-trade-time 1534783020729, :uuid "4776fd55-3dc7-4e14-812b-e97656604f2a", :variance 0.05649499999999943, :standard-deviation 0.23768676866834515, :upper-band 301.0403735373367, :lower-band 300.0896264626633, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.36, :last-trade-time 1534783040036, :uuid "a8167c06-0cb0-4dc8-b434-6b6ffbe49386", :variance 0.05738874999999958, :standard-deviation 0.23955949156733403, :upper-band 301.04161898313464, :lower-band 300.08338101686536, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.13, :last-trade-time 1534783050210, :uuid "1bcc44c6-6664-4683-b9c9-d131d36c0c6e", :variance 0.06602475000000028, :standard-deviation 0.2569528166804176, :upper-band 301.0594056333608, :lower-band 300.0315943666392, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.16, :last-trade-time 1534783059244, :uuid "8fb3bfcd-929e-4ae2-aebb-ff93aad312d6", :variance 0.0730927499999996, :standard-deviation 0.2703567088126344, :upper-band 301.0672134176253, :lower-band 299.9857865823747, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.19, :last-trade-time 1534783059996, :uuid "9194105e-00c0-452d-931d-f4c818489f19", :variance 0.07547275000000006, :standard-deviation 0.27472304235356754, :upper-band 301.0479460847072, :lower-band 299.9490539152929, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.25, :last-trade-time 1534783064603, :uuid "c007bd8b-f05f-436f-8a3a-b71b7ddf2c95", :variance 0.07624275000000043, :standard-deviation 0.2761208974344398, :upper-band 301.0287417948689, :lower-band 299.9242582051311, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})} {:last-trade-price 300.69, :last-trade-time 1534783088132, :uuid "7e11254e-3cfd-41b3-9319-113008491a52", :variance 0.07826400000000014, :standard-deviation 0.27975703744499464, :upper-band 301.04351407488997, :lower-band 299.92448592511, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})} {:last-trade-price 300.64, :last-trade-time 1534783088633, :uuid "977cf765-d49c-44a7-8d1a-1e48728cd96c", :variance 0.07941899999999988, :standard-deviation 0.28181376829388566, :upper-band 301.05462753658776, :lower-band 299.9273724634122, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :percent-b-abouve-50})}])
+  [{:last-trade-price 300.75, :last-trade-time 1534782908898, :uuid "6a2f6d32-c3d5-4243-a19e-a9ad0966e2a2", :variance 0.09823400000000224, :standard-deviation 0.3134230368048945, :upper-band 300.7628460736098, :lower-band 299.50915392639024, :signals '({:signal :up, :why :bollinger-band-squeeze})}
+{:last-trade-price 300.69, :last-trade-time 1534782914666, :uuid "993a170a-88b5-4b24-a0db-815c21ddd11e", :variance 0.10976475000000244, :standard-deviation 0.33130763649515, :upper-band 300.83711527299033, :lower-band 299.5118847270097, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 300.54, :last-trade-time 1534782917391, :uuid "f4c9b1da-fa28-45b9-9cb0-31bfc1d8e07e", :variance 0.11134100000000262, :standard-deviation 0.3336779884859093, :upper-band 300.8743559769718, :lower-band 299.5396440230282, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 300.5, :last-trade-time 1534782941488, :uuid "43019160-c6d3-41c9-80cd-b1a44e77e607", :variance 0.11002100000000177, :standard-deviation 0.33169413621588456, :upper-band 300.90038827243177, :lower-band 299.5736117275683, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 300.44, :last-trade-time 1534782946463, :uuid "122f80ac-26e5-45ca-b8ff-ce4912d77362", :variance 0.07782100000000117, :standard-deviation 0.27896415540352343, :upper-band 300.844928310807, :lower-band 299.72907168919295, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 300.87, :last-trade-time 1534782956654, :uuid "97f4abb5-5c3e-49ef-983f-db9995dcf834", :variance 0.07726100000000104, :standard-deviation 0.27795863001533344, :upper-band 300.89891726003066, :lower-band 299.7870827399694, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 300.94, :last-trade-time 1534782957157, :uuid "0b15268c-e862-41ba-9f73-4d60b5b1ad4c", :variance 0.08534599999999969, :standard-deviation 0.29214037721615904, :upper-band 300.9762807544323, :lower-band 299.8077192455677, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 301.0, :last-trade-time 1534782959164, :uuid "c3e9480a-f71f-47b3-b44e-681cea2e4f04", :variance 0.08977400000000005, :standard-deviation 0.2996230965730113, :upper-band 301.04524619314606, :lower-band 299.846753806854, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 300.97, :last-trade-time 1534782959917, :uuid "3e93bb50-17b9-4fd4-9909-f73e4270d7f2", :variance 0.07850500000000235, :standard-deviation 0.2801874372629907, :upper-band 301.06537487452596, :lower-band 299.94462512547403, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 300.74, :last-trade-time 1534782968197, :uuid "a482d4ce-9010-4fa2-aa9b-98500f2c0bf9", :variance 0.07683475000000288, :standard-deviation 0.27719081875127627, :upper-band 301.0848816375026, :lower-band 299.97611836249746, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+   {:last-trade-price 300.48, :last-trade-time 1534782981562, :uuid "fed34401-0c17-48ff-8121-2d3bc0928adf", :variance 0.06945100000000173, :standard-deviation 0.2635355763459684, :upper-band 301.07407115269194, :lower-band 300.0199288473081, :signals '()}
+{:last-trade-price 300.22, :last-trade-time 1534782991195, :uuid "566bb32b-e8dc-45f8-b646-1c63e713f079", :variance 0.06911875000000015, :standard-deviation 0.26290445032368726, :upper-band 301.07330890064736, :lower-band 300.02169109935267, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.48, :last-trade-time 1534782998385, :uuid "79531fdb-0211-47d4-a969-aae88647536c", :variance 0.053782749999999616, :standard-deviation 0.2319110820982896, :upper-band 301.0353221641966, :lower-band 300.10767783580343, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.45, :last-trade-time 1534783004390, :uuid "fd1e7a4c-29cd-4097-9dfc-055fc5085927", :variance 0.047463999999999104, :standard-deviation 0.21786234185833747, :upper-band 301.0197246837167, :lower-band 300.14827531628333, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+   {:last-trade-price 300.29, :last-trade-time 1534783007174, :uuid "d43c3989-d6cc-4f4c-8132-09186eb37e48", :variance 0.04987899999999833, :standard-deviation 0.22333606963497482, :upper-band 301.02567213926994, :lower-band 300.1323278607301, :signals '({:signal :up :why :volume-spike})}
+{:last-trade-price 300.26, :last-trade-time 1534783020227, :uuid "9622156e-a195-4659-acc2-4bdbe8f64b50", :variance 0.05391999999999878, :standard-deviation 0.23220680437919725, :upper-band 301.03441360875837, :lower-band 300.1055863912416, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.26, :last-trade-time 1534783020729, :uuid "4776fd55-3dc7-4e14-812b-e97656604f2a", :variance 0.05649499999999943, :standard-deviation 0.23768676866834515, :upper-band 301.0403735373367, :lower-band 300.0896264626633, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.36, :last-trade-time 1534783040036, :uuid "a8167c06-0cb0-4dc8-b434-6b6ffbe49386", :variance 0.05738874999999958, :standard-deviation 0.23955949156733403, :upper-band 301.04161898313464, :lower-band 300.08338101686536, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.13, :last-trade-time 1534783050210, :uuid "1bcc44c6-6664-4683-b9c9-d131d36c0c6e", :variance 0.06602475000000028, :standard-deviation 0.2569528166804176, :upper-band 301.0594056333608, :lower-band 300.0315943666392, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.16, :last-trade-time 1534783059244, :uuid "8fb3bfcd-929e-4ae2-aebb-ff93aad312d6", :variance 0.0730927499999996, :standard-deviation 0.2703567088126344, :upper-band 301.0672134176253, :lower-band 299.9857865823747, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.19, :last-trade-time 1534783059996, :uuid "9194105e-00c0-452d-931d-f4c818489f19", :variance 0.07547275000000006, :standard-deviation 0.27472304235356754, :upper-band 301.0479460847072, :lower-band 299.9490539152929, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.25, :last-trade-time 1534783064603, :uuid "c007bd8b-f05f-436f-8a3a-b71b7ddf2c95", :variance 0.07624275000000043, :standard-deviation 0.2761208974344398, :upper-band 301.0287417948689, :lower-band 299.9242582051311, :signals '({:signal :up, :why :not-down-market} {:signal :down, :why :percent-b-below-50})}
+{:last-trade-price 300.69, :last-trade-time 1534783088132, :uuid "7e11254e-3cfd-41b3-9319-113008491a52", :variance 0.07826400000000014, :standard-deviation 0.27975703744499464, :upper-band 301.04351407488997, :lower-band 299.92448592511, :signals '({:signal :up, :why :not-down-market} {:signal :up, :why :moving-average-crossover})}
+{:last-trade-price 300.64, :last-trade-time 1534783088633, :uuid "977cf765-d49c-44a7-8d1a-1e48728cd96c", :variance 0.07941899999999988, :standard-deviation 0.28181376829388566, :upper-band 301.05462753658776, :lower-band 299.9273724634122, :signals '({:signal :up, :why :volume-spike})}])
 
 (defn matching-automata? [partitioned-bollinger-band automatas]
 
@@ -368,7 +418,7 @@
 
   (partitioned-bollinger-band->matching-automata one [strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
 
-  (->> (partitioned-bollinger-band->matching-automata one [strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
+  (->> (partitioned-bollinger-band->matching-automata (take 15 one) [strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
        (map :automata-match?))
 
   (->> (partitioned-bollinger-band->matching-automata one [strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
@@ -378,7 +428,7 @@
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [partitioned-bollinger-band]
 
   (-> partitioned-bollinger-band
-      (matching-automata? [strategy-bollinger-band-squeeze-automata-a strategy-bollinger-band-squeeze-automata-b])
+      (matching-automata? [strategy-bollinger-band-squeeze-automata-a])
       ((fn [a]
          (if a
            (transform [LAST :signals]
@@ -402,8 +452,7 @@
         partitioned-ch (chan (sliding-buffer 40) partition-xf)
         bollinger-band-exists-ch (chan (sliding-buffer 40) bollinger-band-exists-xf)
         ach (chan (sliding-buffer 40) partition-xf)
-        bch (chan (sliding-buffer 40) (map extract-signals-for-strategy-bollinger-bands-squeeze))
-        cch (chan (sliding-buffer 40))]
+        bch (chan (sliding-buffer 40) (map extract-signals-for-strategy-bollinger-bands-squeeze))]
 
     (pipeline concurrency partitioned-ch (map identity) input-ch)
     (pipeline concurrency bollinger-band-exists-ch (map identity) partitioned-ch)

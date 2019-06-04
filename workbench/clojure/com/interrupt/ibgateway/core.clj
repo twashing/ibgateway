@@ -354,14 +354,12 @@
     (ee/teardown-execution-engine execution-engine-output-ch))
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.vase/server
-              )
+              #'com.interrupt.ibgateway.component.vase/server)
 
 
   ;; START
   (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.vase/server
-               )
+               #'com.interrupt.ibgateway.component.vase/server)
 
 
   (do

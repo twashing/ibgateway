@@ -10,6 +10,10 @@
 (def balancing-sell-standard-deviation-multiple (Float/parseFloat (env :balancing-sell-standard-deviation-multiple "2")))
 (def balancing-sell-type (env :balancing-sell-type "LIMIT"))
 
+;; (def balancing-sell-standard-deviation-multiple 0.15)
+;; (def balancing-sell-type "TRAIL")
+
+
 (defn bind-channels->mult [source-list-ch & channels]
   (let [source-list->sink-mult (mult source-list-ch)]
     (doseq [c channels]

@@ -302,13 +302,14 @@
   ;;   must have bollinger-band-squeeze -> up
   ;;   otherwise -> down
   ;; (info "JOINED TICK /" joined-tick)
+
   (let [a (->> (select [:signals ALL :why] joined-tick)
                (into #{})
-               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}))
+               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze}))
 
-        b (->> (select [:signals ALL :why] joined-tick)
-               (into #{})
-               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50}))
+        ;; b (->> (select [:signals ALL :why] joined-tick)
+        ;;        (into #{})
+        ;;        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :moving-average-crossover}))
 
         exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
 
@@ -316,9 +317,8 @@
                               (into #{})
                               (clojure.set/subset? #{:not-down-market}))]
 
-    (info "[A B exponential-abouve-average? not-down-market? last-trade-price] / " [a b exponential-abouve-average? not-down-market? last-trade-price])
-    (when (or (and exponential-abouve-average? not-down-market? a)
-              (and exponential-abouve-average? not-down-market? b))
+    (info "[A exponential-abouve-average? not-down-market? last-trade-price] / " [a exponential-abouve-average? not-down-market? last-trade-price])
+    (when (and exponential-abouve-average? not-down-market? a)
 
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
@@ -925,7 +925,6 @@
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account)
-
 
 
   ;; TEST

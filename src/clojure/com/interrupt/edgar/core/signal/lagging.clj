@@ -29,20 +29,19 @@
     ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
     (if (every? not-nil? [ltpExpS ltpAvgS ltpExpL ltpAvgL])
       (match [;; in the first element, has the ema crossed abouve the sma from the second element
-              (and (< ltpExpS ltpAvgS)
-                   (> ltpExpL ltpAvgL))
+              (and (< ltpExpS ltpAvgS) (> ltpExpL ltpAvgL))
 
               ;; in the first element, has the ema crossed below the sma from the second element
-              (and (> ltpExpS ltpAvgS)
-                   (< ltpExpL ltpAvgL))]
+              (and (> ltpExpS ltpAvgS) (< ltpExpL ltpAvgL))]
 
              [true false] (-> lst
                               (assoc :signals [{:signal :up
                                                 :why :moving-average-crossover}]))
 
-             [false true] (-> lst
-                              (assoc :signals [{:signal :down
-                                                :why :moving-average-crossover}]))
+             [false true] lst
+             ;; [false true] (-> lst
+             ;;                  (assoc :signals [{:signal :down
+             ;;                                    :why :moving-average-crossover}]))
 
              [false false] lst)
       lst)))
