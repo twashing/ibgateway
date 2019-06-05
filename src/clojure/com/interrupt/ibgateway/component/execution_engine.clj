@@ -305,20 +305,21 @@
 
   (let [a (->> (select [:signals ALL :why] joined-tick)
                (into #{})
-               (clojure.set/subset? #{:strategy-bollinger-bands-squeeze}))
+               (clojure.set/subset? #{:moving-average-crossover}))
 
         ;; b (->> (select [:signals ALL :why] joined-tick)
         ;;        (into #{})
         ;;        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :moving-average-crossover}))
 
-        exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
+        ;; exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
 
-        not-down-market? (->> (select [:signals ALL :why] joined-tick)
-                              (into #{})
-                              (clojure.set/subset? #{:not-down-market}))]
+        ;; not-down-market? (->> (select [:signals ALL :why] joined-tick)
+        ;;                       (into #{})
+        ;;                       (clojure.set/subset? #{:not-down-market}))
+        ]
 
-    (info "[A exponential-abouve-average? not-down-market? last-trade-price] / " [a exponential-abouve-average? not-down-market? last-trade-price])
-    (when (and exponential-abouve-average? not-down-market? a)
+    (info "[A last-trade-price] / " [a last-trade-price])
+    (when a
 
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
@@ -925,6 +926,7 @@
 
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.account/account)
+
 
 
   ;; TEST

@@ -590,7 +590,7 @@
 
 
     ;; TODO implement Trendlines (a Simple Moving Average?)
-    (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
+    ;; (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
 
 
     #_(go-loop [c 0 r (<! tick-list-ch)]
@@ -613,7 +613,7 @@
         (when r
           (recur (inc c) (<! signal-bollinger-band-ch))))
 
-    {:joined-channel signal-bollinger-band-ch
+    {:joined-channel signal-moving-averages-ch
      :input-channel parsed-list-ch}))
 
 (defn teardown-publisher-channel [joined-channel-map]
