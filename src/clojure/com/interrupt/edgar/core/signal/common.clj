@@ -1,5 +1,6 @@
 (ns com.interrupt.edgar.core.signal.common
-  (:require [clojure.tools.trace :refer [trace]]))
+  (:require [clojure.tools.trace :refer [trace]]
+            [clojure.tools.logging :refer [info warn error] :as log]))
 
 
 (defn seq-all-exists? [s]

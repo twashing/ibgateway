@@ -301,7 +301,6 @@
   ;; if percent-b-below-50?
   ;;   must have bollinger-band-squeeze -> up
   ;;   otherwise -> down
-  ;; (info "JOINED TICK /" joined-tick)
 
   (let [a (->> (select [:signals ALL :why] joined-tick)
                (into #{})
@@ -313,14 +312,13 @@
 
         ;; exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
 
-        ;; not-down-market? (->> (select [:signals ALL :why] joined-tick)
-        ;;                       (into #{})
-        ;;                       (clojure.set/subset? #{:not-down-market}))
-        ]
+        not-down-market? (->> (select [:signals ALL :why] joined-tick)
+                              trace
+                              (into #{})
+                              (clojure.set/subset? #{:not-down-market}))]
 
-    (info "[A last-trade-price] / " [a last-trade-price])
-    (when a
-
+    (info "[A not-down-market? last-trade-price] / " [a not-down-market? last-trade-price])
+    (when (and a not-down-market?)
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
@@ -433,6 +431,7 @@
              last-trade-time :last-trade-time :as joined-tick} (<! joined-channel)]
 
     ;; (info "BEFORE | count:" c " / last-trade-price:" last-trade-price " / joined-tick" (dissoc joined-tick :population))
+    (info "JOINED TICK 1 /" joined-tick)
     (if-not joined-tick
       joined-tick
       (do

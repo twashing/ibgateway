@@ -1,6 +1,6 @@
 (ns com.interrupt.edgar.core.signal.lagging
   (:require [clojure.core.match :refer [match]]
-            [clojure.tools.logging :refer [info] :as log]
+            [clojure.tools.logging :refer [info warn error] :as log]
             [clojure.tools.trace :refer [trace]]
             [environ.core :refer [env]]
             [com.rpl.specter :refer :all]
@@ -453,7 +453,7 @@
       ;; trace
       ))
 
-(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{bollinger-band :bollinger-band :as item} down-market? partitioned-list]
+(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{bollinger-band :bollinger-band :as item} partitioned-list]
 
   (let [;; A - Bollinger Band squeeze
         [mean-lhs mean-rhs] (mean-lhs-mean-rhs_fn bollinger-band)
@@ -476,7 +476,8 @@
         ;; Overlay fibanacci calculations over original list
         ;; bollinger-with-peaks-troughs-fibonacci (bollinger-with-peaks-troughs-fibonacci_fn peaks-troughs fibonacci-at-peaks-and-troughs)
 
-        ;; down-market? (common/down-market? partitioned-list)
+        down-market? (common/down-market? partitioned-list)
+
         ;; up-market? (common/up-market? partitioned-list)
         ;; up-market? (->> (map #(dissoc % :population) sma-list)
         ;;                 (take-last market-trend-by-ticks)
@@ -572,7 +573,7 @@
         ;; up-market? (common/up-market? partitioned-list)
         ;; up-market? (common/up-market? :last-trade-price-average partitioned-sma)
 
-        down-market? (common/down-market? partitioned-list)
+        ;; down-market? (common/down-market? partitioned-list)
         ;; down-market? (common/down-market? :last-trade-price-average partitioned-sma)
         ;; _ (info "CALCULATING down-market?" down-market?)
 
@@ -711,7 +712,7 @@
       ;;   entry is when we take out the resistance
       ;;
       ;;   ! in isolation, support/resistance should be used in a sideways market (not a trend)
-      true (analysis-day-trading-strategy-bollinger-bands-squeeze down-market? partitioned-list)
+      true (analysis-day-trading-strategy-bollinger-bands-squeeze partitioned-list)
       :always (consolidate-signals))))
 
 

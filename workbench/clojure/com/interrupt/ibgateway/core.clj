@@ -220,13 +220,13 @@
 
   ;; A
   ;; A.3 Capture output channels and send to browser
-  #_(let [{jch :joined-channel} joined-channel-map]
+  (let [{jch :joined-channel} joined-channel-map]
     (go-loop [c 0 r (<! jch)]
       (if-not r
         r
-        (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "count:" c " / sr:" sr)
-          (send-message-to-all! sr)
+        (do
+          (info "count:" c " / r:" r)
+          (send-message-to-all! r)
           (recur (inc c) (<! jch))))))
 
   ;; A.4 Start streaming

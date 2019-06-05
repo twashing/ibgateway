@@ -452,16 +452,19 @@
         partitioned-ch (chan (sliding-buffer 40) partition-xf)
         bollinger-band-exists-ch (chan (sliding-buffer 40) bollinger-band-exists-xf)
         ach (chan (sliding-buffer 40) partition-xf)
-        bch (chan (sliding-buffer 40) (map extract-signals-for-strategy-bollinger-bands-squeeze))]
+        ;; bch (chan (sliding-buffer 40) (map extracdt-signals-for-strategy-bollinger-bands-squeeze))
+        bch (chan (sliding-buffer 40))
+        ]
 
     (pipeline concurrency partitioned-ch (map identity) input-ch)
     (pipeline concurrency bollinger-band-exists-ch (map identity) partitioned-ch)
-    (pipeline concurrency ach (map (partial slag/bollinger-band moving-average-window)) bollinger-band-exists-ch)
+    (pipeline concurrency bch (map (partial slag/bollinger-band moving-average-window)) bollinger-band-exists-ch)
+    (pipeline concurrency signal-bollinger-band-ch (map identity) bch)
 
 
     ;; TODO partition
     ;; (pipeline concurrency bch (x/partition bollinger-band-signal-window bollinger-band-increment (x/into [])) ach)
-    (pipeline concurrency bch (map identity) ach)
+    ;; (pipeline concurrency bch (map identity) ach)
 
 
     ;; #{:strategy-bollinger-bands-squeeze :percent-b-abouve-50 :bollinger-band-squeeze}
@@ -473,7 +476,8 @@
     ;; (pipeline concurrency cch (map identity) bch)
 
     ;; TODO unpartition (take last item of each partitioned list)
-    (pipeline concurrency signal-bollinger-band-ch (map last) bch)))
+    ;; (pipeline concurrency signal-bollinger-band-ch (map last) bch)
+    ))
 
 (defn pipeline-signals-leading [concurrency moving-average-window
                                 signal-macd-ch macd->macd-signal
@@ -590,7 +594,7 @@
 
 
     ;; TODO implement Trendlines (a Simple Moving Average?)
-    ;; (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
+    (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
 
 
     #_(go-loop [c 0 r (<! tick-list-ch)]
@@ -613,7 +617,7 @@
         (when r
           (recur (inc c) (<! signal-bollinger-band-ch))))
 
-    {:joined-channel signal-moving-averages-ch
+    {:joined-channel signal-bollinger-band-ch
      :input-channel parsed-list-ch}))
 
 (defn teardown-publisher-channel [joined-channel-map]
