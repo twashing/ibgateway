@@ -275,7 +275,7 @@
              :totalQuantity (.totalQuantity order)
              :status (.status orderState)}]
 
-        (info "openOrder / orderId " orderId
+        #_(info "openOrder / orderId " orderId
               " Contract::symbol / " symbol
               " Contract::secType / " secType
               " Contract::exchange / " exchange
@@ -312,7 +312,7 @@
              :clientId clientId
              :whorderIdyHeld whyHeld}]
 
-        (info "orderStatus /"
+        #_(info "orderStatus /"
               " Id / " orderId
               " Status / " status
               " Filled" filled
@@ -328,7 +328,7 @@
         (account/handle-order-status val account/account)))
 
 
-    (openOrderEnd [] (info "OpenOrderEnd"))
+    (openOrderEnd [] #_(info "OpenOrderEnd"))
 
 
     ;; ========
@@ -347,7 +347,7 @@
              :execId (.execId execution)
              :orderId (.orderId execution)
              :shares (.shares execution)}]
-        (info "execDetails / "
+        #_(info "execDetails / "
               " reqId /" reqId
               " symbol /" symbol
               " secType /" secType
@@ -383,7 +383,7 @@
           )))
 
     (execDetailsEnd [^Integer reqId]
-      (info "execDetailsEnd / reqId / " reqId))))
+      #_(info "execDetailsEnd / reqId / " reqId))))
 
 (defn default-exception-handler
   [^Exception e]

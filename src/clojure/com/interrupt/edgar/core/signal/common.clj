@@ -43,8 +43,8 @@
   ([partitioned-list] (up-market? :last-trade-price partitioned-list))
   ([k partitioned-list]
    (every? (fn [inp]
-             (<= (k (first inp))
-                 (k (second inp))))
+             (< (k (first inp))
+                (k (second inp))))
            partitioned-list)))
 
 (defn down-market?

@@ -251,11 +251,17 @@
 
            [false _] (do
                        (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
-                       (market/buy-stock client order-id order-type account-name instrm qty price))
+                       (market/buy-stock client order-id order-type account-name instrm qty price)
+
+                       ;; SAVE TIME - Immediately do balancing sell
+                       (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
                          (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
-                         (market/buy-stock client order-id order-type account-name instrm qty price)))))
+                         (market/buy-stock client order-id order-type account-name instrm qty price)
+
+                         ;; SAVE TIME - Immediately do balancing sell
+                         (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)))))
 
 (comment
 
@@ -310,15 +316,23 @@
         ;;        (into #{})
         ;;        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :moving-average-crossover}))
 
-        ;; exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
+        exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
 
         not-down-market? (->> (select [:signals ALL :why] joined-tick)
-                              trace
                               (into #{})
-                              (clojure.set/subset? #{:not-down-market}))]
+                              (clojure.set/subset? #{:not-down-market}))
 
-    (info "[A not-down-market? last-trade-price] / " [a not-down-market? last-trade-price])
-    (when (and a not-down-market?)
+        exponential-average-gap-growing? (->> (select [:signals ALL :why] joined-tick)
+                                              (into #{})
+                                              (clojure.set/subset? #{:exponential-average-gap-growing}))]
+
+    (info "[up-market? [crossover exponential-gap-growing?] last-trade-price] / "
+          [not-down-market?
+           [a [exponential-average-gap-growing? exponential-abouve-average?]]
+           last-trade-price])
+    (when (and not-down-market?
+               (or a (and exponential-average-gap-growing? exponential-abouve-average?)))
+
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
@@ -431,7 +445,6 @@
              last-trade-time :last-trade-time :as joined-tick} (<! joined-channel)]
 
     ;; (info "BEFORE | count:" c " / last-trade-price:" last-trade-price " / joined-tick" (dissoc joined-tick :population))
-    (info "JOINED TICK 1 /" joined-tick)
     (if-not joined-tick
       joined-tick
       (do

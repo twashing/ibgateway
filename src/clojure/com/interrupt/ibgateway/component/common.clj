@@ -10,7 +10,7 @@
 (def balancing-sell-standard-deviation-multiple (Float/parseFloat (env :balancing-sell-standard-deviation-multiple "2")))
 (def balancing-sell-type (env :balancing-sell-type "LIMIT"))
 
-;; (def balancing-sell-standard-deviation-multiple 0.15)
+;; (def balancing-sell-standard-deviation-multiple 0.025)
 ;; (def balancing-sell-type "TRAIL")
 
 
@@ -137,12 +137,14 @@
                    (.trailStopPrice trailStopPrice)
                    (.totalQuantity quantity)))))
 
+(defn balancing-sell [client stock order valid-order-id-ch]
+  (case balancing-sell-type
+        "TRAIL" (sell-trailing client stock order valid-order-id-ch)
+        "LIMIT" (sell-limit client stock order valid-order-id-ch)
+        (sell-limit client stock order valid-order-id-ch)))
+
 (defn process-order-filled-notifications [client {:keys [stock order] :as val} valid-order-id-ch]
 
   (info "3 - process-order-filled-notifications LOOP / " (exists? val))
-
-  (case balancing-sell-type
-    "TRAIL" (sell-trailing client stock order valid-order-id-ch)
-    "LIMIT" (sell-limit client stock order valid-order-id-ch)
-    (sell-limit client stock order valid-order-id-ch)))
+  #_(balancing-sell client stock order valid-order-id-ch))
 

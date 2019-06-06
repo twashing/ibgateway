@@ -13,6 +13,7 @@
 
 
 (def market-trend-by-ticks (Integer/parseInt (env :market-trend-by-ticks "3")))
+;; (def market-trend-by-ticks 4)
 
 (defn moving-averages
   "Takes baseline time series, along with 2 other moving averages.
@@ -453,8 +454,10 @@
       ;; trace
       ))
 
+(def *incline* 1.00005)
 (defn analysis-day-trading-strategy-bollinger-bands-squeeze [{bollinger-band :bollinger-band :as item} partitioned-list]
 
+  ;; (info partitioned-list)
   (let [;; A - Bollinger Band squeeze
         [mean-lhs mean-rhs] (mean-lhs-mean-rhs_fn bollinger-band)
         last-4-differences-lowest? (last-4-differences-lowest?_fn mean-rhs mean-lhs)
@@ -476,7 +479,25 @@
         ;; Overlay fibanacci calculations over original list
         ;; bollinger-with-peaks-troughs-fibonacci (bollinger-with-peaks-troughs-fibonacci_fn peaks-troughs fibonacci-at-peaks-and-troughs)
 
-        down-market? (common/down-market? partitioned-list)
+        up-market? (common/up-market? :last-trade-price-average partitioned-list)
+
+        exponential-average-gap-growing-fn (fn [partitioned-list]
+                                             (->> partitioned-list
+                                                  (map (fn [[{fa :last-trade-price-average
+                                                             fe :last-trade-price-exponential
+                                                             :as fst}
+                                                            {sa :last-trade-price-average
+                                                             se :last-trade-price-exponential
+                                                             :as snd}]]
+                                                         [(assoc fst :difference (- fe fa))
+                                                          (assoc snd :difference (- se sa))]))
+                                                  (every? (fn [[{fdiff :difference} {sdiff :difference}]]
+                                                            (and (< fdiff sdiff)
+                                                                 (> (/ sdiff fdiff) *incline*))))))
+
+        exponential-average-gap-growing? (exponential-average-gap-growing-fn partitioned-list)
+
+
 
         ;; up-market? (common/up-market? partitioned-list)
         ;; up-market? (->> (map #(dissoc % :population) sma-list)
@@ -515,8 +536,11 @@
       ;;                                                                (-> (select-keys bollinger-with-peaks-troughs-fibonacci [:fibonacci :carry])
       ;;                                                                    (assoc :signal :fibonacci)))
 
-      (not down-market?) (update-in [:signals] conj {:signal :up
-                                                     :why :not-down-market})
+      up-market? (update-in [:signals] conj {:signal :up
+                                             :why :not-down-market})
+
+      exponential-average-gap-growing? (update-in [:signals] conj {:signal :up
+                                                                   :why :exponential-average-gap-growing})
 
       :always ((partial bind-result item)))))
 
