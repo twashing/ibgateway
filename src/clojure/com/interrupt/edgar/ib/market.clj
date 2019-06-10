@@ -7,6 +7,7 @@
             [clojure.tools.logging :refer [debug info]]
             [clojure.core.async :refer [chan >! <! merge go go-loop pub sub unsub-all sliding-buffer]]
             [clojure.core.strint :refer :all]
+            [com.interrupt.ibgateway.component.common :as common]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper-impl]))
 
@@ -72,7 +73,43 @@
                 (.orderType order-type)
                 (.totalQuantity qty)
                 (.account account-name))]
-    (trace (.placeOrder client order-id contract order))))
+    (.placeOrder client order-id contract order)))
+
+(defmethod buy-stock "LMT" [client order-id order-type account-name instrm qty price]
+
+  (info "buy-stock LMT CALLED /" [client order-id order-type account-name instrm qty price])
+  (.placeOrder client
+               order-id
+               (contract/create instrm)
+               (doto (Order.)
+                 (.action "BUY")
+                 (.orderType order-type)
+                 (.totalQuantity qty)
+                 (.lmtPrice price)
+                 (.account account-name))))
+
+(defmethod buy-stock "TRAIL" [client order-id order-type account-name instrm qty price]
+
+  (info "buy-stock TRAIL CALLED /" [client order-id order-type account-name instrm qty price])
+  (let [;; auxPrice (->> @common/latest-standard-deviation
+        ;;               (clojure.pprint/cl-format nil "~,2f")
+        ;;               read-string
+        ;;               (Double.)
+        ;;               (* common/balancing-sell-standard-deviation-multiple)
+        ;;               (clojure.pprint/cl-format nil "~,2f")
+        ;;               read-string)
+        auxPrice 0.01
+        trailStopPrice (+ price auxPrice)]
+    (.placeOrder client
+                 order-id
+                 (contract/create instrm)
+                 (doto (Order.)
+                   (.action "BUY")
+                   (.orderType order-type)
+                   (.totalQuantity qty)
+                   (.auxPrice auxPrice)
+                   (.trailStopPrice trailStopPrice)
+                   (.account account-name)))))
 
 
 (defmulti sell-stock (fn [_ _ order-type _ _ _ _] order-type))

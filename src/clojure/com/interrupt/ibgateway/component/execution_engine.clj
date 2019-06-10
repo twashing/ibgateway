@@ -224,11 +224,12 @@
       (cap-order-quantity price)))
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
-  (let [order-type "MKT"
+  (let [;; order-type "MKT"
+        order-type "LMT"
+        ;; order-type "TRAIL"
 
         latest-price (-> joined-tick :last-trade-price)
         latest-bid @common/latest-bid
-
         price (if (< latest-price latest-bid)
                 latest-price latest-bid)
 
@@ -263,7 +264,17 @@
                          ;; SAVE TIME - Immediately do balancing sell
                          (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)))))
 
+
 (comment
+
+  (let [[instrm quantity price] ["AMZN" 1 @common/latest-bid]
+        valid-order-id-ch (-> ewrapper/ewrapper :default-channels :valid-order-ids)
+        client (-> ewrapper/ewrapper :ewrapper :client)
+        order-type "LMT"
+        order-id (->next-valid-order-id client valid-order-id-ch)]
+
+    (market/buy-stock client order-id order-type account-name instrm quantity price)
+    (common/balancing-sell client {:symbol instrm} {:quantity quantity :price price} valid-order-id-ch))
 
   (def one {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
                        {:signal :up, :why :percent-b-abouve-50}
@@ -326,12 +337,18 @@
                                               (into #{})
                                               (clojure.set/subset? #{:exponential-average-gap-growing}))]
 
-    (info "[up-market? [crossover exponential-gap-growing?] last-trade-price] / "
+    (info "[up-market? latest-dev [crossover exponential-gap-growing?] last-trade-price] /"
           [not-down-market?
+           (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
            [a [exponential-average-gap-growing? exponential-abouve-average?]]
            last-trade-price])
-    (when (and not-down-market?
-               (or a (and exponential-average-gap-growing? exponential-abouve-average?)))
+    (when
+        #_(and not-down-market? a exponential-average-gap-growing? exponential-abouve-average?)
+        (and not-down-market?
+             (not (> (:position (->account-positions client (-> ewrapper/ewrapper :default-channels :position-updates))) 0))
+             (> @latest-standard-deviation 1)
+             (or (and a exponential-average-gap-growing? exponential-abouve-average?)
+                 (and exponential-average-gap-growing? exponential-abouve-average?)))
 
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
@@ -925,6 +942,8 @@
 
   (->account-cash-level client (-> ewrapper/ewrapper :default-channels :account-updates))
   (->account-positions client (-> ewrapper/ewrapper :default-channels :position-updates))
+
+  (:position (->account-positions client (-> ewrapper/ewrapper :default-channels :position-updates)))
 
   (.reqPositions client)
 

@@ -492,8 +492,10 @@
                                                          [(assoc fst :difference (- fe fa))
                                                           (assoc snd :difference (- se sa))]))
                                                   (every? (fn [[{fdiff :difference} {sdiff :difference}]]
-                                                            (and (< fdiff sdiff)
-                                                                 (> (/ sdiff fdiff) *incline*))))))
+                                                            (< fdiff sdiff)
+                                                            ;; (and (< fdiff sdiff)
+                                                            ;;      (> (/ sdiff fdiff) *incline*))
+                                                            ))))
 
         exponential-average-gap-growing? (exponential-average-gap-growing-fn partitioned-list)
 

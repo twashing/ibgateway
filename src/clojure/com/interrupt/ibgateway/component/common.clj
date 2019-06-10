@@ -10,8 +10,9 @@
 (def balancing-sell-standard-deviation-multiple (Float/parseFloat (env :balancing-sell-standard-deviation-multiple "2")))
 (def balancing-sell-type (env :balancing-sell-type "LIMIT"))
 
-;; (def balancing-sell-standard-deviation-multiple 0.025)
+;; (def balancing-sell-standard-deviation-multiple 0.5)
 ;; (def balancing-sell-type "TRAIL")
+;; (def balancing-sell-type "LIMIT")
 
 
 (defn bind-channels->mult [source-list-ch & channels]
@@ -145,6 +146,6 @@
 
 (defn process-order-filled-notifications [client {:keys [stock order] :as val} valid-order-id-ch]
 
-  (info "3 - process-order-filled-notifications LOOP / " (exists? val))
+  ;;(info "3 - process-order-filled-notifications LOOP / " (exists? val))
   #_(balancing-sell client stock order valid-order-id-ch))
 

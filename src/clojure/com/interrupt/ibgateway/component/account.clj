@@ -165,7 +165,7 @@
   ;; (info "2 - conditionally-process-filled / state / " (-> order :state :state :matcher))
   ;; (info "2 - conditionally-process-filled / match? / " (and
   ;;                                                        (= "BUY" (:action order))
-                                                         (= :filled (-> order :state :state :matcher))))
+  ;;                                                       (= :filled (-> order :state :state :matcher))))
   (when (and
           (= "BUY" (:action order))
           (= :filled (-> order :state :state :matcher)))

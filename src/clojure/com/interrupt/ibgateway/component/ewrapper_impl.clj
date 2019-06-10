@@ -368,11 +368,11 @@
              :commission (.-m_commission commissionReport)
              :currency (.-m_currency commissionReport)
              :realizedPNL (.-m_realizedPNL commissionReport)}]
-        (info "commissionReport /"
-              " execId /" execId
-              " commission /" commission
-              " currency /" currency
-              " realizedPNL /" realizedPNL)
+        ;; (info "commissionReport /"
+        ;;       " execId /" execId
+        ;;       " commission /" commission
+        ;;       " currency /" currency
+        ;;       " realizedPNL /" realizedPNL)
 
         ;; (async/put! order-updates val)
 
