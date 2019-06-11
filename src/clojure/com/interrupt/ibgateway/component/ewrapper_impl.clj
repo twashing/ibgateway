@@ -76,9 +76,7 @@
                  :order-id order-id}]
 
         ;; (deliver common/next-valid-order-id order-id)
-        (async/put! order-updates val)
-
-        ))
+        (async/put! order-updates val)))
 
 
     ;; ========
@@ -197,13 +195,13 @@
     (updateAccountTime [^String timeStamp]
       (let [val {:topic :update-account-time
                  :time-stamp timeStamp}]
-        (debug "updateAccountTime / timeStamp /" val)
+        ;; (debug "updateAccountTime / timeStamp /" val)
         (async/put! account-updates val)))
 
     (accountDownloadEnd [^String account]
       (let [val {:topic :account-download-end
                  :account account}]
-        (debug "accountDownloadEnd / account /" val)
+        ;; (debug "accountDownloadEnd / account /" val)
         (async/put! account-updates val)))
 
 
@@ -223,8 +221,7 @@
       (let [val {:topic :account-summary-end
                  :req-id reqId}]
         (debug "accountSummaryEnd / reqId /" reqId)
-        ;; (async/put! account-updates val)
-        ))
+        (async/put! account-updates val)))
 
 
     ;; ========
@@ -240,20 +237,20 @@
                  :position pos
                  :avg-cost avgCost}]
 
-        (debug "position / "
-              " Account / " account
-              " Symbol / " (.symbol contract)
-              " SecType / " (.secType contract)
-              " Currency / " (.currency contract)
-              " Position / " pos
-              " Avg cost / " avgCost)
+        (debug "position /"
+               " Account /" account
+               " Symbol /" (.symbol contract)
+               " SecType /" (.secType contract)
+               " Currency /" (.currency contract)
+               " Position /" pos
+               " Avg cost /" avgCost)
         (async/put! position-updates val)))
 
     (positionEnd []
       (let [val {:topic :position-end}]
         (debug "PositionEnd \n")
-        ;; (async/put! account-updates val)
-        ))
+        (async/put! position-updates val)
+        (async/put! account-updates val)))
 
 
     ;; ========
@@ -284,7 +281,7 @@
               " Order::totalQuantity / " totalQuantity
               " OrderState::status / " status)
 
-        ;; (async/put! order-updates val)
+        (async/put! order-updates val)
         (account/handle-open-order val)))
 
     (orderStatus [^Integer orderId
@@ -324,7 +321,7 @@
               " ClientId / " clientId
               " WhyHeld / " whyHeld)
 
-        ;; (async/put! order-updates val)
+        (async/put! order-updates val)
         (account/handle-order-status val account/account)))
 
 
@@ -356,7 +353,7 @@
               " orderId /" orderId
               " shares /" shares)
 
-        ;; (async/put! order-updates val)
+        (async/put! order-updates val)
         (account/handle-exec-details val account/account)))
 
     (commissionReport [^CommissionReport commissionReport]
@@ -374,13 +371,12 @@
         ;;       " currency /" currency
         ;;       " realizedPNL /" realizedPNL)
 
-        ;; (async/put! order-updates val)
+        (async/put! order-updates val)
 
         (let [stock+order (account/process-commission-report val account/account)]
 
           ;; (info "commissionReport / stock+order / " stock+order)
-          (common/process-order-filled-notifications client* stock+order valid-order-ids)
-          )))
+          (common/process-order-filled-notifications client* stock+order valid-order-ids))))
 
     (execDetailsEnd [^Integer reqId]
       #_(info "execDetailsEnd / reqId / " reqId))))

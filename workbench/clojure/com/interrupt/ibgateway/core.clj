@@ -183,6 +183,13 @@
   (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
 
 
+
+  ;; 0. STOP
+  (do
+    (sw/stop-stream-workbench control-channel)
+    (pp/teardown-publisher-channel joined-channel-map))
+
+
   ;; 1. START
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.vase/server)
@@ -226,14 +233,14 @@
         r
         (do
           (info "count:" c " / r:" r)
-          (send-message-to-all! r)
+          ;; (send-message-to-all! r)
           (recur (inc c) (<! jch))))))
 
   ;; A.4 Start streaming
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
                                fname
-                               50)
+                               10)
 
   ;; B
   ;; B.3
@@ -250,13 +257,7 @@
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
                                fname
-                               nil)
-
-
-  ;; STOP
-  (do
-    (sw/stop-stream-workbench control-channel)
-    (pp/teardown-publisher-channel joined-channel-map)))
+                               nil))
 
 
 (comment ;; processing-pipeline live A
@@ -363,6 +364,17 @@
 
 
   (do
+
+    (def client (-> ew/ewrapper :ewrapper :client))
+
+    (:position (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates)))
+    (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates))
+    (.reqPositions client)
+
+    (not (> (:position (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates))) 0)))
+
+  (do
+
     (def control-channel (chan))
     ;; (def instrument "TSLA")
     (def instrument "AMZN")
@@ -388,26 +400,24 @@
   ;; 2. Point your browser to http://localhost:8080
 
 
-  ;; ====>
-  (let [{jch :joined-channel} joined-channel-map]
+  (thread
+    (deliver joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
+  ;; ====>
+  #_(let [{jch :joined-channel} @joined-channel-map]
     (go-loop [c 0 r (<! jch)]
       (if-not r
         r
-        (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "count:" c " / sr:" sr)
-          (send-message-to-all! sr)
+        (do
+          (info "count:" c " / r:" r)
+          ;; (send-message-to-all! r)
           (recur (inc c) (<! jch))))))
   ;; ====>
-
-
-  (thread
-    (deliver joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
   (thread
     (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name))
 
-  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 7))
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 10))
 
 
 (comment  ;; A scanner workbench

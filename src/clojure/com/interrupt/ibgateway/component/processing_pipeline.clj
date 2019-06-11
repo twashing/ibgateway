@@ -543,6 +543,29 @@
 (def filter-xform (comp (remove empty-last-trade-price?)
                      (filter rtvolume-time-and-sales?)))
 
+(defn foobar [tick-list-ch bollinger-band-ch
+              signal-moving-averages-ch signal-bollinger-band-ch]
+
+  #_(go-loop [c 0 r (<! tick-list-ch)]
+      (info "count: " c " / tick-list-ch INPUT " r)
+      (when r
+        (recur (inc c) (<! tick-list-ch))))
+
+  #_(go-loop [c 0 r (<! bollinger-band-ch)]
+      (info "count: " c " / bollinger-band-ch INPUT " r)
+      (when r
+        (recur (inc c) (<! bollinger-band-ch))))
+
+  #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
+      (info "count: " c " / MA signals: " r)
+      (when r
+        (recur (inc c) (<! signal-moving-averages-ch))))
+
+  #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
+    (info "count: " c " / BB signals: " r)
+    (when r
+      (recur (inc c) (<! signal-bollinger-band-ch)))))
+
 (defn setup-publisher-channel [source-ch output-ch stock-name concurrency ticker-id-filter]
 
   (let [options {:stock-match {:symbol stock-name :ticker-id-filter ticker-id-filter}}
@@ -583,7 +606,7 @@
     (pipeline concurrency tick-list-ch filter-xform source-list-ch)
 
 
-    ;; ANALYSIS
+     ;; ANALYSIS
     (pipeline-analysis-lagging concurrency options
                                sma-list-ch tick-list->sma-ch
                                ema-list-ch bollinger-band-ch)
@@ -593,29 +616,12 @@
     (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
 
 
-    ;; TODO implement Trendlines (a Simple Moving Average?)
+    ;; ;; TODO implement Trendlines (a Simple Moving Average?)
     (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
 
 
-    #_(go-loop [c 0 r (<! tick-list-ch)]
-        (info "count: " c " / tick-list-ch INPUT " r)
-        (when r
-          (recur (inc c) (<! tick-list-ch))))
+    (foobar tick-list-ch bollinger-band-ch signal-moving-averages-ch signal-bollinger-band-ch)
 
-    #_(go-loop [c 0 r (<! bollinger-band-ch)]
-        (info "count: " c " / bollinger-band-ch INPUT " r)
-        (when r
-          (recur (inc c) (<! bollinger-band-ch))))
-
-    #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
-      (info "count: " c " / MA signals: " r)
-      (when r
-        (recur (inc c) (<! signal-moving-averages-ch))))
-
-    #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
-        (info "count: " c " / BB signals: " r)
-        (when r
-          (recur (inc c) (<! signal-bollinger-band-ch))))
 
     {:joined-channel signal-bollinger-band-ch
      :input-channel parsed-list-ch}))

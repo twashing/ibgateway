@@ -457,7 +457,7 @@
 (def *incline* 1.00005)
 (defn analysis-day-trading-strategy-bollinger-bands-squeeze [{bollinger-band :bollinger-band :as item} partitioned-list]
 
-  ;; (info partitioned-list)
+  ;; (info "analysis-day-trading-strategy-bollinger-bands-squeeze CALLED")
   (let [;; A - Bollinger Band squeeze
         [mean-lhs mean-rhs] (mean-lhs-mean-rhs_fn bollinger-band)
         last-4-differences-lowest? (last-4-differences-lowest?_fn mean-rhs mean-lhs)

@@ -168,7 +168,12 @@
 
   ([_ position-updates-ch f]
    (f)
-   (<!! position-updates-ch)))
+   (let [{topic :topic :as position} (<!! position-updates-ch)
+         default-position {:position 0}]
+     (case topic
+       :position position
+       :position-end default-position
+       default-position))))
 
 
 ;; TODO pick a better way to cap-order-quantity
@@ -232,6 +237,7 @@
         latest-bid @common/latest-bid
         price (if (< latest-price latest-bid)
                 latest-price latest-bid)
+        price latest-price
 
         cash-level (-> client
                        (->account-cash-level account-updates-ch)
@@ -247,15 +253,16 @@
         ;; TODO make a mock version of this
         order-id (->next-valid-order-id client valid-order-id-ch)]
 
-    (info "PRE / buy-stock / account-updates-ch open? /" (channel-open? account-updates-ch) " / margin? /" (env :buy-on-margin))
+    ;; (info "PRE / buy-stock / account-updates-ch open? /" (channel-open? account-updates-ch) " / margin? /" (env :buy-on-margin))
     (match [live-run? sufficient-quantity?]
 
            [false _] (do
                        (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
-                       (market/buy-stock client order-id order-type account-name instrm qty price)
+                       #_(do
+                         (market/buy-stock client order-id order-type account-name instrm qty price)
 
-                       ;; SAVE TIME - Immediately do balancing sell
-                       (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch))
+                         ;; SAVE TIME - Immediately do balancing sell
+                         (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
                          (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
@@ -337,11 +344,12 @@
                                               (into #{})
                                               (clojure.set/subset? #{:exponential-average-gap-growing}))]
 
-    (info "[up-market? latest-dev [crossover exponential-gap-growing?] last-trade-price] /"
+    (info "[up-market? std-dev [crossover exp-gap-inc?] price [latest-bid]] /"
           [not-down-market?
            (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
            [a [exponential-average-gap-growing? exponential-abouve-average?]]
-           last-trade-price])
+           last-trade-price
+           [@common/latest-bid]])
     (when
         #_(and not-down-market? a exponential-average-gap-growing? exponential-abouve-average?)
         (and not-down-market?
@@ -455,13 +463,19 @@
 
     (recur (<! order-filled-notification-ch))))
 
+(defn foobar [c
+              {last-trade-price :last-trade-price
+               last-trade-time :last-trade-time :as joined-tick}]
+  #_(info "BEFORE | count:" c " / last-trade-price:" last-trade-price " / joined-tick" (dissoc joined-tick :population)))
+
 (defn consume-joined-channel [joined-channel default-channels client instrm account-name]
 
+  (info "consume-joined-channel CALLED")
   (go-loop [c 0
             {last-trade-price :last-trade-price
              last-trade-time :last-trade-time :as joined-tick} (<! joined-channel)]
 
-    ;; (info "BEFORE | count:" c " / last-trade-price:" last-trade-price " / joined-tick" (dissoc joined-tick :population))
+    (foobar c joined-tick)
     (if-not joined-tick
       joined-tick
       (do
