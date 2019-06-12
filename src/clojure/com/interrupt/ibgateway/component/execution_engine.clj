@@ -148,6 +148,11 @@
    (f)
    (<!! valid-order-id-ch)))
 
+#_(def ->account-cash-level (constantly {:value 900000}))
+
+(defn ->cancel-account-cash-level [client]
+  (.cancelAccountSummary client 9001))
+
 (defn ->account-cash-level
 
   ([client account-updates-ch]
@@ -245,13 +250,14 @@
                        conditionally-apply-margin)
 
         qty (derive-order-quantity cash-level price)
-
         live-run? (Boolean/parseBoolean (env :live-run "true"))
-
         sufficient-quantity? (>= qty 1)
 
         ;; TODO make a mock version of this
         order-id (->next-valid-order-id client valid-order-id-ch)]
+
+    ;; We have teo cancel the account summary request
+    (->cancel-account-cash-level client)
 
     ;; (info "PRE / buy-stock / account-updates-ch open? /" (channel-open? account-updates-ch) " / margin? /" (env :buy-on-margin))
     (match [live-run? sufficient-quantity?]

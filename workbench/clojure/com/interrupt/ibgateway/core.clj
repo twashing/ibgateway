@@ -354,24 +354,30 @@
     (pp/teardown-publisher-channel joined-channel-map)
     (ee/teardown-execution-engine execution-engine-output-ch))
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.vase/server)
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
 
   ;; START
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.vase/server)
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
 
   (do
 
     (def client (-> ew/ewrapper :ewrapper :client))
 
+    ;; POSITIONS
     (:position (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates)))
     (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates))
     (.reqPositions client)
 
-    (not (> (:position (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates))) 0)))
+    (not (> (:position (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates))) 0))
+
+    ;; CASH LEVEL
+    (.reqAccountSummary client 9001 "All" "TotalCashValue")
+    (ee/->account-cash-level client (-> ew/ewrapper :default-channels :account-updates))
+    (ee/->cancel-account-cash-level client)
+
+    )
 
   (do
 
@@ -381,11 +387,11 @@
     (def concurrency 1)
     (def ticker-id 0)
 
-    (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
-    ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
+    (def fname "live-recordings/2019-05-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 40)))
@@ -417,7 +423,7 @@
   (thread
     (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name))
 
-  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 10))
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 25))
 
 
 (comment  ;; A scanner workbench
