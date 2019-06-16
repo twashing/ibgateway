@@ -1,7 +1,7 @@
 (ns com.interrupt.ibgateway.component.execution-engine
   (:require [clojure.core.async
-             :refer [go chan >! >!! <! <!! close! go-loop
-                     sliding-buffer thread] :as async]
+             :refer [go chan >! >!! <! <!! alts!! close!
+                     go-loop sliding-buffer thread timeout] :as async]
             [clojure.core.match :refer [match]]
             [clojure.tools.logging :refer [debug info]]
             [clojure.tools.trace :refer [trace]]
@@ -22,6 +22,11 @@
 
 
 (def ^:dynamic *latest-tick* (atom {}))
+(def ^:dynamic *holding-position* (atom false))
+
+(def buy-on-margin (env :buy-on-margin))
+;; (def buy-on-margin "0.25")
+
 
 (def minimum-cash-level (let [a (env :minimum-cash-level 1000)]
                           (if (number? a)
@@ -164,7 +169,24 @@
    (f)
    (<!! account-updates-ch)))
 
+
 (defn ->account-positions
+
+  ([client position-updates-ch]
+   (->account-positions client position-updates-ch
+     (fn []
+       (.reqPositions client))))
+
+  ([_ position-updates-ch f]
+   (f)
+
+   (let [[{topic :topic :as position} c] (alts!! [position-updates-ch (timeout 112)])
+         default-position {:position 0}]
+     (if (= topic :position)
+       position
+       default-position))))
+
+#_(defn ->account-positions
 
   ([client position-updates-ch]
    (->account-positions client position-updates-ch
@@ -199,7 +221,7 @@
 
 (defn conditionally-apply-margin
   ([cash-level]
-   (conditionally-apply-margin cash-level (env :buy-on-margin)))
+   (conditionally-apply-margin (if cash-level cash-level 900000) buy-on-margin))
   ([cash-level maintenance-margin]
    (if maintenance-margin
      (->> maintenance-margin
@@ -233,6 +255,30 @@
       (.longValue)
       (cap-order-quantity price)))
 
+(comment
+
+  (->cancel-account-cash-level (-> ewrapper/ewrapper :ewrapper :client))
+
+  (-> (-> ewrapper/ewrapper :ewrapper :client)
+      (->account-cash-level (-> ewrapper/ewrapper :default-channels :account-updates)))
+
+  (-> (-> ewrapper/ewrapper :ewrapper :client)
+      (->account-cash-level (-> ewrapper/ewrapper :default-channels :account-updates))
+      :value
+      conditionally-apply-margin)
+
+  (.cancelPositions (-> ewrapper/ewrapper :ewrapper :client))
+  (-> (-> ewrapper/ewrapper :ewrapper :client)
+      (->account-positions (-> ewrapper/ewrapper :default-channels :position-updates)))
+
+  (-> (-> ewrapper/ewrapper :ewrapper :client)
+      (->account-positions (-> ewrapper/ewrapper :default-channels :position-updates))
+      :position)
+
+  (reset! *holding-position* false)
+  )
+
+
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
   (let [;; order-type "MKT"
         order-type "LMT"
@@ -244,8 +290,8 @@
                 latest-price latest-bid)
         price latest-price
 
-        cash-level (-> client
-                       (->account-cash-level account-updates-ch)
+        cash-level (-> (-> ewrapper/ewrapper :ewrapper :client)
+                       (->account-cash-level (-> ewrapper/ewrapper :default-channels :account-updates))
                        :value
                        conditionally-apply-margin)
 
@@ -268,14 +314,18 @@
                          (market/buy-stock client order-id order-type account-name instrm qty price)
 
                          ;; SAVE TIME - Immediately do balancing sell
-                         (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)))
+                         (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
+                         (reset! *holding-position* true)))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
-                         (info "3 - buy-stock / client / "  [order-id order-type account-name instrm qty price])
-                         (market/buy-stock client order-id order-type account-name instrm qty price)
+                         (info "3 - buy-stock / holding-position? " @*holding-position* " /" [order-id order-type account-name instrm qty price])
+                         #_(if (not @*holding-position*)
+                             (do
+                               (market/buy-stock client order-id order-type account-name instrm qty price)
 
-                         ;; SAVE TIME - Immediately do balancing sell
-                         (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)))))
+                               ;; SAVE TIME - Immediately do balancing sell
+                               (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
+                               (reset! *holding-position* true)))))))
 
 
 (comment

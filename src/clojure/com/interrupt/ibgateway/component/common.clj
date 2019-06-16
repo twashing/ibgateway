@@ -10,7 +10,7 @@
 (def balancing-sell-standard-deviation-multiple (Float/parseFloat (env :balancing-sell-standard-deviation-multiple "2")))
 (def balancing-sell-type (env :balancing-sell-type "LIMIT"))
 
-;; (def balancing-sell-standard-deviation-multiple 0.5)
+;; (def balancing-sell-standard-deviation-multiple 0.4)
 ;; (def balancing-sell-type "TRAIL")
 ;; (def balancing-sell-type "LIMIT")
 

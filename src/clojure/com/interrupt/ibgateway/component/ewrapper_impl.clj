@@ -249,8 +249,9 @@
     (positionEnd []
       (let [val {:topic :position-end}]
         (debug "PositionEnd \n")
-        (async/put! position-updates val)
-        (async/put! account-updates val)))
+        ;; (async/put! position-updates val)
+        ;; (async/put! account-updates val)
+        ))
 
 
     ;; ========
