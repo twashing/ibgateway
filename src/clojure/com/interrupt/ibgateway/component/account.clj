@@ -65,6 +65,7 @@
 ;; (def account-name "DU542121"
 ;; (def account-name "U1932856"))
 (def account-name (env :account-name "DU542121"))
+(def ^:dynamic *holding-position* (atom false))
 
 (defstate account
   :start (atom {:stock [] :cash 0.0})
@@ -209,10 +210,24 @@
   (let [status-kw (get order-status-map status)]
     (transition-order! symbol orderId status-kw account)))
 
+(defmethod handle-open-order ["SELL" "LMT"]
+  [{:keys [orderId symbol secType exchange action
+           orderType totalQuantity status] :as val}]
+
+  (reset! *holding-position* false)
+  (let [sexists? (stock-exists? symbol @account)
+        oexists? (order-exists? orderId @account)]
+
+    (match [sexists? oexists?]
+           [false false] (add-stock! val account)
+           [true false] (add-order! val account)
+           :else :noop)))
+
 (defmethod handle-open-order ["SELL" "TRAIL"]
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
+  (reset! *holding-position* false)
   (let [sexists? (stock-exists? symbol @account)
         oexists? (order-exists? orderId @account)]
 
@@ -228,6 +243,7 @@
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
+  (reset! *holding-position* false)
   (let [sexists? (stock-exists? symbol @account)
         oexists? (order-exists? orderId @account)]
 

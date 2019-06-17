@@ -391,7 +391,9 @@
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
-    (def fname "live-recordings/2019-05-24-AMZN.edn")
+    ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
+    (def fname "live-recordings/2019-06-18-AMZN.edn")
+
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 40)))

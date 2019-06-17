@@ -1,5 +1,6 @@
 (ns com.interrupt.edgar.core.analysis.lagging
   (:require [clojure.tools.logging :refer [debug info]]
+            [clojure.tools.trace :refer [trace]]
             [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]
             [com.interrupt.edgar.math :as math]
             [clojure.data.csv :as csv]))

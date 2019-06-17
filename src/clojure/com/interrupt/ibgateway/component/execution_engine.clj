@@ -13,7 +13,7 @@
             [com.interrupt.ibgateway.component.common :refer :all :as common]
             [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
             [com.interrupt.ibgateway.component.account :refer [account account-name account-summary-tags
-                                                               consume-order-updates]]
+                                                               consume-order-updates *holding-position*]]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.processing-pipeline :as pp]
             [com.interrupt.ibgateway.component.switchboard :as sw]
@@ -22,7 +22,6 @@
 
 
 (def ^:dynamic *latest-tick* (atom {}))
-(def ^:dynamic *holding-position* (atom false))
 
 (def buy-on-margin (env :buy-on-margin))
 ;; (def buy-on-margin "0.25")
@@ -275,8 +274,9 @@
       (->account-positions (-> ewrapper/ewrapper :default-channels :position-updates))
       :position)
 
+  ;; ** MANUAL
   (reset! *holding-position* false)
-  )
+  (reset! *holding-position* true))
 
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
@@ -391,7 +391,7 @@
         ;;        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :moving-average-crossover}))
 
         exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
-
+        not-holding-position? (not (> (:position (->account-positions client (-> ewrapper/ewrapper :default-channels :position-updates))) 0))
         not-down-market? (->> (select [:signals ALL :why] joined-tick)
                               (into #{})
                               (clojure.set/subset? #{:not-down-market}))
@@ -407,12 +407,16 @@
            last-trade-price
            [@common/latest-bid]])
     (when
-        #_(and not-down-market? a exponential-average-gap-growing? exponential-abouve-average?)
-        (and not-down-market?
-             (not (> (:position (->account-positions client (-> ewrapper/ewrapper :default-channels :position-updates))) 0))
-             (> @latest-standard-deviation 1)
-             (or (and a exponential-average-gap-growing? exponential-abouve-average?)
-                 (and exponential-average-gap-growing? exponential-abouve-average?)))
+        (or
+
+          (and not-holding-position?
+               (> @latest-standard-deviation 0.6)
+               (and a exponential-average-gap-growing? exponential-abouve-average?))
+
+          (and not-down-market?
+               not-holding-position?
+               (> @latest-standard-deviation 1)
+               (and exponential-average-gap-growing? exponential-abouve-average?)))
 
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
 
