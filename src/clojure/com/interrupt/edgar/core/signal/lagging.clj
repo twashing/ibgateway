@@ -1,6 +1,6 @@
 (ns com.interrupt.edgar.core.signal.lagging
   (:require [clojure.core.match :refer [match]]
-            [clojure.tools.logging :refer [info] :as log]
+            [clojure.tools.logging :refer [info warn error] :as log]
             [clojure.tools.trace :refer [trace]]
             [environ.core :refer [env]]
             [com.rpl.specter :refer :all]
@@ -13,6 +13,7 @@
 
 
 (def market-trend-by-ticks (Integer/parseInt (env :market-trend-by-ticks "3")))
+;; (def market-trend-by-ticks 4)
 
 (defn moving-averages
   "Takes baseline time series, along with 2 other moving averages.
@@ -23,27 +24,28 @@
    ** This function assumes the latest tick is on the right"
   [joined-list]
 
-  (let [lst (last joined-list)
-        snd (-> joined-list butlast last)
-
-        ;; in the first element, has the ema crossed abouve the sma from the second element
-        signal-up (and (< (:last-trade-price-exponential snd) (:last-trade-price-average snd))
-                       (> (:last-trade-price-exponential lst) (:last-trade-price-average lst)))
-
-        ;; in the first element, has the ema crossed below the sma from the second element
-        signal-down (and (> (:last-trade-price-exponential snd) (:last-trade-price-average snd))
-                         (< (:last-trade-price-exponential lst) (:last-trade-price-average lst)))]
+  (let [[{ltpExpS :last-trade-price-exponential ltpAvgS :last-trade-price-average :as snd}
+         {ltpExpL :last-trade-price-exponential ltpAvgL :last-trade-price-average :as lst}] (take-last 2 joined-list)]
 
     ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
-    (if signal-up
-      (-> lst
-          (assoc :signals [{:signal :up
-                            :why :moving-average-crossover}]))
-      (if signal-down
-        (-> lst
-            (assoc :signals [{:signal :down
-                              :why :moving-average-crossover}]))
-        lst))))
+    (if (every? not-nil? [ltpExpS ltpAvgS ltpExpL ltpAvgL])
+      (match [;; in the first element, has the ema crossed abouve the sma from the second element
+              (and (< ltpExpS ltpAvgS) (> ltpExpL ltpAvgL))
+
+              ;; in the first element, has the ema crossed below the sma from the second element
+              (and (> ltpExpS ltpAvgS) (< ltpExpL ltpAvgL))]
+
+             [true false] (-> lst
+                              (assoc :signals [{:signal :up
+                                                :why :moving-average-crossover}]))
+
+             [false true] lst
+             ;; [false true] (-> lst
+             ;;                  (assoc :signals [{:signal :down
+             ;;                                    :why :moving-average-crossover}]))
+
+             [false false] lst)
+      lst)))
 
 (defn sort-bollinger-band [bband]
   (->> bband
@@ -452,8 +454,10 @@
       ;; trace
       ))
 
-(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{:keys [bollinger-band] :as item} down-market? partitioned-list]
+(def *incline* 1.00005)
+(defn analysis-day-trading-strategy-bollinger-bands-squeeze [{bollinger-band :bollinger-band :as item} partitioned-list]
 
+  ;; (info "analysis-day-trading-strategy-bollinger-bands-squeeze CALLED")
   (let [;; A - Bollinger Band squeeze
         [mean-lhs mean-rhs] (mean-lhs-mean-rhs_fn bollinger-band)
         last-4-differences-lowest? (last-4-differences-lowest?_fn mean-rhs mean-lhs)
@@ -475,7 +479,28 @@
         ;; Overlay fibanacci calculations over original list
         ;; bollinger-with-peaks-troughs-fibonacci (bollinger-with-peaks-troughs-fibonacci_fn peaks-troughs fibonacci-at-peaks-and-troughs)
 
-        ;; down-market? (common/down-market? partitioned-list)
+        up-market? (common/up-market? :last-trade-price-average partitioned-list)
+
+        exponential-average-gap-growing-fn (fn [partitioned-list]
+                                             (->> partitioned-list
+                                                  (map (fn [[{fa :last-trade-price-average
+                                                             fe :last-trade-price-exponential
+                                                             :as fst}
+                                                            {sa :last-trade-price-average
+                                                             se :last-trade-price-exponential
+                                                             :as snd}]]
+                                                         [(assoc fst :difference (- fe fa))
+                                                          (assoc snd :difference (- se sa))]))
+                                                  (every? (fn [[{fdiff :difference} {sdiff :difference}]]
+                                                            (< fdiff sdiff)
+                                                            ;; (and (< fdiff sdiff)
+                                                            ;;      (> (/ sdiff fdiff) *incline*))
+                                                            ))))
+
+        exponential-average-gap-growing? (exponential-average-gap-growing-fn partitioned-list)
+
+
+
         ;; up-market? (common/up-market? partitioned-list)
         ;; up-market? (->> (map #(dissoc % :population) sma-list)
         ;;                 (take-last market-trend-by-ticks)
@@ -513,14 +538,30 @@
       ;;                                                                (-> (select-keys bollinger-with-peaks-troughs-fibonacci [:fibonacci :carry])
       ;;                                                                    (assoc :signal :fibonacci)))
 
-      (not down-market?) (update-in [:signals] conj {:signal :up
-                                                     :why :not-down-market})
+      up-market? (update-in [:signals] conj {:signal :up
+                                             :why :not-down-market})
+
+      exponential-average-gap-growing? (update-in [:signals] conj {:signal :up
+                                                                   :why :exponential-average-gap-growing})
 
       :always ((partial bind-result item)))))
 
+(defn consolidate-signals [bitem]
+
+  (let [result-list (:result bitem)
+        latest-bband (-> bitem :bollinger-band last)
+        conditionally-bind-signals #(if (not-empty %)
+                                      (assoc latest-bband :signals %)
+                                      latest-bband)]
+
+    (->> (map :signals result-list)
+         (apply concat)
+         conditionally-bind-signals)))
+
 (defn bollinger-band
   "** This function assumes the latest tick is on the right"
-  [tick-window {:keys [tick-list sma-list bollinger-band] :as item}]
+  [tick-window bollinger-band]
+
 
   ;; TODO up-market definition includes an MA that is abouve the tick line
   ;; TODO - determine how far back to look (defaults to 5 ticks) to decide on an UP or DOWN market
@@ -548,17 +589,17 @@
         ;; most-narrow (take 2 sorted-bands)
         ;; most-wide (take-last 2 sorted-bands)
 
-        partitioned-list (->> (partition 2 1 tick-list)
+        partitioned-list (->> (partition 2 1 bollinger-band)
                               (take-last market-trend-by-ticks))
 
-        ;; partitioned-sma (->> (map #(dissoc % :population) sma-list)
+        ;; partitioned-sma (->> (map #(dissoc % :population) bollinger-band)
         ;;                      (partition 2 1)
         ;;                      (take-last market-trend-by-ticks))
 
         ;; up-market? (common/up-market? partitioned-list)
         ;; up-market? (common/up-market? :last-trade-price-average partitioned-sma)
 
-        down-market? (common/down-market? partitioned-list)
+        ;; down-market? (common/down-market? partitioned-list)
         ;; down-market? (common/down-market? :last-trade-price-average partitioned-sma)
         ;; _ (info "CALCULATING down-market?" down-market?)
 
@@ -571,20 +612,12 @@
         ;; bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
 
         ;; Find last 3 peaks and valleys
-        ;; peaks-valleys (common/find-peaks-valleys nil tick-list)
+        ;; peaks-valleys (common/find-peaks-valleys nil bollinger-band)
         ;; peaks (:peak (group-by :signal peaks-valleys))
         ;; valleys (:valley (group-by :signal peaks-valleys))
-        payload (assoc item :result [])
 
-        consolidate-signals (fn [bitem]
-                              (let [result-list (:result bitem)
-                                    latest-bband (-> bitem :bollinger-band last)
-                                    conditionally-bind-signals #(if (not-empty %)
-                                                                  (assoc latest-bband :signals %)
-                                                                  latest-bband)]
-                                (->> (map :signals result-list)
-                                     (apply concat)
-                                     conditionally-bind-signals)))]
+
+        payload {:bollinger-band bollinger-band :result []}]
 
     (cond-> payload
 
@@ -705,7 +738,7 @@
       ;;   entry is when we take out the resistance
       ;;
       ;;   ! in isolation, support/resistance should be used in a sideways market (not a trend)
-      true (analysis-day-trading-strategy-bollinger-bands-squeeze down-market? partitioned-list)
+      true (analysis-day-trading-strategy-bollinger-bands-squeeze partitioned-list)
       :always (consolidate-signals))))
 
 

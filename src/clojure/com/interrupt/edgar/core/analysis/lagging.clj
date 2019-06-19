@@ -1,5 +1,7 @@
 (ns com.interrupt.edgar.core.analysis.lagging
-  (:require [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]
+  (:require [clojure.tools.logging :refer [debug info]]
+            [clojure.tools.trace :refer [trace]]
+            [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]
             [com.interrupt.edgar.math :as math]
             [clojure.data.csv :as csv]))
 
@@ -18,10 +20,11 @@
   [options ticks]
   {:pre [(not-empty ticks)
          (time-increases-left-to-right? ticks)]}
+
   (let [{:keys [input output etal]
          :or {input :last-trade-price
               output :last-trade-price-average
-              etal [:last-trade-price :last-trade-time :uuid]}} options
+              etal [:last-trade-price :last-trade-time :total-volume :uuid]}} options
         xs (map input ticks)]
     (-> (last ticks)
         (select-keys etal)
@@ -79,13 +82,14 @@
          etal-keys :etal
          :or {input-key :last-trade-price
               output-key :last-trade-price-exponential
-              etal-keys [:last-trade-price :last-trade-time :uuid]}} options]
+              etal-keys [:last-trade-price :last-trade-time :last-trade-price-average
+                         :total-volume :population :uuid]}} options]
 
     ;; 2. get the simple-moving-average for a given tick - 1
     (reduce (fn [rslt ech]
 
               ;; 3. calculate the EMA ( for the most recent tick, EMA(yesterday) = MA(yesterday) )
-              (let [;; price(today)
+              (let [;; price (today)
                     ltprice (input-key ech)
 
                     ;; EMA(yesterday)
@@ -104,7 +108,7 @@
 
                 (concat rslt
 
-                        ;; will produce a map of etal-keys, with associated values in ech
+                        ;; Will produce a map of etal-keys, with associated values in ech
                         ;; and merge the output key to the map
                         (as-> etal-keys ek
                             (zipmap ek ((apply juxt etal-keys) ech))
@@ -174,7 +178,8 @@
 
                   variance (/ (reduce + sq-diff-list) (count (:population ech)))
                   standard-deviation (. Math sqrt variance)
-                  etal-keys [:last-trade-price :last-trade-time :uuid]]
+                  etal-keys [:uuid :last-trade-time :last-trade-price :total-volume
+                             :last-trade-price-average :last-trade-price-exponential]]
 
               (as-> etal-keys v
                 (zipmap v (map #(% ech) etal-keys))

@@ -65,6 +65,7 @@
 ;; (def account-name "DU542121"
 ;; (def account-name "U1932856"))
 (def account-name (env :account-name "DU542121"))
+(def ^:dynamic *holding-position* (atom false))
 
 (defstate account
   :start (atom {:stock [] :cash 0.0})
@@ -157,35 +158,35 @@
                         s))))
 
 (defn conditionally-process-filled [[[stock order]]]
-  (info "2 - conditionally-process-filled / " [(exists? stock) (exists? order)]
-        " / 1 / " #_(-> order :state)
-        " / 2 / " (-> order :state :state)
-        " / 3 / " (-> order :state :state :matcher))
-  (info "2 - conditionally-process-filled / action / " (:action order))
-  (info "2 - conditionally-process-filled / state / " (-> order :state :state :matcher))
-  (info "2 - conditionally-process-filled / match? / " (and
-                                                         (= "BUY" (:action order))
-                                                         (= :filled (-> order :state :state :matcher))))
+  ;; (info "2 - conditionally-process-filled / " [(exists? stock) (exists? order)]
+  ;;       " / 1 / " #_(-> order :state)
+  ;;       " / 2 / " (-> order :state :state)
+  ;;       " / 3 / " (-> order :state :state :matcher))
+  ;; (info "2 - conditionally-process-filled / action / " (:action order))
+  ;; (info "2 - conditionally-process-filled / state / " (-> order :state :state :matcher))
+  ;; (info "2 - conditionally-process-filled / match? / " (and
+  ;;                                                        (= "BUY" (:action order))
+  ;;                                                       (= :filled (-> order :state :state :matcher))))
   (when (and
           (= "BUY" (:action order))
           (= :filled (-> order :state :state :matcher)))
-    (info "2 - returning from conditionally-process-filled")
+    ;; (info "2 - returning from conditionally-process-filled")
     {:stock stock :order order}))
 
 (defn conditionally-notify-filled [[[stock order]] order-filled-notification-ch]
-  (info "3 - conditionally-notify-filled / " [(exists? stock) (exists? order)]
-        " / 1 / " #_(-> order :state)
-        " / 2 / " (-> order :state :state)
-        " / 3 / " (-> order :state :state :matcher))
-  (info "3 - conditionally-notify-filled / action / " (:action order))
-  (info "3 - conditionally-notify-filled / state / " (-> order :state :state :matcher))
-  (info "3 - conditionally-notify-filled / match? / " (and
-                                                        (= "BUY" (:action order))
-                                                        (= :filled (-> order :state :state :matcher))))
+  ;; (info "3 - conditionally-notify-filled / " [(exists? stock) (exists? order)]
+  ;;       " / 1 / " #_(-> order :state)
+  ;;       " / 2 / " (-> order :state :state)
+  ;;       " / 3 / " (-> order :state :state :matcher))
+  ;; (info "3 - conditionally-notify-filled / action / " (:action order))
+  ;; (info "3 - conditionally-notify-filled / state / " (-> order :state :state :matcher))
+  ;; (info "3 - conditionally-notify-filled / match? / " (and
+  ;;                                                       (= "BUY" (:action order))
+  ;;                                                       (= :filled (-> order :state :state :matcher))))
   (when (and
           (= "BUY" (:action order))
           (= :filled (-> order :state :state :matcher)))
-    (info "3 - sending to order-filled-notification-ch")
+    ;; (info "3 - sending to order-filled-notification-ch")
     (>!! order-filled-notification-ch {:stock stock :order order}))
   [stock order])
 
@@ -209,10 +210,24 @@
   (let [status-kw (get order-status-map status)]
     (transition-order! symbol orderId status-kw account)))
 
+(defmethod handle-open-order ["SELL" "LMT"]
+  [{:keys [orderId symbol secType exchange action
+           orderType totalQuantity status] :as val}]
+
+  (reset! *holding-position* false)
+  (let [sexists? (stock-exists? symbol @account)
+        oexists? (order-exists? orderId @account)]
+
+    (match [sexists? oexists?]
+           [false false] (add-stock! val account)
+           [true false] (add-order! val account)
+           :else :noop)))
+
 (defmethod handle-open-order ["SELL" "TRAIL"]
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
+  (reset! *holding-position* false)
   (let [sexists? (stock-exists? symbol @account)
         oexists? (order-exists? orderId @account)]
 
@@ -228,6 +243,7 @@
   [{:keys [orderId symbol secType exchange action
            orderType totalQuantity status] :as val}]
 
+  (reset! *holding-position* false)
   (let [sexists? (stock-exists? symbol @account)
         oexists? (order-exists? orderId @account)]
 
@@ -279,7 +295,7 @@
 (defn process-commission-report [{:keys [execId commission
                                         currency realizedPNL] :as val}
                                  account]
-  (info "2 - handle-commission-report / " val)
+  ;; (info "2 - handle-commission-report / " val)
   (-> account
       (bind-exec-id->commission-report! val)
       (exec-id->stock execId)
@@ -288,7 +304,7 @@
 (defn handle-commission-report [{:keys [execId commission
                                         currency realizedPNL] :as val}
                                 account order-filled-notification-ch]
-  (info "2 - handle-commission-report / " val)
+  ;; (info "2 - handle-commission-report / " val)
   (-> account
       (bind-exec-id->commission-report! val)
       (exec-id->stock execId)
@@ -298,7 +314,7 @@
 ;; CONSUME ORDER UPDATES
 (defn consume-order-updates [{:keys [order-updates valid-order-ids order-filled-notifications]}]
   (go-loop [{:keys [topic] :as val} (<! order-updates)]
-    (info "1 - consume-order-updates LOOP / " val)
+    ;; (info "1 - consume-order-updates LOOP / " val)
     (case topic
       :open-order (handle-open-order val)
       :order-status (handle-order-status val account)

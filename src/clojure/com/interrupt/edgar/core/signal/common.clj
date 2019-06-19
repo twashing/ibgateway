@@ -1,5 +1,6 @@
 (ns com.interrupt.edgar.core.signal.common
-  (:require [clojure.tools.trace :refer [trace]]))
+  (:require [clojure.tools.trace :refer [trace]]
+            [clojure.tools.logging :refer [info warn error] :as log]))
 
 
 (defn seq-all-exists? [s]
@@ -42,8 +43,8 @@
   ([partitioned-list] (up-market? :last-trade-price partitioned-list))
   ([k partitioned-list]
    (every? (fn [inp]
-             (<= (k (first inp))
-                 (k (second inp))))
+             (< (k (first inp))
+                (k (second inp))))
            partitioned-list)))
 
 (defn down-market?

@@ -183,6 +183,13 @@
   (set-log-level :warn "com.interrupt.ibgateway.component.ewrapper-impl")
 
 
+
+  ;; 0. STOP
+  (do
+    (sw/stop-stream-workbench control-channel)
+    (pp/teardown-publisher-channel joined-channel-map))
+
+
   ;; 1. START
   (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
               #'com.interrupt.ibgateway.component.vase/server)
@@ -203,12 +210,12 @@
     ;; "live-recordings/2018-08-27-TSLA.edn"
     ;; "live-recordings/2018-12-24-AMZN.edn"
 
-    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-12-24-AMZN.edn")
     ;; (def fname "live-recordings/2019-04-29-AMZN.edn")
     ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
-    (def fname "live-recordings/2019-05-24-AMZN.edn")
+    ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 40)))
@@ -221,13 +228,12 @@
   ;; A
   ;; A.3 Capture output channels and send to browser
   (let [{jch :joined-channel} joined-channel-map]
-
     (go-loop [c 0 r (<! jch)]
       (if-not r
         r
-        (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "count:" c " / sr:" sr)
-          (send-message-to-all! sr)
+        (do
+          (info "count:" c " / r:" r)
+          ;; (send-message-to-all! r)
           (recur (inc c) (<! jch))))))
 
   ;; A.4 Start streaming
@@ -251,13 +257,7 @@
   (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper)
                                control-channel
                                fname
-                               nil)
-
-
-  ;; STOP
-  (do
-    (sw/stop-stream-workbench control-channel)
-    (pp/teardown-publisher-channel joined-channel-map)))
+                               nil))
 
 
 (comment ;; processing-pipeline live A
@@ -354,18 +354,33 @@
     (pp/teardown-publisher-channel joined-channel-map)
     (ee/teardown-execution-engine execution-engine-output-ch))
 
-  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-              #'com.interrupt.ibgateway.component.vase/server
-              )
+  (mount/stop #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
 
   ;; START
-  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper
-               #'com.interrupt.ibgateway.component.vase/server
-               )
+  (mount/start #'com.interrupt.ibgateway.component.ewrapper/ewrapper)
 
 
   (do
+
+    (def client (-> ew/ewrapper :ewrapper :client))
+
+    ;; POSITIONS
+    (:position (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates)))
+    (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates))
+    (.reqPositions client)
+
+    (not (> (:position (ee/->account-positions client (-> ew/ewrapper :default-channels :position-updates))) 0))
+
+    ;; CASH LEVEL
+    (.reqAccountSummary client 9001 "All" "TotalCashValue")
+    (ee/->account-cash-level client (-> ew/ewrapper :default-channels :account-updates))
+    (ee/->cancel-account-cash-level client)
+
+    )
+
+  (do
+
     (def control-channel (chan))
     ;; (def instrument "TSLA")
     (def instrument "AMZN")
@@ -376,7 +391,9 @@
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
-    (def fname "live-recordings/2019-05-24-AMZN.edn")
+    ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
+    (def fname "live-recordings/2019-06-18-AMZN.edn")
+
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
     (def output-ch (chan (sliding-buffer 40)))
@@ -391,26 +408,24 @@
   ;; 2. Point your browser to http://localhost:8080
 
 
-  ;; ====>
-  (let [{jch :joined-channel} joined-channel-map]
+  (thread
+    (deliver joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
+  ;; ====>
+  #_(let [{jch :joined-channel} @joined-channel-map]
     (go-loop [c 0 r (<! jch)]
       (if-not r
         r
-        (let [sr (update-in r [:sma-list] dissoc :population)]
-          (info "count:" c " / sr:" sr)
-          (send-message-to-all! sr)
+        (do
+          (info "count:" c " / r:" r)
+          ;; (send-message-to-all! r)
           (recur (inc c) (<! jch))))))
   ;; ====>
-
-
-  (thread
-    (deliver joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
   (thread
     (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name))
 
-  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 7))
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 25))
 
 
 (comment  ;; A scanner workbench
