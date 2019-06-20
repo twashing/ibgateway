@@ -196,10 +196,12 @@
 
 (defn pipeline-analysis-leading [concurrency options moving-average-window
                                  macd-ch sma-list->macd-ch
-                                 stochastic-oscillator-ch tick-list->stochastic-osc-ch]
+                                 ;; stochastic-oscillator-ch tick-list->stochastic-osc-ch
+                                 ]
 
   (pipeline concurrency macd-ch (map (partial alead/macd options moving-average-window)) sma-list->macd-ch)
-  (pipeline-stochastic-oscillator concurrency stochastic-oscillator-ch tick-list->stochastic-osc-ch))
+  ;; (pipeline-stochastic-oscillator concurrency stochastic-oscillator-ch tick-list->stochastic-osc-ch)
+  )
 
 (defn pipeline-analysis-confirming [concurrency on-balance-volume-ch tick-list->obv-ch
                                     relative-strength-ch tick-list->relative-strength-ch]
@@ -611,6 +613,11 @@
                                sma-list-ch tick-list->sma-ch
                                ema-list-ch bollinger-band-ch)
 
+    (pipeline-analysis-leading concurrency options
+                               moving-average-window
+                               macd-ch sma-list->macd-ch
+                               ;; stochastic-oscillator-ch tick-list->stochastic-osc-ch
+                               )
 
     ;; SIGNALS
     (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
