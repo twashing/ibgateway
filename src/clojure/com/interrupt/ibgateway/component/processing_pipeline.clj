@@ -195,13 +195,9 @@
   (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band moving-average-window)) ema-list-ch))
 
 (defn pipeline-analysis-leading [concurrency options moving-average-window
-                                 macd-ch sma-list->macd-ch
-                                 ;; stochastic-oscillator-ch tick-list->stochastic-osc-ch
-                                 ]
+                                 macd-ch sma-list->macd-ch]
 
-  (pipeline concurrency macd-ch (map (partial alead/macd options moving-average-window)) sma-list->macd-ch)
-  ;; (pipeline-stochastic-oscillator concurrency stochastic-oscillator-ch tick-list->stochastic-osc-ch)
-  )
+  (pipeline concurrency macd-ch (map (partial alead/macd options moving-average-window)) sma-list->macd-ch))
 
 (defn pipeline-analysis-confirming [concurrency on-balance-volume-ch tick-list->obv-ch
                                     relative-strength-ch tick-list->relative-strength-ch]
@@ -483,12 +479,14 @@
 
 (defn pipeline-signals-leading [concurrency moving-average-window
                                 signal-macd-ch macd->macd-signal
-                                signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal]
+                                ;; signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal
+                                ]
 
   (pipeline concurrency signal-macd-ch (map slead/macd) macd->macd-signal)
 
-  (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
-            stochastic-oscillator->stochastic-oscillator-signal))
+  ;; (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
+  ;;           stochastic-oscillator->stochastic-oscillator-signal)
+  )
 
 (def partition-xform (x/partition moving-average-window moving-average-increment (x/into [])))
 
@@ -500,6 +498,7 @@
    :sma-list-ch (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
    :ema-list-ch (chan (sliding-buffer 40))
    :bollinger-band-ch (chan (sliding-buffer 40))
+   :macd-ch (chan (sliding-buffer 40))
 
    :tick-list->sma-ch (chan (sliding-buffer 40))
    ;; :sma-list->ema-ch (chan (sliding-buffer 40))
@@ -545,7 +544,7 @@
 (def filter-xform (comp (remove empty-last-trade-price?)
                      (filter rtvolume-time-and-sales?)))
 
-(defn foobar [tick-list-ch bollinger-band-ch
+(defn foobar [tick-list-ch bollinger-band-ch macd-ch
               signal-moving-averages-ch signal-bollinger-band-ch]
 
   #_(go-loop [c 0 r (<! tick-list-ch)]
@@ -557,6 +556,11 @@
       (info "count: " c " / bollinger-band-ch INPUT " r)
       (when r
         (recur (inc c) (<! bollinger-band-ch))))
+
+  (go-loop [c 0 r (<! macd-ch)]
+    (info "count: " c " / macd-ch INPUT " r)
+    (when r
+      (recur (inc c) (<! macd-ch))))
 
   #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
       (info "count: " c " / MA signals: " r)
@@ -576,6 +580,7 @@
         ;; Channels Analytics
         {:keys [source-list-ch parsed-list-ch
                 tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch
+                macd-ch
                 tick-list->sma-ch
 
                 ;; sma-list->ema-ch
@@ -595,7 +600,9 @@
         {:keys [tick-list->bollinger-band-signal sma-list->bollinger-band-signal
                 ;; signal-bollinger-band
                 signal-bollinger-band-ch]}
-        (channel-signal-bollinger-band)]
+        (channel-signal-bollinger-band)
+
+        signal-macd-ch (chan (sliding-buffer 40))]
 
 
     (doseq [source+mults [[source-list-ch parsed-list-ch]
@@ -613,21 +620,21 @@
                                sma-list-ch tick-list->sma-ch
                                ema-list-ch bollinger-band-ch)
 
-    (pipeline-analysis-leading concurrency options
-                               moving-average-window
-                               macd-ch sma-list->macd-ch
-                               ;; stochastic-oscillator-ch tick-list->stochastic-osc-ch
-                               )
+    (pipeline-analysis-leading concurrency options moving-average-window
+                               macd-ch bollinger-band-ch)
 
     ;; SIGNALS
-    (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
+    ;; (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
+    ;; (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
 
 
     ;; ;; TODO implement Trendlines (a Simple Moving Average?)
-    (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
+    ;; (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
 
+    ;; (pipeline-signals-leading concurrency moving-average-window
+    ;;                           signal-macd-ch macd->macd-signal)
 
-    (foobar tick-list-ch bollinger-band-ch signal-moving-averages-ch signal-bollinger-band-ch)
+    (foobar tick-list-ch bollinger-band-ch macd-ch signal-moving-averages-ch signal-bollinger-band-ch)
 
 
     {:joined-channel signal-bollinger-band-ch
