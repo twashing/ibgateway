@@ -557,12 +557,12 @@
       (when r
         (recur (inc c) (<! bollinger-band-ch))))
 
-  (go-loop [c 0 r (<! macd-ch)]
+  #_(go-loop [c 0 r (<! macd-ch)]
     (info "count: " c " / macd-ch INPUT " r)
     (when r
       (recur (inc c) (<! macd-ch))))
 
-  #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
+  (go-loop [c 0 r (<! signal-moving-averages-ch)]
       (info "count: " c " / MA signals: " r)
       (when r
         (recur (inc c) (<! signal-moving-averages-ch))))
@@ -625,7 +625,7 @@
 
     ;; SIGNALS
     ;; (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
-    ;; (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
+    (pipeline-signals-moving-average concurrency macd-ch signal-moving-averages-ch)
 
 
     ;; ;; TODO implement Trendlines (a Simple Moving Average?)
