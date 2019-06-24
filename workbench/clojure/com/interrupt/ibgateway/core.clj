@@ -375,9 +375,7 @@
     ;; CASH LEVEL
     (.reqAccountSummary client 9001 "All" "TotalCashValue")
     (ee/->account-cash-level client (-> ew/ewrapper :default-channels :account-updates))
-    (ee/->cancel-account-cash-level client)
-
-    )
+    (ee/->cancel-account-cash-level client))
 
   (do
 

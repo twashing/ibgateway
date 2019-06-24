@@ -1,5 +1,6 @@
 (ns com.interrupt.edgar.core.signal.leading
   (:require [clojure.tools.logging :refer [debug info warn error]]
+            [clojure.tools.trace :refer [trace]]
             [com.interrupt.edgar.core.analysis.leading :as lead-analysis]
             [com.interrupt.edgar.core.analysis.lagging :as lag-analysis]
             [com.interrupt.edgar.core.signal.common :as common]))

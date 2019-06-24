@@ -482,7 +482,11 @@
                                 ;; signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal
                                 ]
 
-  (pipeline concurrency signal-macd-ch (map slead/macd) macd->macd-signal)
+  (let [partition-xf (x/partition moving-average-window 1 (x/into []))
+        partitioned-ch (chan (sliding-buffer 40) partition-xf)]
+
+    (pipeline concurrency partitioned-ch (map identity) macd->macd-signal)
+    (pipeline concurrency signal-macd-ch (map slead/macd) partitioned-ch))
 
   ;; (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
   ;;           stochastic-oscillator->stochastic-oscillator-signal)
@@ -545,7 +549,8 @@
                      (filter rtvolume-time-and-sales?)))
 
 (defn foobar [tick-list-ch bollinger-band-ch macd-ch
-              signal-moving-averages-ch signal-bollinger-band-ch]
+              signal-moving-averages-ch signal-bollinger-band-ch
+              signal-macd-ch]
 
   #_(go-loop [c 0 r (<! tick-list-ch)]
       (info "count: " c " / tick-list-ch INPUT " r)
@@ -562,7 +567,7 @@
     (when r
       (recur (inc c) (<! macd-ch))))
 
-  (go-loop [c 0 r (<! signal-moving-averages-ch)]
+  #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
       (info "count: " c " / MA signals: " r)
       (when r
         (recur (inc c) (<! signal-moving-averages-ch))))
@@ -570,7 +575,12 @@
   #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
     (info "count: " c " / BB signals: " r)
     (when r
-      (recur (inc c) (<! signal-bollinger-band-ch)))))
+      (recur (inc c) (<! signal-bollinger-band-ch))))
+
+  (go-loop [c 0 r (<! signal-macd-ch)]
+    (info "count: " c " / MACD signals: " r)
+    (when r
+      (recur (inc c) (<! signal-macd-ch)))))
 
 (defn setup-publisher-channel [source-ch output-ch stock-name concurrency ticker-id-filter]
 
@@ -628,16 +638,16 @@
     (pipeline-signals-moving-average concurrency macd-ch signal-moving-averages-ch)
 
 
-    ;; ;; TODO implement Trendlines (a Simple Moving Average?)
-    ;; (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
+    ;; TODO implement Trendlines (a Simple Moving Average?)
+    (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
 
-    ;; (pipeline-signals-leading concurrency moving-average-window
-    ;;                           signal-macd-ch macd->macd-signal)
+    (pipeline-signals-leading concurrency moving-average-window
+                              signal-macd-ch signal-bollinger-band-ch)
 
-    (foobar tick-list-ch bollinger-band-ch macd-ch signal-moving-averages-ch signal-bollinger-band-ch)
+    #_(foobar tick-list-ch bollinger-band-ch macd-ch signal-moving-averages-ch signal-bollinger-band-ch signal-macd-ch)
 
 
-    {:joined-channel signal-bollinger-band-ch
+    {:joined-channel signal-macd-ch
      :input-channel parsed-list-ch}))
 
 (defn teardown-publisher-channel [joined-channel-map]

@@ -363,6 +363,11 @@
        (into #{})
        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze})))
 
+;; TODO search for MACD signals
+{:signal :up, :why :macd-signal-crossover}
+{:signal :down, :why :macd-signal-crossover}
+{:signal :up, :why :macd-histogram-troughs}
+{:signal :down, :why :macd-histogram-crests}
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [client
                                                             {last-trade-price :last-trade-price
                                                              last-trade-price-average :last-trade-price-average
@@ -390,6 +395,24 @@
         ;;        (into #{})
         ;;        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :moving-average-crossover}))
 
+        ;; [macd-signal-crossover-up macd-signal-crossover-down]
+
+        ;; macdx (->> (select [:signals ALL :why] joined-tick)
+        ;;            (into #{})
+        ;;            (clojure.set/subset? #{:macd-signal-crossover}))
+
+        macdx (-> (:signals joined-tick)
+                  (map #(= {:signal :down :why :macd-signal-crossover} (select-keys % [:signal :why]))))
+
+        macdt (->> (select [:signals ALL :why] joined-tick)
+                   (into #{})
+                   (clojure.set/subset? #{:macd-histogram-troughs}))
+
+        macdc (->> (select [:signals ALL :why] joined-tick)
+                   (into #{})
+                   (clojure.set/subset? #{:macd-histogram-crests}))
+
+
         exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
         not-holding-position? (not (> (:position (->account-positions client (-> ewrapper/ewrapper :default-channels :position-updates))) 0))
         not-down-market? (->> (select [:signals ALL :why] joined-tick)
@@ -400,12 +423,13 @@
                                               (into #{})
                                               (clojure.set/subset? #{:exponential-average-gap-growing}))]
 
-    (info "[up-market? std-dev [crossover exp-gap-inc?] price [latest-bid]] /"
+    (info "[up-market? std-dev [crossover exp-gap-inc?] price [MACD U D]] /"
           [not-down-market?
            (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
            [a [exponential-average-gap-growing? exponential-abouve-average?]]
            last-trade-price
-           [@common/latest-bid]])
+           [macdx macdt macdc]
+           #_[macd-signal-crossover-up macd-signal-crossover-down]])
     (when
         (or
 
