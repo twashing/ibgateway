@@ -295,7 +295,8 @@
                        :value
                        conditionally-apply-margin)
 
-        qty (derive-order-quantity cash-level price)
+        ;; qty (derive-order-quantity cash-level price)
+        qty 100
         live-run? (Boolean/parseBoolean (env :live-run "true"))
         sufficient-quantity? (>= qty 1)
 
@@ -310,11 +311,11 @@
 
            [false _] (do
                        (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
-                       #_(do
+                       (do
                          (market/buy-stock client order-id order-type account-name instrm qty price)
 
                          ;; SAVE TIME - Immediately do balancing sell
-                         (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
+                         ;; (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
                          (reset! *holding-position* true)))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
@@ -440,6 +441,9 @@
            last-trade-price
            [macdt macdc "| U" macd-crossover-up "D" macd-crossover-down]
            #_[macd-signal-crossover-up macd-signal-crossover-down]])
+
+
+    ;; BUY condition
     (when
         (or
 
@@ -447,12 +451,19 @@
                (> @latest-standard-deviation 0.6)
                (and a exponential-average-gap-growing? exponential-abouve-average?))
 
-          (and not-down-market?
+          #_(and not-down-market?
                not-holding-position?
                (> @latest-standard-deviation 1)
                (and exponential-average-gap-growing? exponential-abouve-average?)))
 
-      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))))
+      (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
+
+    ;; SELL when macd-crossover-down
+    (when (and macd-crossover-down
+               (not not-holding-position?))
+
+      (common/balancing-sell client {:symbol "AMZN"} {:quantity 100 :price last-trade-price} valid-order-ids-ch)
+      (reset! *holding-position* false))))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
                                     {account-updates-ch :account-updates
