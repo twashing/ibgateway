@@ -387,10 +387,11 @@
 
     ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
-    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.")
+    (def fname "live-recordings/2018-12-24-AMZN.edn")
     ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
     ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
-    (def fname "live-recordings/2019-06-18-AMZN.edn")
+    ;; (def fname "live-recordings/2019-06-18-AMZN.edn")
 
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
@@ -423,7 +424,7 @@
   (thread
     (ee/setup-execution-engine @joined-channel-map execution-engine-output-ch ew/ewrapper instrument account-name))
 
-  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 25))
+  (sw/kickoff-stream-workbench (-> ew/ewrapper :ewrapper :wrapper) control-channel fname 10))
 
 
 (comment  ;; A scanner workbench

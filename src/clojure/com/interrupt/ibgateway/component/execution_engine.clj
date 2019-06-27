@@ -401,8 +401,18 @@
         ;;            (into #{})
         ;;            (clojure.set/subset? #{:macd-signal-crossover}))
 
-        macdx (-> (:signals joined-tick)
-                  (map #(= {:signal :down :why :macd-signal-crossover} (select-keys % [:signal :why]))))
+        ;; {:signals [{:signal :up, :why :moving-average-crossover}]}
+
+        joined-tick-set (->> (:signals joined-tick)
+                             (into #{}))
+
+        macd-crossover-down (->> joined-tick-set
+                                 (some #{{:signal :down :why :macd-signal-crossover}})
+                                 some?)
+
+        macd-crossover-up (->> joined-tick-set
+                               (some #{{:signal :up :why :macd-signal-crossover}})
+                               some?)
 
         macdt (->> (select [:signals ALL :why] joined-tick)
                    (into #{})
@@ -423,12 +433,12 @@
                                               (into #{})
                                               (clojure.set/subset? #{:exponential-average-gap-growing}))]
 
-    (info "[up-market? std-dev [crossover exp-gap-inc?] price [MACD U D]] /"
+    (info "[up-market? std-dev [crossover exp-gap-inc?] price [MACD T C | U D]] /"
           [not-down-market?
            (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
            [a [exponential-average-gap-growing? exponential-abouve-average?]]
            last-trade-price
-           [macdx macdt macdc]
+           [macdt macdc "| U" macd-crossover-up "D" macd-crossover-down]
            #_[macd-signal-crossover-up macd-signal-crossover-down]])
     (when
         (or
