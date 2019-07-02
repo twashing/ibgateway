@@ -585,9 +585,9 @@
   ;; TODO Oversold - price (preferably a bid) lands below the lower band
 
   (let [;; Track widest & narrowest band over the last 'n' (3) ticks
-        ;; sorted-bands (sort-bollinger-band bollinger-band)
+        sorted-bands (sort-bollinger-band bollinger-band)
         ;; most-narrow (take 2 sorted-bands)
-        ;; most-wide (take-last 2 sorted-bands)
+        most-wide (take-last 2 sorted-bands)
 
         partitioned-list (->> (partition 2 1 bollinger-band)
                               (take-last market-trend-by-ticks))
@@ -612,7 +612,7 @@
         ;; bollinger-band-squeeze? (some #(< latest-diff (:difference %)) most-narrow)
 
         ;; Find last 3 peaks and valleys
-        ;; peaks-valleys (common/find-peaks-valleys nil bollinger-band)
+        peaks-valleys (common/find-peaks-valleys nil bollinger-band)
         ;; peaks (:peak (group-by :signal peaks-valleys))
         ;; valleys (:valley (group-by :signal peaks-valleys))
 
@@ -654,11 +654,11 @@
       ;; iii. look for RSI Divergence - i. price makes a higher high, ii. rsi makes a lower high
       ;; iv. (entry signal) a close beneath the prior 3 bars
       ;;
-      ;; any-market? (analysis-rsi-divergence most-wide peaks-valleys)
+      true (analysis-rsi-divergence most-wide peaks-valleys)
 
 
       ;; TODO
-      ;; sideways-market? (analysis-overbought-oversold peaks-valleys)
+      true (analysis-overbought-oversold peaks-valleys)
       ;; (and up-market? bollinger-band-squeeze?) (analysis-up-market+bollinger-band-squeeze valleys)
       ;; (and down-market? bollinger-band-squeeze?) (analysis-down-market+bollinger-band-squeeze peaks)
 
@@ -779,3 +779,4 @@
   (def c (automata [(a/+ :bollinger-band-squeeze)
                     (a/+ :volume-spike)
                     (a/+ :percent-b-abouve-50)])))
+

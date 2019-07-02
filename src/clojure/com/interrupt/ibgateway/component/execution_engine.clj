@@ -86,12 +86,9 @@
 
 (defn which-signals? [joined-ticked]
   (->> joined-ticked
-       vals
-       (map :signals)
-       (keep identity)
-       flatten
+       :signals
        ((juxt has-lagging-signal? has-leading-signal? has-confirming-signal?))
-       (map identity-or-empty)))
+       #_(map identity-or-empty)))
 
 
 (def one
@@ -167,7 +164,6 @@
   ([_ account-updates-ch f]
    (f)
    (<!! account-updates-ch)))
-
 
 (defn ->account-positions
 
@@ -311,11 +307,11 @@
 
            [false _] (do
                        (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
-                       (do
+                       #_(do
                          (market/buy-stock client order-id order-type account-name instrm qty price)
 
                          ;; SAVE TIME - Immediately do balancing sell
-                         ;; (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
+                         (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
                          (reset! *holding-position* true)))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
@@ -365,10 +361,6 @@
        (clojure.set/subset? #{:strategy-bollinger-bands-squeeze :percent-b-below-50 :bollinger-band-squeeze})))
 
 ;; TODO search for MACD signals
-{:signal :up, :why :macd-signal-crossover}
-{:signal :down, :why :macd-signal-crossover}
-{:signal :up, :why :macd-histogram-troughs}
-{:signal :down, :why :macd-histogram-crests}
 (defn extract-signals-for-strategy-bollinger-bands-squeeze [client
                                                             {last-trade-price :last-trade-price
                                                              last-trade-price-average :last-trade-price-average
@@ -404,6 +396,8 @@
 
         ;; {:signals [{:signal :up, :why :moving-average-crossover}]}
 
+        signals (-> joined-tick which-signals?)
+
         joined-tick-set (->> (:signals joined-tick)
                              (into #{}))
 
@@ -434,24 +428,23 @@
                                               (into #{})
                                               (clojure.set/subset? #{:exponential-average-gap-growing}))]
 
-    (info "[up-market? std-dev [crossover exp-gap-inc?] price [MACD T C | U D]] /"
+    (info "[up-market? std-dev [crossover exp-gap-inc?] price which-signals?] /"
           [not-down-market?
            (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
            [a [exponential-average-gap-growing? exponential-abouve-average?]]
            last-trade-price
-           [macdt macdc "| U" macd-crossover-up "D" macd-crossover-down]
-           #_[macd-signal-crossover-up macd-signal-crossover-down]])
+           signals])
 
 
     ;; BUY condition
     (when
         (or
 
-          (and not-holding-position?
-               (> @latest-standard-deviation 0.6)
+          #_(and not-holding-position?
+               (> @latest-standard-deviation 0.8)
                (and a exponential-average-gap-growing? exponential-abouve-average?))
 
-          #_(and not-down-market?
+          (and not-down-market?
                not-holding-position?
                (> @latest-standard-deviation 1)
                (and exponential-average-gap-growing? exponential-abouve-average?)))
@@ -459,7 +452,7 @@
       (buy-stock client joined-tick account-updates-ch valid-order-ids-ch account-name instrm))
 
     ;; SELL when macd-crossover-down
-    (when (and macd-crossover-down
+    #_(when (and macd-crossover-down
                (not not-holding-position?))
 
       (common/balancing-sell client {:symbol "AMZN"} {:quantity 100 :price last-trade-price} valid-order-ids-ch)

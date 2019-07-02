@@ -10,9 +10,11 @@
 (def balancing-sell-standard-deviation-multiple (Float/parseFloat (env :balancing-sell-standard-deviation-multiple "2")))
 (def balancing-sell-type (env :balancing-sell-type "LIMIT"))
 
-;; (def balancing-sell-standard-deviation-multiple 0.4)
+;; (def balancing-sell-standard-deviation-multiple 0.15)
 ;; (def balancing-sell-type "TRAIL")
 ;; (def balancing-sell-type "LIMIT")
+;; (def balancing-sell-type "MKT")
+
 
 
 (defn bind-channels->mult [source-list-ch & channels]
@@ -142,6 +144,7 @@
   (case balancing-sell-type
         "TRAIL" (sell-trailing client stock order valid-order-id-ch)
         "LIMIT" (sell-limit client stock order valid-order-id-ch)
+        "MKT" (sell-market client stock order valid-order-id-ch "DU542121")
         (sell-limit client stock order valid-order-id-ch)))
 
 (defn process-order-filled-notifications [client {:keys [stock order] :as val} valid-order-id-ch]
