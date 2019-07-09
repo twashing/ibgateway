@@ -10,7 +10,7 @@
             [environ.core :refer [env]]
             [mount.core :refer [defstate] :as mount]
             [com.interrupt.edgar.scanner :as scanner]
-            [com.interrupt.ibgateway.component.common :refer :all :as common]
+            [com.interrupt.ibgateway.component.common :refer :all :as cm]
             [com.interrupt.ibgateway.component.ewrapper :as ewrapper]
             [com.interrupt.ibgateway.component.account :refer [account account-name account-summary-tags
                                                                consume-order-updates *holding-position*]]
@@ -208,8 +208,7 @@
                               %)]
 
     (-> (max-quantity-fn quantity)
-        max-purchase-value)
-    ))
+        max-purchase-value)))
 
 ;; (cap-order-quantity 131 1938.17)
 ;; (* 1938.14 103)
@@ -276,12 +275,12 @@
 
 
 (defn buy-stock [client joined-tick account-updates-ch valid-order-id-ch account-name instrm]
-  (let [;; order-type "MKT"
-        order-type "LMT"
+  (let [order-type "MKT"
+        ;; order-type "LMT"
         ;; order-type "TRAIL"
 
         latest-price (-> joined-tick :last-trade-price)
-        latest-bid @common/latest-bid
+        latest-bid @cm/latest-bid
         price (if (< latest-price latest-bid)
                 latest-price latest-bid)
         price latest-price
@@ -291,8 +290,8 @@
                        :value
                        conditionally-apply-margin)
 
-        ;; qty (derive-order-quantity cash-level price)
-        qty 100
+        qty (derive-order-quantity cash-level price)
+
         live-run? (Boolean/parseBoolean (env :live-run "true"))
         sufficient-quantity? (>= qty 1)
 
@@ -307,11 +306,11 @@
 
            [false _] (do
                        (info "3 - TEST RUN buy-stock / [price qty]" [price qty])
-                       #_(do
+                       (do
                          (market/buy-stock client order-id order-type account-name instrm qty price)
 
                          ;; SAVE TIME - Immediately do balancing sell
-                         (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
+                         (cm/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
                          (reset! *holding-position* true)))
            [true false] (info "3 - CANNOT buy-stock / [cash-level price qty]"  [cash-level price qty])
            [true true] (do
@@ -321,20 +320,20 @@
                                (market/buy-stock client order-id order-type account-name instrm qty price)
 
                                ;; SAVE TIME - Immediately do balancing sell
-                               (common/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
+                               (cm/balancing-sell client {:symbol instrm} {:quantity qty :price price} valid-order-id-ch)
                                (reset! *holding-position* true)))))))
 
 
 (comment
 
-  (let [[instrm quantity price] ["AMZN" 1 @common/latest-bid]
+  (let [[instrm quantity price] ["AMZN" 1 @cm/latest-bid]
         valid-order-id-ch (-> ewrapper/ewrapper :default-channels :valid-order-ids)
         client (-> ewrapper/ewrapper :ewrapper :client)
         order-type "LMT"
         order-id (->next-valid-order-id client valid-order-id-ch)]
 
     (market/buy-stock client order-id order-type account-name instrm quantity price)
-    (common/balancing-sell client {:symbol instrm} {:quantity quantity :price price} valid-order-id-ch))
+    (cm/balancing-sell client {:symbol instrm} {:quantity quantity :price price} valid-order-id-ch))
 
   (def one {:signals '({:signal :up, :why :strategy-bollinger-bands-squeeze}
                        {:signal :up, :why :percent-b-abouve-50}
@@ -396,7 +395,7 @@
 
         ;; {:signals [{:signal :up, :why :moving-average-crossover}]}
 
-        signals (-> joined-tick which-signals?)
+        ;; signals (-> joined-tick which-signals?)
 
         joined-tick-set (->> (:signals joined-tick)
                              (into #{}))
@@ -409,13 +408,13 @@
                                (some #{{:signal :up :why :macd-signal-crossover}})
                                some?)
 
-        macdt (->> (select [:signals ALL :why] joined-tick)
-                   (into #{})
-                   (clojure.set/subset? #{:macd-histogram-troughs}))
-
-        macdc (->> (select [:signals ALL :why] joined-tick)
-                   (into #{})
-                   (clojure.set/subset? #{:macd-histogram-crests}))
+        ;; macdt (->> (select [:signals ALL :why] joined-tick)
+        ;;            (into #{})
+        ;;            (clojure.set/subset? #{:macd-histogram-troughs}))
+        ;;
+        ;; macdc (->> (select [:signals ALL :why] joined-tick)
+        ;;            (into #{})
+        ;;            (clojure.set/subset? #{:macd-histogram-crests}))
 
 
         exponential-abouve-average? (> last-trade-price-exponential last-trade-price-average)
@@ -433,18 +432,19 @@
            (clojure.pprint/cl-format nil "~,2f" @latest-standard-deviation)
            [a [exponential-average-gap-growing? exponential-abouve-average?]]
            last-trade-price
-           signals])
+           ;; signals
+           ])
 
 
     ;; BUY condition
     (when
         (or
 
-          #_(and not-holding-position?
-               (> @latest-standard-deviation 0.8)
+          (and not-holding-position?
+               (> @latest-standard-deviation 1)
                (and a exponential-average-gap-growing? exponential-abouve-average?))
 
-          (and not-down-market?
+          #_(and not-down-market?
                not-holding-position?
                (> @latest-standard-deviation 1)
                (and exponential-average-gap-growing? exponential-abouve-average?)))
@@ -455,7 +455,7 @@
     #_(when (and macd-crossover-down
                (not not-holding-position?))
 
-      (common/balancing-sell client {:symbol "AMZN"} {:quantity 100 :price last-trade-price} valid-order-ids-ch)
+      (cm/balancing-sell client {:symbol "AMZN"} {:quantity 100 :price last-trade-price} valid-order-ids-ch)
       (reset! *holding-position* false))))
 
 (defn extract-signals+decide-order [client joined-tick instrm account-name
@@ -584,7 +584,7 @@
         ;; (info "AFTER | count:" c " / last-trade-price:" last-trade-price " / joined-tick /" joined-tick)
 
         ;; TODO design a better way to capture running standard-deviation
-        (reset! common/latest-standard-deviation (:standard-deviation joined-tick))
+        (reset! cm/latest-standard-deviation (:standard-deviation joined-tick))
 
         ;; TODO B) extract-signals-for-strategy-bollinger-bands-squeeze
         (when (:upper-band joined-tick)
@@ -603,7 +603,7 @@
 (defn scan-for-latest-bid [input-ch]
   (go-loop [tick (<! input-ch)]
     (when (:last-bid-price tick)
-      (reset! common/latest-bid (:last-bid-price tick)))
+      (reset! cm/latest-bid (:last-bid-price tick)))
     (recur (<! input-ch))))
 
 (defn setup-execution-engine [{joined-channel :joined-channel
@@ -1026,8 +1026,8 @@
 
     (def client (-> ewrapper/ewrapper :ewrapper :client))
     (def source-ch (-> ewrapper/ewrapper :ewrapper :publisher))
-    (def processing-pipeline-output-ch (chan (sliding-buffer 40)))
-    (def execution-engine-output-ch (chan (sliding-buffer 40)))
+    (def processing-pipeline-output-ch (chan (sliding-buffer cm/moving-average-window)))
+    (def execution-engine-output-ch (chan (sliding-buffer cm/moving-average-window)))
     (def joined-channel-map (promise)))
 
   (thread

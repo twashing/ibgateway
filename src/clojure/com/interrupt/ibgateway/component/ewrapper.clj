@@ -3,6 +3,7 @@
             [clojure.core.async :as async :refer [<! close!]]
             [environ.core :refer [env]]
             [mount.core :as mount :refer [defstate]]
+            [com.interrupt.ibgateway.component.common :as cm]
             [com.interrupt.ibgateway.component.account.contract :as contract]
             [com.interrupt.ibgateway.component.ewrapper-impl :as ewi]
             [com.interrupt.ibgateway.component.account.common :refer [next-reqid! release-reqid!]])
@@ -15,7 +16,7 @@
 (def client-id (atom nil))
 
 (defn setup-default-channels []
-  {:publisher (-> 100 async/sliding-buffer async/chan)
+  {:publisher (-> cm/moving-average-window async/sliding-buffer async/chan)
    :account-updates (-> 1 async/sliding-buffer async/chan)
    :position-updates (-> 1 async/sliding-buffer async/chan)
    :order-updates (-> 100 async/sliding-buffer async/chan)

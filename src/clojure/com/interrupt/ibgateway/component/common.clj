@@ -7,10 +7,14 @@
   (:import [com.ib.client Order]))
 
 
+(def moving-average-window 10)
+(def sliding-buffer-window (* moving-average-window 2))
+(def moving-average-increment 1)
+
 (def balancing-sell-standard-deviation-multiple (Float/parseFloat (env :balancing-sell-standard-deviation-multiple "2")))
 (def balancing-sell-type (env :balancing-sell-type "LIMIT"))
 
-;; (def balancing-sell-standard-deviation-multiple 0.15)
+;; (def balancing-sell-standard-deviation-multiple 0.05)
 ;; (def balancing-sell-type "TRAIL")
 ;; (def balancing-sell-type "LIMIT")
 ;; (def balancing-sell-type "MKT")

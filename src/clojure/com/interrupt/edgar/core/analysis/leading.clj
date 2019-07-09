@@ -1,5 +1,6 @@
 (ns com.interrupt.edgar.core.analysis.leading
-  (:require [com.interrupt.edgar.core.utils :refer [not-nil?]]
+  (:require [com.interrupt.ibgateway.component.common :as cm]
+            [com.interrupt.edgar.core.utils :refer [not-nil?]]
             [com.interrupt.edgar.core.analysis.lagging :as lagging]
             [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
 
@@ -47,9 +48,9 @@
   (let [{macd-fast :macd-window-fast
          macd-slow :macd-window-slow
          signal-window :signal-window
-         :or {macd-fast 6 ; 12 30%
-              macd-slow 13 ; 26 65%
-              signal-window 4 ; 9 22.5%
+         :or {macd-fast (* 0.3 cm/moving-average-window) ; 6 ; 12 30%
+              macd-slow (* 0.65 cm/moving-average-window) ; 13 ; 26 65%
+              signal-window (Math/round (* 0.225 cm/moving-average-window)) ; 4 ; 9 22.5%
               }} options
 
         ;; 1. compute 12 EMA

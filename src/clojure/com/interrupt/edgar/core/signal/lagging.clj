@@ -654,11 +654,11 @@
       ;; iii. look for RSI Divergence - i. price makes a higher high, ii. rsi makes a lower high
       ;; iv. (entry signal) a close beneath the prior 3 bars
       ;;
-      true (analysis-rsi-divergence most-wide peaks-valleys)
+      ;; true (analysis-rsi-divergence most-wide peaks-valleys)
 
 
       ;; TODO
-      true (analysis-overbought-oversold peaks-valleys)
+      ;; true (analysis-overbought-oversold peaks-valleys)
       ;; (and up-market? bollinger-band-squeeze?) (analysis-up-market+bollinger-band-squeeze valleys)
       ;; (and down-market? bollinger-band-squeeze?) (analysis-down-market+bollinger-band-squeeze peaks)
 
