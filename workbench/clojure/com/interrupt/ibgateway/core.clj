@@ -5,6 +5,7 @@
             [clojure.tools.logging :refer [debug info warn error]]
             [clojure.tools.trace :refer [trace]]
             [com.interrupt.edgar.core.utils :refer [set-log-level]]
+            [com.interrupt.ibgateway.component.common :as cm]
             [com.interrupt.ibgateway.component.account :refer [account-name]]
             [com.interrupt.ibgateway.component.account.portfolio :as portfolio]
             [com.interrupt.ibgateway.component.account.summary :as acct-summary]
@@ -218,7 +219,7 @@
     ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def output-ch (chan (sliding-buffer 40)))
+    (def output-ch (chan (sliding-buffer cm/sliding-buffer-window)))
     (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
 
@@ -316,7 +317,7 @@
     (def ticker-id 0)
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
 
-    (def output-ch (chan (sliding-buffer 40)))
+    (def output-ch (chan (sliding-buffer cm/sliding-buffer-window)))
     (def joined-channel-map (pp/setup-publisher-channel source-ch output-ch instrument concurrency ticker-id)))
 
 
@@ -375,9 +376,7 @@
     ;; CASH LEVEL
     (.reqAccountSummary client 9001 "All" "TotalCashValue")
     (ee/->account-cash-level client (-> ew/ewrapper :default-channels :account-updates))
-    (ee/->cancel-account-cash-level client)
-
-    )
+    (ee/->cancel-account-cash-level client))
 
   (do
 
@@ -389,15 +388,16 @@
 
     ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
     ;; (def fname "live-recordings/2018-08-27-TSLA.edn")
-    ;; (def fname "live-recordings/2018-08-20-TSLA.edn")
+    ;; (def fname "live-recordings/2018-08-20-TSLA.")
+    (def fname "live-recordings/2018-12-24-AMZN.edn")
     ;; (def fname "live-recordings/2019-05-23-AMZN.edn")
     ;; (def fname "live-recordings/2019-05-24-AMZN.edn")
-    (def fname "live-recordings/2019-06-18-AMZN.edn")
+    ;; (def fname "live-recordings/2019-06-18-AMZN.edn")
 
 
     (def source-ch (-> ew/ewrapper :ewrapper :publisher))
-    (def output-ch (chan (sliding-buffer 40)))
-    (def execution-engine-output-ch (chan (sliding-buffer 40)))
+    (def output-ch (chan (sliding-buffer cm/sliding-buffer-window)))
+    (def execution-engine-output-ch (chan (sliding-buffer cm/sliding-buffer-window)))
 
     (def joined-channel-map (promise)))
 
@@ -469,7 +469,7 @@
                                                 :skey-streams {:tick-list tick-list->MACD
                                                                :sma-list sma-list->MACD}})
 
-        connector-ch (chan (sliding-buffer 40))]
+        connector-ch (chan (sliding-buffer cm/sliding-buffer-window))]
 
     ;; OK
     #_(go-loop [r (<! tick-list->macd-ch)]
@@ -1261,21 +1261,21 @@
                      {:uuid "2" :last-trade-price 11.2}
                      {:uuid "3" :last-trade-price 11.3}]
 
-          ec (chan (sliding-buffer 40))
-          sc (chan (sliding-buffer 40))
-          tc (chan (sliding-buffer 40))
+          ec (chan (sliding-buffer cm/sliding-buffer-window))
+          sc (chan (sliding-buffer cm/sliding-buffer-window))
+          tc (chan (sliding-buffer cm/sliding-buffer-window))
 
           _ (onto-chan ec ema-list)
           _ (onto-chan sc sma-list)
           _ (onto-chan tc tick-list)
 
           merged-ch (async/merge [tc sc ec])
-          #_output-ch #_(chan (sliding-buffer 40) (join-averages (fn [ac e]
+          #_output-ch #_(chan (sliding-buffer cm/sliding-buffer-window) (join-averages (fn [ac e]
                                                                     (log/info "ac" ac)
                                                                     (log/info "e" e)
                                                                     (concat ac (list e)))))
 
-          output-ch (chan (sliding-buffer 40) (filter :joined))]
+          output-ch (chan (sliding-buffer cm/sliding-buffer-window) (filter :joined))]
 
       #_(async/pipe merged-ch output-ch)
       #_(go-loop [r (<! output-ch)]

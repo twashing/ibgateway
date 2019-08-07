@@ -15,7 +15,7 @@
             [automata.refactor :refer [automata advance] :as a]
 
             [com.interrupt.ibgateway.component.ewrapper :as ew]
-            [com.interrupt.ibgateway.component.common :refer [bind-channels->mult]]
+            [com.interrupt.ibgateway.component.common :refer [bind-channels->mult] :as cm]
             [com.interrupt.edgar.ib.market :as mkt]
             [com.interrupt.edgar.core.analysis.lagging :as alag]
             [com.interrupt.edgar.core.analysis.leading :as alead]
@@ -28,8 +28,6 @@
             [manifold.stream :as stream]))
 
 
-(def moving-average-window 20)
-(def moving-average-increment 1)
 (def rt-volume-time-and-sales-type 48)
 (def tick-string-type :tick-string)
 (def tick-price-type :tick-price)
@@ -191,15 +189,13 @@
                                  ema-list-ch bollinger-band-ch]
 
   (pipeline concurrency sma-list-ch (map (partial alag/simple-moving-average options)) tick-list->sma-ch)
-  (pipeline concurrency ema-list-ch (map (partial alag/exponential-moving-average options moving-average-window)) sma-list-ch)
-  (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band moving-average-window)) ema-list-ch))
+  (pipeline concurrency ema-list-ch (map (partial alag/exponential-moving-average options cm/sliding-buffer-window)) sma-list-ch)
+  (pipeline concurrency bollinger-band-ch (map (partial alag/bollinger-band cm/sliding-buffer-window)) ema-list-ch))
 
 (defn pipeline-analysis-leading [concurrency options moving-average-window
-                                 macd-ch sma-list->macd-ch
-                                 stochastic-oscillator-ch tick-list->stochastic-osc-ch]
+                                 macd-ch sma-list->macd-ch]
 
-  (pipeline concurrency macd-ch (map (partial alead/macd options moving-average-window)) sma-list->macd-ch)
-  (pipeline-stochastic-oscillator concurrency stochastic-oscillator-ch tick-list->stochastic-osc-ch))
+  (pipeline concurrency macd-ch (map (partial alead/macd options moving-average-window)) sma-list->macd-ch))
 
 (defn pipeline-analysis-confirming [concurrency on-balance-volume-ch tick-list->obv-ch
                                     relative-strength-ch tick-list->relative-strength-ch]
@@ -220,12 +216,12 @@
                                 (string-check :last-trade-price-exponential)
                                 (string-check :last-trade-price-average)))
 
-        partition-xf (x/partition moving-average-signal-window moving-average-increment (x/into []))
+        partition-xf (x/partition moving-average-signal-window cm/moving-average-increment (x/into []))
         join-xf (map #(map strings->numbers %))
 
-        ;; remove-population-ch (chan (sliding-buffer 40) remove-population-xf)
-        ;; partitioned-ch (chan (sliding-buffer 40) partition-xf)
-        partitioned-joined-ch (chan (sliding-buffer 40) join-xf)]
+        ;; remove-population-ch (chan (sliding-buffer sliding-buffer-window) remove-population-xf)
+        ;; partitioned-ch (chan (sliding-buffer sliding-buffer-window) partition-xf)
+        partitioned-joined-ch (chan (sliding-buffer cm/sliding-buffer-window) join-xf)]
 
     ;; (pipeline concurrency partitioned-ch (map identity) connector-ch)
     (pipeline concurrency partitioned-joined-ch (map identity) connector-ch)
@@ -449,16 +445,16 @@
                                                matches-window-size?))
 
         ;; Channels
-        partitioned-ch (chan (sliding-buffer 40) partition-xf)
-        bollinger-band-exists-ch (chan (sliding-buffer 40) bollinger-band-exists-xf)
-        ach (chan (sliding-buffer 40) partition-xf)
-        ;; bch (chan (sliding-buffer 40) (map extracdt-signals-for-strategy-bollinger-bands-squeeze))
-        bch (chan (sliding-buffer 40))
+        partitioned-ch (chan (sliding-buffer cm/sliding-buffer-window) partition-xf)
+        bollinger-band-exists-ch (chan (sliding-buffer cm/sliding-buffer-window) bollinger-band-exists-xf)
+        ach (chan (sliding-buffer cm/sliding-buffer-window) partition-xf)
+        ;; bch (chan (sliding-buffer cm/sliding-buffer-window) (map extracdt-signals-for-strategy-bollinger-bands-squeeze))
+        bch (chan (sliding-buffer cm/sliding-buffer-window))
         ]
 
     (pipeline concurrency partitioned-ch (map identity) input-ch)
     (pipeline concurrency bollinger-band-exists-ch (map identity) partitioned-ch)
-    (pipeline concurrency bch (map (partial slag/bollinger-band moving-average-window)) bollinger-band-exists-ch)
+    (pipeline concurrency bch (map (partial slag/bollinger-band cm/sliding-buffer-window)) bollinger-band-exists-ch)
     (pipeline concurrency signal-bollinger-band-ch (map identity) bch)
 
 
@@ -481,56 +477,63 @@
 
 (defn pipeline-signals-leading [concurrency moving-average-window
                                 signal-macd-ch macd->macd-signal
-                                signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal]
+                                ;; signal-stochastic-oscillator-ch stochastic-oscillator->stochastic-oscillator-signal
+                                ]
 
-  (pipeline concurrency signal-macd-ch (map slead/macd) macd->macd-signal)
+  (let [partition-xf (x/partition moving-average-window 1 (x/into []))
+        partitioned-ch (chan (sliding-buffer cm/sliding-buffer-window) partition-xf)]
 
-  (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
-            stochastic-oscillator->stochastic-oscillator-signal))
+    (pipeline concurrency partitioned-ch (map identity) macd->macd-signal)
+    (pipeline concurrency signal-macd-ch (map slead/macd) partitioned-ch))
 
-(def partition-xform (x/partition moving-average-window moving-average-increment (x/into [])))
+  ;; (pipeline concurrency signal-stochastic-oscillator-ch (map slead/stochastic-oscillator)
+  ;;           stochastic-oscillator->stochastic-oscillator-signal)
+  )
+
+(def partition-xform (x/partition cm/moving-average-window cm/moving-average-increment (x/into [])))
 
 (defn channel-analytics []
-  {:source-list-ch (chan (sliding-buffer 40))
-   :parsed-list-ch (chan (sliding-buffer 40))
+  {:source-list-ch (chan (sliding-buffer cm/sliding-buffer-window))
+   :parsed-list-ch (chan (sliding-buffer cm/sliding-buffer-window))
 
-   :tick-list-ch (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
-   :sma-list-ch (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
-   :ema-list-ch (chan (sliding-buffer 40))
-   :bollinger-band-ch (chan (sliding-buffer 40))
+   :tick-list-ch (chan (sliding-buffer cm/sliding-buffer-window) (x/partition cm/moving-average-window cm/moving-average-increment (x/into [])))
+   :sma-list-ch (chan (sliding-buffer cm/sliding-buffer-window) (x/partition cm/moving-average-window cm/moving-average-increment (x/into [])))
+   :ema-list-ch (chan (sliding-buffer cm/sliding-buffer-window))
+   :bollinger-band-ch (chan (sliding-buffer cm/sliding-buffer-window))
+   :macd-ch (chan (sliding-buffer cm/sliding-buffer-window))
 
-   :tick-list->sma-ch (chan (sliding-buffer 40))
-   ;; :sma-list->ema-ch (chan (sliding-buffer 40))
-   ;; :sma-list->bollinger-band-ch (chan (sliding-buffer 40))
-   :lagging-signals-moving-averages-ch (chan (sliding-buffer 40))
-   :join-analytics->bollinger-band (chan (sliding-buffer 40))})
+   :tick-list->sma-ch (chan (sliding-buffer cm/sliding-buffer-window))
+   ;; :sma-list->ema-ch (chan (sliding-buffer cm/sliding-buffer-window))
+   ;; :sma-list->bollinger-band-ch (chan (sliding-buffer cm/sliding-buffer-window))
+   :lagging-signals-moving-averages-ch (chan (sliding-buffer cm/sliding-buffer-window))
+   :join-analytics->bollinger-band (chan (sliding-buffer cm/sliding-buffer-window))})
 
 (defn channel-join-mults []
-  {:tick-list->JOIN (chan (sliding-buffer 40) (map last))
-   :sma-list->JOIN (chan (sliding-buffer 40) (map last))
-   :ema-list->JOIN (chan (sliding-buffer 40) (map last))
-   :bollinger-band->JOIN (chan (sliding-buffer 40) (map last))
-   :sma-list->JOIN->bollinger (chan (sliding-buffer 40) (map last))
+  {:tick-list->JOIN (chan (sliding-buffer cm/sliding-buffer-window) (map last))
+   :sma-list->JOIN (chan (sliding-buffer cm/sliding-buffer-window) (map last))
+   :ema-list->JOIN (chan (sliding-buffer cm/sliding-buffer-window) (map last))
+   :bollinger-band->JOIN (chan (sliding-buffer cm/sliding-buffer-window) (map last))
+   :sma-list->JOIN->bollinger (chan (sliding-buffer cm/sliding-buffer-window) (map last))
 
-   ;; :macd->JOIN (chan (sliding-buffer 40) (map last))
-   ;; :stochastic-oscillator->JOIN (chan (sliding-buffer 40) (map last))
-   ;; :on-balance-volume->JOIN (chan (sliding-buffer 40) (map last))
-   ;; :relative-strength->JOIN (chan (sliding-buffer 40) (map last))
+   ;; :macd->JOIN (chan (sliding-buffer cm/sliding-buffer-window) (map last))
+   ;; :stochastic-oscillator->JOIN (chan (sliding-buffer cm/sliding-buffer-window) (map last))
+   ;; :on-balance-volume->JOIN (chan (sliding-buffer cm/sliding-buffer-window) (map last))
+   ;; :relative-strength->JOIN (chan (sliding-buffer cm/sliding-buffer-window) (map last))
    })
 
 (defn channel-signal-moving-averages []
-  {:tick-list->moving-averages-signal (chan (sliding-buffer 40))
-   :sma-list->moving-averages-signal (chan (sliding-buffer 40))
-   :ema-list->moving-averages-signal (chan (sliding-buffer 40))
-   :merged-averages (chan (sliding-buffer 40) (x/partition moving-average-window moving-average-increment (x/into [])))
-   :signal-merged-averages (chan (sliding-buffer 40))
-   :signal-moving-averages-ch (chan (sliding-buffer 40))})
+  {:tick-list->moving-averages-signal (chan (sliding-buffer cm/sliding-buffer-window))
+   :sma-list->moving-averages-signal (chan (sliding-buffer cm/sliding-buffer-window))
+   :ema-list->moving-averages-signal (chan (sliding-buffer cm/sliding-buffer-window))
+   :merged-averages (chan (sliding-buffer cm/sliding-buffer-window) (x/partition cm/sliding-buffer-window cm/moving-average-increment (x/into [])))
+   :signal-merged-averages (chan (sliding-buffer cm/sliding-buffer-window))
+   :signal-moving-averages-ch (chan (sliding-buffer cm/sliding-buffer-window))})
 
 (defn channel-signal-bollinger-band []
-  {:tick-list->bollinger-band-signal (chan (sliding-buffer 40))
-   :sma-list->bollinger-band-signal (chan (sliding-buffer 40))
-   :signal-bollinger-band (chan (sliding-buffer 40) (filter :joined))
-   :signal-bollinger-band-ch (chan (sliding-buffer 40))})
+  {:tick-list->bollinger-band-signal (chan (sliding-buffer cm/sliding-buffer-window))
+   :sma-list->bollinger-band-signal (chan (sliding-buffer cm/sliding-buffer-window))
+   :signal-bollinger-band (chan (sliding-buffer cm/sliding-buffer-window) (filter :joined))
+   :signal-bollinger-band-ch (chan (sliding-buffer cm/sliding-buffer-window))})
 
 (defn channel->stream [& channels]
   (map #(->> %
@@ -543,8 +546,9 @@
 (def filter-xform (comp (remove empty-last-trade-price?)
                      (filter rtvolume-time-and-sales?)))
 
-(defn foobar [tick-list-ch bollinger-band-ch
-              signal-moving-averages-ch signal-bollinger-band-ch]
+(defn foobar [tick-list-ch bollinger-band-ch macd-ch
+              signal-moving-averages-ch signal-bollinger-band-ch
+              signal-macd-ch]
 
   #_(go-loop [c 0 r (<! tick-list-ch)]
       (info "count: " c " / tick-list-ch INPUT " r)
@@ -556,6 +560,11 @@
       (when r
         (recur (inc c) (<! bollinger-band-ch))))
 
+  #_(go-loop [c 0 r (<! macd-ch)]
+    (info "count: " c " / macd-ch INPUT " r)
+    (when r
+      (recur (inc c) (<! macd-ch))))
+
   #_(go-loop [c 0 r (<! signal-moving-averages-ch)]
       (info "count: " c " / MA signals: " r)
       (when r
@@ -564,7 +573,12 @@
   #_(go-loop [c 0 r (<! signal-bollinger-band-ch)]
     (info "count: " c " / BB signals: " r)
     (when r
-      (recur (inc c) (<! signal-bollinger-band-ch)))))
+      (recur (inc c) (<! signal-bollinger-band-ch))))
+
+  (go-loop [c 0 r (<! signal-macd-ch)]
+    (info "count: " c " / MACD signals: " r)
+    (when r
+      (recur (inc c) (<! signal-macd-ch)))))
 
 (defn setup-publisher-channel [source-ch output-ch stock-name concurrency ticker-id-filter]
 
@@ -574,6 +588,7 @@
         ;; Channels Analytics
         {:keys [source-list-ch parsed-list-ch
                 tick-list-ch sma-list-ch ema-list-ch bollinger-band-ch
+                macd-ch
                 tick-list->sma-ch
 
                 ;; sma-list->ema-ch
@@ -593,7 +608,9 @@
         {:keys [tick-list->bollinger-band-signal sma-list->bollinger-band-signal
                 ;; signal-bollinger-band
                 signal-bollinger-band-ch]}
-        (channel-signal-bollinger-band)]
+        (channel-signal-bollinger-band)
+
+        signal-macd-ch (chan (sliding-buffer cm/sliding-buffer-window))]
 
 
     (doseq [source+mults [[source-list-ch parsed-list-ch]
@@ -611,16 +628,21 @@
                                sma-list-ch tick-list->sma-ch
                                ema-list-ch bollinger-band-ch)
 
+    (pipeline-analysis-leading concurrency options cm/sliding-buffer-window
+                               macd-ch bollinger-band-ch)
 
     ;; SIGNALS
-    (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
+    ;; (pipeline-signals-moving-average concurrency bollinger-band-ch signal-moving-averages-ch)
+    (pipeline-signals-moving-average concurrency macd-ch signal-moving-averages-ch)
 
 
-    ;; ;; TODO implement Trendlines (a Simple Moving Average?)
+    ;; TODO implement Trendlines (a Simple Moving Average?)
     (pipeline-signals-bollinger-band concurrency signal-moving-averages-ch signal-bollinger-band-ch)
 
+    #_(pipeline-signals-leading concurrency cm/sliding-buffer-window
+                              signal-macd-ch signal-bollinger-band-ch)
 
-    (foobar tick-list-ch bollinger-band-ch signal-moving-averages-ch signal-bollinger-band-ch)
+    #_(foobar tick-list-ch bollinger-band-ch macd-ch signal-moving-averages-ch signal-bollinger-band-ch signal-macd-ch)
 
 
     {:joined-channel signal-bollinger-band-ch

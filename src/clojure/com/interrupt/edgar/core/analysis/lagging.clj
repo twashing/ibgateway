@@ -110,10 +110,13 @@
 
                         ;; Will produce a map of etal-keys, with associated values in ech
                         ;; and merge the output key to the map
-                        (as-> etal-keys ek
+                        #_(as-> etal-keys ek
                             (zipmap ek ((apply juxt etal-keys) ech))
                             (assoc ek output-key ema-now)
-                            (list ek)))))
+                            (list ek))
+                        (-> ech
+                            (assoc output-key ema-now)
+                            list))))
             []
             sma-list)))
 

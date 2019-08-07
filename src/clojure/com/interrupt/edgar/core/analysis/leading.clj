@@ -1,5 +1,7 @@
 (ns com.interrupt.edgar.core.analysis.leading
-  (:require [com.interrupt.edgar.core.analysis.lagging :as lagging]
+  (:require [com.interrupt.ibgateway.component.common :as cm]
+            [com.interrupt.edgar.core.utils :refer [not-nil?]]
+            [com.interrupt.edgar.core.analysis.lagging :as lagging]
             [com.interrupt.edgar.core.analysis.common :refer [time-increases-left-to-right?]]))
 
 (defn macd-ticks
@@ -46,9 +48,9 @@
   (let [{macd-fast :macd-window-fast
          macd-slow :macd-window-slow
          signal-window :signal-window
-         :or {macd-fast 6 ; 12 30%
-              macd-slow 13 ; 26 65%
-              signal-window 4 ; 9 22.5%
+         :or {macd-fast (* 0.3 cm/moving-average-window) ; 6 ; 12 30%
+              macd-slow (* 0.65 cm/moving-average-window) ; 13 ; 26 65%
+              signal-window (Math/round (* 0.225 cm/moving-average-window)) ; 4 ; 9 22.5%
               }} options
 
         ;; 1. compute 12 EMA
@@ -64,12 +66,10 @@
         ;;   :last-trade-price-exponential 204.00119130504845})
         macd (map (fn [e1 e2]
 
-                    (if (and (-> e1 nil? not)
-                             (-> e2 nil? not))
+                    (if (and (not-nil? e1)
+                             (not-nil? e2))
 
-                      {:last-trade-price (:last-trade-price e1)
-                       :last-trade-time (:last-trade-time e1)
-                       :last-trade-macd (- (:last-trade-price-exponential e1) (:last-trade-price-exponential e2))}))
+                      (assoc e1 :last-trade-macd (- (:last-trade-price-exponential e1) (:last-trade-price-exponential e2)))))
                   ema-short
                   ema-long)
 
@@ -81,14 +81,12 @@
     ;; compute the difference, or divergence
     (map (fn [e-macd e-ema]
 
-           (if (and (-> e-macd nil? not)
-                    (-> e-ema nil? not))
+           (if (and (not-nil? e-macd)
+                    (not-nil? e-ema))
 
-             {:last-trade-price (:last-trade-price e-macd)
-              :last-trade-time (:last-trade-time e-macd)
-              :last-trade-macd (:last-trade-macd e-macd)
-              :ema-signal (:ema-signal e-ema)
-              :histogram (- (:last-trade-macd e-macd) (:ema-signal e-ema))}))
+             (assoc e-macd
+                    :ema-signal (:ema-signal e-ema)
+                    :histogram (- (:last-trade-macd e-macd) (:ema-signal e-ema)))))
          macd
          ema-signal)))
 
